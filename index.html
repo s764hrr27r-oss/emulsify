@@ -34,14 +34,27 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 #denied{position:absolute;inset:0;display:none;place-items:center;
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
-.deck{display:flex;align-items:center;justify-content:space-between;
+.deck{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
       padding:18px 34px calc(22px + env(safe-area-inset-bottom))}
+#chips{display:flex;gap:10px;align-items:center;justify-self:start}
+#lens{justify-self:end}
+#shutterwrap{justify-self:center}
 #chip{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
       overflow:hidden;position:relative;display:grid;place-items:center;flex:0 0 auto}
 #chip img{width:100%;height:100%;object-fit:cover;display:block}
-#chip .busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,10,10,.55)}
 @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
-#chip .busy .dot{animation:breathe 1.6s ease-in-out infinite}
+#tray{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
+      display:grid;place-items:center;flex:0 0 auto}
+#tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
+#traymenu{position:fixed;display:none;flex-direction:column;gap:6px;z-index:5;
+  background:rgba(10,10,10,.94);border:1px solid var(--hair);border-radius:14px;
+  padding:8px;left:24px;bottom:calc(env(safe-area-inset-bottom) + 106px);
+  max-height:52vh;overflow-y:auto}
+#traymenu.on{display:flex}
+#traymenu button{width:46px;height:46px;border-radius:6px;overflow:hidden;
+  border:1px solid var(--hair);display:grid;place-items:center}
+#traymenu img{width:100%;height:100%;object-fit:cover;display:block}
+#traymenu .dot.brew{animation:breathe 1.6s ease-in-out infinite}
 #shutterwrap{position:relative;flex:0 0 auto}
 #shutter{width:78px;height:78px;border-radius:50%;border:2.5px solid var(--w);
          display:grid;place-items:center}
@@ -74,16 +87,18 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   #frame{padding:calc(30px + env(safe-area-inset-top)) 116px 10px
                  calc(10px + env(safe-area-inset-left))}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
-  .deck{position:absolute;top:0;bottom:0;
+  .deck{position:absolute;top:0;bottom:0;display:flex;
         right:calc(env(safe-area-inset-right));width:112px;
         flex-direction:column;justify-content:center;gap:26px;padding:0}
   #shutterwrap{order:1}
   #shutter{width:70px;height:70px}
   #shutter i{width:57px;height:57px}
-  #chip{order:2}
+  #chips{order:2;flex-direction:column}
   .spacer{display:none}
   #lensmenu{right:calc(env(safe-area-inset-right) + 122px);bottom:auto;
             top:50%;transform:translateY(-50%)}
+  #traymenu{left:auto;right:calc(env(safe-area-inset-right) + 122px);
+            bottom:auto;top:50%;transform:translateY(-50%)}
 }
 
 /* ---------- print ---------- */
@@ -165,7 +180,10 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
     </div>
   </div>
   <div class="deck">
-    <button id="chip" aria-label="Prints"></button>
+    <div id="chips">
+      <button id="chip" aria-label="Prints"></button>
+      <button id="tray" aria-label="Developing" style="display:none"><span class="dot"></span></button>
+    </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
     <button id="lens" class="lensbtn" aria-label="Lens" style="visibility:hidden">1×</button>
   </div>
@@ -173,6 +191,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 
 <div id="lensveil"></div>
 <div id="lensmenu"></div>
+<div id="traymenu"></div>
 
 <div id="ring">
   <div id="ringfield"></div>
@@ -225,6 +244,24 @@ const allKeys = () => new Promise((res, rej) => {
 });
 let prints = await allKeys();
 let pending = 0;
+const cooking = new Set();          /* ids mid-develop right now */
+const unchosen = new Set();         /* developed, awaiting the easel */
+async function scanTray() {
+  const raw = await new Promise((res, rej) => {
+    const r = DB.transaction("prints").objectStore("prints").getAllKeys();
+    r.onsuccess = () => res(r.result.map(String)); r.onerror = () => rej(r.error);
+  });
+  const has = new Set(raw);
+  unchosen.clear();
+  for (const k of raw) {
+    if (!k.endsWith(":p")) continue;
+    const id = k.slice(0, -2);
+    if (has.has(id + ":wt")) continue;
+    let legacy = null; try { legacy = localStorage["wt" + id] || null; } catch (e) {}
+    if (!legacy) unchosen.add(id);
+  }
+}
+await scanTray();
 
 const urls = new Set();
 const mkURL = b => { const u = URL.createObjectURL(b); urls.add(u); return u; };
@@ -361,10 +398,11 @@ const closeLensMenu = () => {
 };
 $("lens").onclick = () => {
   if (!phys.length) return;
+  closeTrayMenu();
   const on = $("lensmenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
-$("lensveil").onclick = closeLensMenu;
+$("lensveil").onclick = () => { closeLensMenu(); closeTrayMenu(); };
 startCamera();
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible")
@@ -463,16 +501,16 @@ $("shutterwrap").onclick = async () => {
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
-  closeLensMenu();
+  closeLensMenu(); closeTrayMenu();
   $("flash").style.opacity = 1;
   setTimeout(() => $("flash").style.opacity = 0, 110);
   shutterVoice();
   try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
   c.width = c.height = 0;
-  pending++; paintChip();
   const id = String(Date.now());
   const seed = (Number(id) % 9000) + 1;
+  pending++; cooking.add(id); paintChip(); paintTray();
   try {
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed);
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
@@ -481,8 +519,10 @@ $("shutterwrap").onclick = async () => {
     await put("prints", id + ":p", printBlob);   // pristine kept for the easel
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
+    unchosen.add(id);
   } catch (e) { console.error(e); flagError(); }
-  pending--; paintChip();
+  cooking.delete(id);
+  pending--; paintChip(); paintTray();
 };
 function flagError() {
   const chip = $("chip");
@@ -490,23 +530,52 @@ function flagError() {
   setTimeout(() => chip.style.borderColor = "", 2500);
 }
 
-/* ---------- chip ---------- */
+/* ---------- chip (finished gallery) + tray (the drying line) ---------- */
+const newestProcessed = () =>
+  [...prints].reverse().find(k => !unchosen.has(k));
 async function paintChip() {
   const chip = $("chip"); chip.innerHTML = "";
-  const last = prints[prints.length - 1];
+  const last = newestProcessed();
   if (last) {
     const t = await thumbOf(last);
     if (t) { const img = document.createElement("img"); img.src = mkURL(t);
              chip.appendChild(img); }
   }
-  if (pending) {
-    const b = document.createElement("div"); b.className = "busy";
-    b.innerHTML = '<span class="dot"></span>';
-    chip.appendChild(b);
+}
+function paintTray() {
+  const busy = pending > 0, any = busy || unchosen.size > 0;
+  const t = $("tray");
+  t.style.display = any ? "" : "none";     /* nothing to process: one square */
+  t.querySelector(".dot").classList.toggle("brew", busy);
+  if (!any) closeTrayMenu();
+  else if ($("traymenu").classList.contains("on")) buildTrayMenu();
+}
+async function buildTrayMenu() {
+  const m = $("traymenu"); m.innerHTML = "";
+  const items = [...new Set([...cooking, ...unchosen])].sort().reverse();
+  for (const id of items) {
+    const b = document.createElement("button");
+    if (cooking.has(id)) {
+      b.innerHTML = '<span class="dot brew"></span>';   /* still in the bath */
+    } else {
+      const th = await thumbOf(id);
+      if (th) { const img = document.createElement("img");
+                img.src = mkURL(th); b.appendChild(img); }
+      b.onclick = () => { closeTrayMenu(); openPrint(id); };  /* continue it */
+    }
+    m.appendChild(b);
   }
 }
-paintChip();
-$("chip").onclick = () => { if (prints.length) openPrint(prints[prints.length - 1]); };
+const closeTrayMenu = () => { $("traymenu").classList.remove("on");
+  if (!$("lensmenu").classList.contains("on")) $("lensveil").classList.remove("on"); };
+$("tray").onclick = () => {
+  closeLensMenu();
+  const on = $("traymenu").classList.toggle("on");
+  $("lensveil").classList.toggle("on", on);
+  if (on) buildTrayMenu();
+};
+paintChip(); paintTray();
+$("chip").onclick = () => { const k = newestProcessed(); if (k) openPrint(k); };
 
 /* ---------- ring: the printer's easel ---------- */
 const RT = { tS: 8, tMax: 40, wS: 8, wMax: 16, gap: 10,
@@ -746,8 +815,9 @@ async function lockRing(w, t) {
     try { await put("prints", id + ":wt", w + "," + t); } catch (e) {}
     try { localStorage["wt" + id] = w + "," + t; } catch (e) {}
   } catch (e) { console.error(e); flagError(); }
+  unchosen.delete(id);
   RING.busy = false; RING.closing = false;
-  paintChip();
+  paintChip(); paintTray();
   openPrint(id);
 }
 
@@ -818,7 +888,7 @@ async function openPrint(id) {
   $("rering").style.visibility = pure ? "visible" : "hidden";
 
   const strip = $("strip"); strip.innerHTML = "";
-  for (const k of [...prints].reverse().slice(0, 40)) {
+  for (const k of [...prints].reverse().filter(k => !unchosen.has(k)).slice(0, 40)) {
     const t = await thumbOf(k); if (!t) continue;
     const b = document.createElement("button");
     if (k === id) b.className = "sel";
