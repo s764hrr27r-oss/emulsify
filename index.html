@@ -281,6 +281,7 @@ async function startCamera(deviceId) {
     stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
     $("video").srcObject = stream;
     $("denied").style.display = "none";
+    lensView();
     discoverLenses();
   } catch { $("denied").style.display = "grid"; }
   restarting = false;
@@ -298,6 +299,9 @@ async function discoverLenses() {
   const mark = l => /ultra/i.test(l) ? "13mm" : /tele/i.test(l) ? "77mm" : "26mm";
   back.sort((a, b) => rank(a.label) - rank(b.label));
   lenses = back.map(d => ({ id: d.deviceId, mark: mark(d.label) }));
+  const w0 = lenses.findIndex(l => l.mark === "26mm");
+  if (w0 >= 0) lenses.splice(w0 + 1, 0,      /* the nifty fifty: a 1.923x */
+    { id: lenses[w0].id, mark: "50mm", crop: 50 / 26 });  /* crop of the 26 */
   if (lenses.length > 1) {
     lensIdx = Math.max(0, lenses.findIndex(l => l.mark === "26mm"));
     const b = $("lens");
@@ -306,23 +310,36 @@ async function discoverLenses() {
   }
 }
 const lensOf = m => lenses.findIndex(l => l.mark === m);
+function lensView() {          /* WYSIWYG: the glass shows what the neg gets */
+  const c = lenses[lensIdx] && lenses[lensIdx].crop;
+  $("video").style.transform = c ? "scale(" + c + ")" : "none";
+}
 function setLens(i) {
-  if (i < 0 || i === lensIdx || restarting) return;
+  if (i < 0 || i === lensIdx) return;
+  const sameDev = lenses[i] && lenses[lensIdx] &&
+                  lenses[i].id === lenses[lensIdx].id;
+  if (!sameDev && restarting) return;
   lensIdx = i;
   $("lens").textContent = lenses[i].mark;
-  startCamera(lenses[i].id);
+  lensView();
+  if (!sameDev) startCamera(lenses[i].id);   /* 26 <-> 50 never restarts */
 }
 let lensHold = 0, lensHeld = false;
 $("lens").addEventListener("pointerdown", () => {
   if (lenses.length < 2) return;
   lensHeld = false;
-  lensHold = setTimeout(() => { lensHeld = true; setLens(lensOf("77mm")); }, 450);
+  lensHold = setTimeout(() => {
+    lensHeld = true;
+    const fifty = lensOf("50mm"), tele = lensOf("77mm");
+    setLens(lensIdx === fifty && tele >= 0 ? tele : fifty);
+  }, 450);
 });
 $("lens").addEventListener("pointerup", () => {
   clearTimeout(lensHold);
   if (lensHeld || lenses.length < 2) return;
-  const wide = lensOf("26mm"), ultra = lensOf("13mm"), tele = lensOf("77mm");
-  const alt = ultra >= 0 ? ultra : tele;          // the working pair
+  const wide = lensOf("26mm"), ultra = lensOf("13mm"),
+        tele = lensOf("77mm"), fifty = lensOf("50mm");
+  const alt = ultra >= 0 ? ultra : (tele >= 0 ? tele : fifty);  // the working pair
   setLens(lensIdx === wide ? alt : wide);
 });
 $("lens").addEventListener("pointercancel", () => clearTimeout(lensHold));
@@ -413,7 +430,13 @@ $("shutterwrap").onclick = async () => {
   let cw, ch;
   if (vw / vh > A) { ch = vh; cw = Math.round(vh * A); }
   else { cw = vw; ch = Math.round(vw / A); }
-  const sx = Math.round((vw - cw) / 2), sy = Math.round((vh - ch) / 2);
+  let sx = Math.round((vw - cw) / 2), sy = Math.round((vh - ch) / 2);
+  const glass = lenses[lensIdx], f = (glass && glass.crop) || 1;
+  if (f > 1) {
+    const cw2 = Math.round(cw / f), ch2 = Math.round(ch / f);
+    sx += Math.round((cw - cw2) / 2); sy += Math.round((ch - ch2) / 2);
+    cw = cw2; ch = ch2;
+  }
   const s = Math.min(1, MAX_NEG / Math.max(cw, ch));
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
