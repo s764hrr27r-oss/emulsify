@@ -25,7 +25,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
         transition:transform .26s var(--ease), opacity .24s var(--ease)}
 body.paged #camera{transform:scale(.97)}
 body.rot #camera,body.rot #print,body.rot #ring{
-  opacity:0 !important;transition:opacity .09s linear !important}
+  opacity:0 !important;transition:opacity .07s linear !important}
 .top{display:flex;align-items:center;justify-content:center;padding:16px 0 12px}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
@@ -112,13 +112,10 @@ body.rot #camera,body.rot #print,body.rot #ring{
        z-index:3;padding:8px 0}
   #frame{padding:calc(30px + env(safe-area-inset-top)) 116px 10px
                  calc(10px + env(safe-area-inset-left))}
-  body.flip #frame{padding:calc(30px + env(safe-area-inset-top))
-                   calc(10px + env(safe-area-inset-right)) 10px 116px}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
   .deck{position:absolute;top:0;bottom:0;display:flex;
         right:calc(env(safe-area-inset-right));width:112px;
         flex-direction:column;justify-content:center;gap:26px;padding:0}
-  body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
   #shutterwrap{order:1}
   #shutter{width:70px;height:70px}
   #shutter i{width:57px;height:57px}
@@ -128,8 +125,6 @@ body.rot #camera,body.rot #print,body.rot #ring{
             top:50%;translate:0 -50%}
   #traymenu{left:auto;right:calc(env(safe-area-inset-right) + 122px);
             bottom:auto;top:50%;translate:0 -50%}
-  body.flip #lensmenu,body.flip #traymenu{
-            right:auto;left:calc(env(safe-area-inset-left) + 122px)}
 }
 
 /* ---------- print ---------- */
@@ -464,27 +459,16 @@ $("lensveil").onclick = () => { closeLensMenu(); closeTrayMenu(); };
 startCamera();
 $("video").addEventListener("loadeddata", () => $("video").classList.add("live"));
 const setPaged = b => document.body.classList.toggle("paged", b);
-/* two landscapes exist: rotated left (angle 90, old bottom edge on the
-   right) and rotated right (angle 270, old bottom edge on the left).
-   The shutter column stays glued to the old bottom edge — the grip. */
-function alignDeck() {
-  let a = 90;
-  try {
-    if (screen.orientation && typeof screen.orientation.angle === "number")
-      a = screen.orientation.angle;
-    else if (typeof window.orientation === "number")
-      a = window.orientation === -90 ? 270 : 90;
-  } catch (e) {}
-  document.body.classList.toggle("flip", a === 270);
+let rotT = 0;
+function rotationBlink() {   /* curtain down fast, held past iOS's own rotate
+                                choreography (~700ms incl. feed re-orient),
+                                then the base transitions ease it back */
+  document.body.classList.add("rot");
+  clearTimeout(rotT);
+  rotT = setTimeout(() => document.body.classList.remove("rot"), 460);
 }
-alignDeck();
-function onTurn() {
-  document.body.classList.add("rot");           /* the blink swallows the jolt */
-  alignDeck();
-  setTimeout(() => document.body.classList.remove("rot"), 160);
-}
-matchMedia("(orientation: landscape)").addEventListener("change", onTurn);
-try { screen.orientation.addEventListener("change", onTurn); } catch (e) {}
+matchMedia("(orientation: landscape)").addEventListener("change", rotationBlink);
+addEventListener("orientationchange", rotationBlink);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible")
     setTimeout(() => startCamera(GLASS.id || undefined), 250);
