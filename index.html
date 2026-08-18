@@ -47,7 +47,10 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #shutter i{width:64px;height:64px;border-radius:50%;background:var(--w);
            display:block;transition:transform .1s}
 #shutter:active i{transform:scale(.88)}
-.spacer{width:46px;height:46px;flex:0 0 auto}
+.lensbtn{width:46px;height:46px;flex:0 0 auto;border-radius:50%;
+  border:1px solid var(--hair);color:var(--mute);
+  font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
+.lensbtn:active{color:var(--w);border-color:var(--mute)}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
@@ -117,7 +120,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   <div class="deck">
     <button id="chip" aria-label="Prints"></button>
     <button id="shutter" aria-label="Shutter"><i></i></button>
-    <div class="spacer"></div>
+    <button id="lens" class="lensbtn" aria-label="Lens" style="visibility:hidden">1×</button>
   </div>
 </div>
 
@@ -147,8 +150,11 @@ const DB = await new Promise((res, rej) => {
   q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
 });
 const put = (s, k, v) => new Promise((res, rej) => {
-  const t = DB.transaction(s, "readwrite");
-  t.objectStore(s).put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error);
+  try {
+    if (!DB.objectStoreNames.contains(s)) return res();   // store missing: skip
+    const t = DB.transaction(s, "readwrite");
+    t.objectStore(s).put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error);
+  } catch (e) { res(); }                                   // archival never blocks
 });
 const get = (s, k) => new Promise((res, rej) => {
   const r = DB.transaction(s).objectStore(s).get(k);
@@ -184,7 +190,7 @@ async function thumbOf(id) {
 }
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js");
+const worker = new Worker("lab-worker.js?v=7");
 let msgId = 0; const waits = new Map();
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
@@ -201,21 +207,48 @@ const labDevelop = (buf, seed, size) => {
   });
 };
 
-/* ---------- camera (no rotation handling by design) ---------- */
+/* ---------- camera: multi-lens, no rotation handling by design ---------- */
 let stream = null, restarting = false;
-async function startCamera() {
+let lenses = [], lensIdx = 0;
+async function startCamera(deviceId) {
   if (restarting) return; restarting = true;
   try {
     stream?.getTracks().forEach(t => t.stop());
     $("video").srcObject = null;
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment",
-               width: { ideal: 4032 }, height: { ideal: 3024 } }, audio: false });
+    const video = deviceId
+      ? { deviceId: { exact: deviceId },
+          width: { ideal: 4032 }, height: { ideal: 3024 } }
+      : { facingMode: "environment",
+          width: { ideal: 4032 }, height: { ideal: 3024 } };
+    stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
     $("video").srcObject = stream;
     $("denied").style.display = "none";
+    discoverLenses();
   } catch { $("denied").style.display = "grid"; }
   restarting = false;
 }
+async function discoverLenses() {
+  if (lenses.length) return;
+  const devs = await navigator.mediaDevices.enumerateDevices();
+  const back = devs.filter(d => d.kind === "videoinput" &&
+                                !/front|user/i.test(d.label));
+  const rank = l => /ultra/i.test(l) ? 0 : /tele/i.test(l) ? 2 : 1;
+  const mark = l => /ultra/i.test(l) ? "0.5×" : /tele/i.test(l) ? "2×" : "1×";
+  back.sort((a, b) => rank(a.label) - rank(b.label));
+  lenses = back.map(d => ({ id: d.deviceId, mark: mark(d.label) }));
+  if (lenses.length > 1) {
+    lensIdx = Math.max(0, lenses.findIndex(l => l.mark === "1×"));
+    const b = $("lens");
+    b.textContent = lenses[lensIdx].mark;
+    b.style.visibility = "visible";
+  }
+}
+$("lens").onclick = () => {
+  if (lenses.length < 2 || restarting) return;
+  lensIdx = (lensIdx + 1) % lenses.length;
+  $("lens").textContent = lenses[lensIdx].mark;
+  startCamera(lenses[lensIdx].id);
+};
 startCamera();
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") setTimeout(startCamera, 250);
@@ -241,18 +274,22 @@ $("shutter").onclick = async () => {
   pending++; paintChip();
   const id = String(Date.now());
   const seed = (Number(id) % 9000) + 1;          // the batch: stored, reproducible
-  localStorage["s" + id] = seed;
-  await put("negs", id, blob);                   // the negative is kept
+  try { localStorage["s" + id] = seed; await put("negs", id, blob); } catch (e) {}
   try {
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed);
-    localStorage["t" + id] = secs || "";
+    try { localStorage["t" + id] = secs || ""; } catch (e) {}
     const printBlob = new Blob([jpg], { type: "image/jpeg" });
     await put("prints", id, printBlob);
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error(e); flagError(); }
   pending--; paintChip();
 };
+function flagError() {
+  const chip = $("chip");
+  chip.style.borderColor = "#7c2d12";
+  setTimeout(() => chip.style.borderColor = "", 2500);
+}
 
 /* ---------- chip ---------- */
 async function paintChip() {
