@@ -105,19 +105,33 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   #strip button{width:36px;height:36px}
 }
 
-/* ---------- ring (the printer's easel: scroll to the natural print) ----------
-   vertical = tint (green up, magenta down) · horizontal = warmth (cool left,
-   warm right) · the frame under the reticle is the live pick · tap it to lock.
-   Opacity falls off exponentially with distance from center. */
+/* ---------- ring (the printer's easel) ----------
+   The print arrives first, full frame, then settles back into the reticle as
+   its neighbors breathe in. vertical = tint (green up) · horizontal = warmth
+   (warm right) · the frame under the reticle is the live pick · tap it to
+   lock. Left alone, the reticle fades and the as-developed frame locks
+   itself — the easel is a pause, not a demand. */
 #ring{position:fixed;inset:0;background:var(--k);display:none;z-index:20;
       overflow:hidden;touch-action:none}
 #ring.on{display:block}
-#ringfield{position:absolute;left:0;top:0;will-change:transform}
-#ringfield canvas{position:absolute;border-radius:2px}
+#ringfield{position:absolute;left:0;top:0;will-change:transform;
+           opacity:0;transition:opacity .45s ease}
+#ring.live #ringfield{opacity:1}
+#ringfield canvas{position:absolute;border-radius:2px;transition:opacity .35s ease}
+#ringfield canvas.chosen{transition:opacity .35s ease, transform .42s ease;z-index:2}
 #ringdot{position:absolute;width:7px;height:7px;border-radius:50%;
          background:var(--dot);opacity:.9;pointer-events:none}
+#ringhero{position:absolute;inset:0;display:none;pointer-events:none;
+          transition:transform .45s ease}
+#ring.hero #ringhero{display:block}
+#ringhero img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#ringhero img.fresh{animation:comeup 1.2s ease-out both}
+@media(prefers-reduced-motion:reduce){
+  #ringhero img.fresh{animation:none}
+  #ringhero,#ringfield,#ringfield canvas,#reticle{transition:none}
+}
 #reticle{position:absolute;border:1.5px solid rgba(224,145,58,.75);border-radius:4px;
-         pointer-events:none}
+         pointer-events:none;transition:opacity .3s ease}
 </style>
 </head>
 <body>
@@ -139,7 +153,11 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   </div>
 </div>
 
-<div id="ring"><div id="ringfield"></div><div id="reticle"></div></div>
+<div id="ring">
+  <div id="ringfield"></div>
+  <div id="ringhero"><img id="ringheroimg" alt=""></div>
+  <div id="reticle"></div>
+</div>
 
 <div id="print">
   <div class="bar"><button id="back" aria-label="Close"></button><button id="rering" aria-label="Adjust tint"></button></div>
@@ -154,6 +172,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 const $ = id => document.getElementById(id);
 const MAX_NEG = 2200;
 const aspect = () => matchMedia("(orientation: landscape)").matches ? 5/4 : 4/5;
+const calmMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------- store ---------- */
 const DB = await new Promise((res, rej) => {
@@ -207,6 +226,7 @@ async function thumbOf(id) {
     if (!p) return null; t = await makeThumb(p); await put("thumbs", id, t); }
   return t;
 }
+const chosenOf = id => { try { return localStorage["wt" + id]; } catch (e) { return "0,0"; } };
 
 /* ---------- lab ---------- */
 const worker = new Worker("lab-worker.js?v=10");
@@ -278,9 +298,12 @@ $("lens").onclick = () => {
 startCamera();
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") setTimeout(startCamera, 250);
+  else ringHoldTimers();   // never auto-lock behind the user's back
 });
 
-/* shutter: crop the sensor to the exact 4:5 the frame shows (cover-centered) */
+/* shutter: crop the sensor to the exact 4:5 the frame shows (cover-centered)
+   The develop never interrupts: the chip carries the news; the easel waits
+   inside the print's first opening. */
 $("shutter").onclick = async () => {
   const v = $("video");
   if (!v.videoWidth || restarting || pending > 2) return;
@@ -308,8 +331,6 @@ $("shutter").onclick = async () => {
     await put("prints", id + ":p", printBlob);   // pristine kept for the easel
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
-    if ($("ring").classList.contains("on")) RING.queue.push(id);
-    else openRing(id, 0, 0);
   } catch (e) { console.error(e); flagError(); }
   pending--; paintChip();
 };
@@ -338,11 +359,13 @@ paintChip();
 $("chip").onclick = () => { if (prints.length) openPrint(prints[prints.length - 1]); };
 
 /* ---------- ring: the printer's easel ---------- */
-const RT = { tS: 8, tMax: 40, wS: 8, wMax: 16, gap: 10 };
+const RT = { tS: 8, tMax: 40, wS: 8, wMax: 16, gap: 10,
+             settleAt: 1500, settleMs: 450, breathAt: 250, lockAt: 3200 };
 const rows = []; for (let t = RT.tMax; t >= -RT.tMax; t -= RT.tS) rows.push(t);  // green top
 const cols = []; for (let w = -RT.wMax; w <= RT.wMax; w += RT.wS) cols.push(w);  // cool left
 const RING = { id: null, secs: 1, tw: 0, th: 0, x: 0, y: 0, anim: 0,
-               tiles: [], queue: [], lim: null, busy: false };
+               tiles: [], lim: null, busy: false, awake: false,
+               heroing: false, reveal: false, timers: [] };
 
 const S2L = new Float32Array(256);
 for (let i = 0; i < 256; i++) { const x = i / 255;
@@ -380,13 +403,16 @@ function applyXY(x, y) {
   $("ringfield").style.transform = "translate3d(" + x + "px," + y + "px,0)";
   fadeOpacities();
 }
-function fadeOpacities() {
-  const cx = innerWidth / 2, cy = innerHeight / 2;
+/* neighbors are progressive: at rest only the first ring breathes in;
+   the far field materializes once the hand moves */
+function fadeOpacities(yOff) {
+  const cx = innerWidth / 2, cy = innerHeight / 2 + (yOff || 0);
   const ux = RING.tw + RT.gap, uy = RING.th + RT.gap;
   for (const c of RING.tiles) {
     const tx = RING.x + c._x + RING.tw / 2, ty = RING.y + c._y + RING.th / 2;
     const d = Math.hypot((tx - cx) / ux, (ty - cy) / uy);
-    c.style.opacity = Math.max(0.05, Math.pow(0.5, d)).toFixed(3);
+    const o = (!RING.awake && d > 1.6) ? 0 : Math.max(0.05, Math.pow(0.5, d));
+    c.style.opacity = o.toFixed(3);
   }
 }
 function setSel(w, t, animate) {
@@ -402,12 +428,84 @@ function setSel(w, t, animate) {
   RING.anim = requestAnimationFrame(step);
 }
 
-async function openRing(id, w0, t0) {
+const later = (fn, ms) => { const h = setTimeout(fn, ms); RING.timers.push(h); return h; };
+function ringHoldTimers() { for (const h of RING.timers) clearTimeout(h); RING.timers = []; }
+function wakeRing() {                    /* any touch: the easel is yours */
+  ringHoldTimers();
+  const ret = $("reticle");
+  ret.style.transition = "opacity .3s ease"; ret.style.opacity = 1;
+  if (!RING.awake) { RING.awake = true; fadeOpacities(); }
+  if (RING.heroing || $("ring").classList.contains("hero")) endHero(true);
+}
+function endHero(fast) {
+  const ringNow = $("ring");
+  if (!RING.heroing && !ringNow.classList.contains("hero")) return;
+  RING.heroing = false;
+  const hero = $("ringhero");
+  if (fast || calmMotion) {
+    $("ring").classList.remove("hero"); $("ring").classList.add("live");
+    hero.style.transform = "none";
+    afterSettle();
+    return;
+  }
+  const bmp = { w: RING.pw, h: RING.ph };
+  const cw = Math.min(innerWidth, innerHeight * bmp.w / bmp.h);
+  const s = RING.tw / cw;
+  hero.style.transform = "scale(" + s + ")";
+  $("ring").classList.add("live");
+  later(() => { $("ring").classList.remove("hero"); afterSettle(); }, RT.settleMs + 30);
+}
+function afterSettle() {
+  if (!$("ring").classList.contains("on")) return;
+  if (!RING.reveal) return;              // deliberate re-ring: no timers at all
+  if (RING.awake) return;                // a touched easel never auto-locks
+  later(breath, RT.breathAt);
+  const ret = $("reticle");              // the closing window, wordless
+  ret.style.transition = "opacity " + RT.lockAt + "ms linear";
+  ret.style.opacity = 0.25;
+  later(() => { if ($("ring").classList.contains("on")) autoLock(); }, RT.lockAt);
+}
+function breath() {                      /* one 6px exhale: "this moves" */
+  if (calmMotion || RING.awake) return;
+  const t0 = performance.now();
+  const step = n => {
+    if (RING.awake) { fadeOpacities(); return; }
+    const p = Math.min(1, (n - t0) / 600);
+    const off = -6 * Math.sin(Math.PI * p);
+    $("ringfield").style.transform =
+      "translate3d(" + RING.x + "px," + (RING.y + off) + "px,0)";
+    fadeOpacities(-off);
+    if (p < 1) RING.anim = requestAnimationFrame(step);
+    else applyXY(RING.x, RING.y);
+  };
+  cancelAnimationFrame(RING.anim);
+  RING.anim = requestAnimationFrame(step);
+}
+function autoLock() {
+  const c = RING.tiles.find(x => Number(x.dataset.w) === 0 && Number(x.dataset.t) === 0);
+  animateOut(c, 0, 0);
+}
+function animateOut(tileEl, w, t) {      /* the pick swells back to full frame */
+  ringHoldTimers();
+  if (tileEl && !calmMotion) {
+    const cw = Math.min(innerWidth, innerHeight * RING.pw / RING.ph);
+    tileEl.classList.add("chosen");
+    tileEl.style.opacity = 1;
+    tileEl.style.transform = "scale(" + (cw / RING.tw) + ")";
+    for (const s of RING.tiles) if (s !== tileEl) s.style.opacity = 0;  // siblings fade as the pick grows
+    later(() => lockRing(w, t), 430);
+  } else lockRing(w, t);
+}
+
+async function openRing(id, w0, t0, reveal) {
   const pure = await get("prints", id + ":p") || await get("prints", id);
   if (!pure) return;
+  ringHoldTimers();
   RING.id = id; RING.secs = Number(localStorage["t" + id]) || 1;
-  RING.tiles = []; RING.busy = false;
+  RING.tiles = []; RING.busy = false; RING.awake = false;
+  RING.reveal = !!reveal; RING.heroing = false;
   const bmp = await createImageBitmap(pure);
+  RING.pw = bmp.width; RING.ph = bmp.height;
   const vw = innerWidth, vh = innerHeight;
   const tw = Math.round(Math.min(vw * 0.56, vh * 0.34 * bmp.width / bmp.height));
   const th = Math.round(tw * bmp.height / bmp.width);
@@ -422,6 +520,7 @@ async function openRing(id, w0, t0) {
   const field = $("ringfield");
   field.innerHTML = "";
   const ret = $("reticle");
+  ret.style.transition = "opacity .3s ease"; ret.style.opacity = 1;
   ret.style.width  = (tw + 10) + "px"; ret.style.height = (th + 10) + "px";
   ret.style.left = ((vw - tw) / 2 - 5) + "px";
   ret.style.top  = ((vh - th) / 2 - 5) + "px";
@@ -432,10 +531,26 @@ async function openRing(id, w0, t0) {
     maxY: fieldPosFor(cols[0], rows[0])[1]
   };
   setSel(w0 || 0, t0 || 0, false);
-  $("ring").classList.add("on");
+  const ring = $("ring");
+  ring.classList.remove("live", "hero");
+  const hero = $("ringhero");
+  hero.style.transition = "none"; hero.style.transform = "none";
+  if (RING.reveal) {                     /* the print arrives first, as always */
+    RING.heroing = true;
+    const hi = $("ringheroimg");
+    hi.classList.remove("fresh"); hi.src = mkURL(pure);
+    void hi.offsetWidth; hi.classList.add("fresh");
+    ring.classList.add("hero");
+    requestAnimationFrame(() => { hero.style.transition = "transform " + RT.settleMs + "ms ease"; });
+    later(() => endHero(false), calmMotion ? 60 : RT.settleAt);
+  } else {
+    ring.classList.add("live");
+    RING.awake = true;                   /* re-ring: the whole field, no timers */
+  }
+  ring.classList.add("on");
   let idx = 0; const total = rows.length * cols.length, myId = id;
   const buildSome = () => {
-    if (RING.id !== myId || !$("ring").classList.contains("on")) return;
+    if (RING.id !== myId || !ring.classList.contains("on")) return;
     for (let n = 0; n < 6 && idx < total; n++, idx++) {
       const ri = Math.floor(idx / cols.length), ci = idx % cols.length;
       const t = rows[ri], w = cols[ci];
@@ -464,29 +579,29 @@ async function openRing(id, w0, t0) {
 
 async function lockRing(w, t) {
   if (RING.busy) return; RING.busy = true;
+  ringHoldTimers();
   const id = RING.id;
-  $("ring").classList.remove("on");
+  $("ring").classList.remove("on", "live", "hero");
   $("ringfield").innerHTML = ""; RING.tiles = [];
   try {
-    const pure = await get("prints", id + ":p") || await get("prints", id);
-    let finalBlob = pure;
     if (w !== 0 || t !== 0) {
+      const pure = await get("prints", id + ":p") || await get("prints", id);
       const { jpg } = await labBake(await pure.arrayBuffer(), w / 100, t / 100, RING.secs);
-      finalBlob = new Blob([jpg], { type: "image/jpeg" });
-    }
-    await put("prints", id, finalBlob);
-    await put("thumbs", id, await makeThumb(finalBlob));
+      const finalBlob = new Blob([jpg], { type: "image/jpeg" });
+      await put("prints", id, finalBlob);
+      await put("thumbs", id, await makeThumb(finalBlob));
+    }                                    /* center lock: pristine stays, byte-for-byte */
     try { localStorage["wt" + id] = w + "," + t; } catch (e) {}
   } catch (e) { console.error(e); flagError(); }
   RING.busy = false;
   paintChip();
-  if (RING.queue.length) openRing(RING.queue.shift(), 0, 0);
-  else openPrint(id);
+  openPrint(id);
 }
 
 let RD = null;
 const ringEl = $("ring");
 ringEl.addEventListener("pointerdown", e => {
+  wakeRing();
   RD = { x: e.clientX, y: e.clientY, fx: RING.x, fy: RING.y, moved: false };
   cancelAnimationFrame(RING.anim);
   ringEl.setPointerCapture(e.pointerId);
@@ -508,8 +623,8 @@ ringEl.addEventListener("pointerup", e => {
   const el = document.elementFromPoint(e.clientX, e.clientY);
   if (el && el.parentElement === $("ringfield") && el.tagName === "CANVAS") {
     const ew = Number(el.dataset.w), et = Number(el.dataset.t);
-    if (ew === w && et === t) lockRing(w, t);   // tap the reticle frame: lock
-    else setSel(ew, et);                        // tap elsewhere: glide it in
+    if (ew === w && et === t) animateOut(el, w, t);   // tap the reticle frame: lock
+    else setSel(ew, et);                              // tap elsewhere: glide it in
   } else setSel(w, t);
 });
 ringEl.addEventListener("pointercancel", () => {
@@ -517,15 +632,21 @@ ringEl.addEventListener("pointercancel", () => {
   const [w, t] = selOf(RING.x, RING.y); setSel(w, t);
 });
 addEventListener("resize", () => {
-  if ($("ring").classList.contains("on")) {
+  if ($("ring").classList.contains("on") && !RING.busy) {
     const [w, t] = selOf(RING.x, RING.y);
-    openRing(RING.id, w, t);
+    openRing(RING.id, w, t, false);
   }
 });
 
 /* ---------- print view (save pre-armed for instant share) ---------- */
 let current = null, stageURL = null, armedFile = null;
 async function openPrint(id) {
+  const pure = await get("prints", id + ":p");
+  if (pure && !chosenOf(id)) {           /* unchosen: the reveal waits here */
+    $("print").classList.remove("on");
+    openRing(id, 0, 0, true);
+    return;
+  }
   current = id;
   const stage = $("stage"); stage.innerHTML = "";
   if (stageURL) { URL.revokeObjectURL(stageURL); urls.delete(stageURL); }
@@ -538,7 +659,6 @@ async function openPrint(id) {
   const img = document.createElement("img");
   stageURL = mkURL(blob); img.src = stageURL;
   stage.appendChild(img);
-  const pure = await get("prints", id + ":p");
   $("rering").style.visibility = pure ? "visible" : "hidden";
 
   const strip = $("strip"); strip.innerHTML = "";
@@ -555,9 +675,9 @@ async function openPrint(id) {
 $("back").onclick = () => { $("print").classList.remove("on"); revokeAll(); paintChip(); };
 $("rering").onclick = () => {
   if (!current) return;
-  const wt = (localStorage["wt" + current] || "0,0").split(",");
+  const wt = (chosenOf(current) || "0,0").split(",");
   $("print").classList.remove("on"); revokeAll();
-  openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0);
+  openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0, false);
 };
 $("save").onclick = () => {
   if (!armedFile) return;
