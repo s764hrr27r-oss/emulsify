@@ -9,7 +9,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>Emulsify</title>
 <style>
-:root{ --k:#0a0a0a; --w:#f4f2ed; --mute:#8a8a86; --dot:#e0913a; --hair:#232323 }
+:root{ --k:#0a0a0a; --w:#f4f2ed; --mute:#8a8a86; --dot:#e0913a; --hair:#232323;
+       --ease:cubic-bezier(.32,.72,0,1) }
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 html,body{height:100%;overscroll-behavior:none}
 body{background:var(--k);color:var(--w);
@@ -43,17 +44,23 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
       overflow:hidden;position:relative;display:grid;place-items:center;flex:0 0 auto}
 #chip img{width:100%;height:100%;object-fit:cover;display:block}
 @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes chipin{from{opacity:0;transform:scale(.9)}}
 #tray{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
-      display:grid;place-items:center;flex:0 0 auto}
+      display:grid;place-items:center;flex:0 0 auto;position:relative;overflow:hidden;
+      animation:chipin .24s var(--ease)}
+#tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#tray .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
+#tray .dot{position:relative}
 #tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
-#traymenu{position:fixed;display:none;flex-direction:column;gap:6px;z-index:5;
+#traymenu{position:fixed;display:none;flex-direction:column;gap:6px;z-index:12;
   background:rgba(10,10,10,.94);border:1px solid var(--hair);border-radius:14px;
   padding:8px;left:24px;bottom:calc(env(safe-area-inset-bottom) + 106px);
   max-height:52vh;overflow-y:auto}
-#traymenu.on{display:flex}
 #traymenu button{width:46px;height:46px;border-radius:6px;overflow:hidden;
-  border:1px solid var(--hair);display:grid;place-items:center}
-#traymenu img{width:100%;height:100%;object-fit:cover;display:block}
+  border:1px solid var(--hair);display:grid;place-items:center;position:relative}
+#traymenu img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#traymenu .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
+#traymenu .dot{position:relative}
 #traymenu .dot.brew{animation:breathe 1.6s ease-in-out infinite}
 #shutterwrap{position:relative;flex:0 0 auto}
 #shutter{width:78px;height:78px;border-radius:50%;border:2.5px solid var(--w);
@@ -69,16 +76,20 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   border:1px solid var(--hair);color:var(--mute);
   font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
-#lensmenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:5;
+#lensmenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
   background:rgba(10,10,10,.94);border:1px solid var(--hair);border-radius:14px;
   padding:8px 4px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 106px)}
-#lensmenu.on{display:flex}
+
 #lensmenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
   letter-spacing:.05em;color:var(--mute);padding:8px 18px;border-radius:8px}
 #lensmenu button.cur{color:var(--dot)}
 #lensmenu button:disabled{opacity:.25}
-#lensveil{position:fixed;inset:0;display:none;z-index:4}
+#lensveil{position:fixed;inset:0;display:none;z-index:11}
 #lensveil.on{display:block}
+#lensmenu,#traymenu{display:flex;opacity:0;pointer-events:none;
+  transform:translateY(8px) scale(.97);
+  transition:opacity .22s var(--ease),transform .22s var(--ease)}
+#lensmenu.on,#traymenu.on{opacity:1;pointer-events:auto;transform:none}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
@@ -96,27 +107,36 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   #chips{order:2;flex-direction:column}
   .spacer{display:none}
   #lensmenu{right:calc(env(safe-area-inset-right) + 122px);bottom:auto;
-            top:50%;transform:translateY(-50%)}
+            top:50%;translate:0 -50%}
   #traymenu{left:auto;right:calc(env(safe-area-inset-right) + 122px);
-            bottom:auto;top:50%;transform:translateY(-50%)}
+            bottom:auto;top:50%;translate:0 -50%}
 }
 
 /* ---------- print ---------- */
-#print{position:fixed;inset:0;background:var(--k);display:none;flex-direction:column;
-       z-index:10;padding-top:env(safe-area-inset-top)}
-#print.on{display:flex}
+#print{position:fixed;inset:0;background:var(--k);display:flex;flex-direction:column;
+       z-index:10;padding-top:env(safe-area-inset-top);
+       opacity:0;pointer-events:none;transform:scale(.985);
+       transition:opacity .26s var(--ease),transform .26s var(--ease)}
+#print.on{opacity:1;pointer-events:auto;transform:none}
 #print .bar{display:flex;align-items:center;padding:12px 18px}
 #back{width:34px;height:34px;position:relative}
 #back::before{content:"";position:absolute;left:11px;top:9px;width:12px;height:12px;
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
   transform:rotate(45deg)}
-#rering{width:34px;height:34px;margin-left:auto;position:relative;visibility:hidden}
+.barx{margin-left:auto;display:flex;gap:6px;align-items:center}
+#traybar{width:34px;height:34px;position:relative;display:none;place-items:center}
+#traybar.on{display:grid}
+#traybar .dot{width:7px;height:7px}
+#traybar .dot.brew{animation:breathe 1.6s ease-in-out infinite}
+#rering{width:34px;height:34px;position:relative;visibility:hidden}
 #rering::before{content:"";position:absolute;left:8px;top:8px;width:15px;height:15px;
   border:1.5px solid var(--dot);border-radius:50%;opacity:.35}
 #rering:active::before{opacity:.8}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
-           -webkit-touch-callout:default;user-select:auto}
+           -webkit-touch-callout:default;user-select:auto;
+           opacity:0;transition:opacity .22s var(--ease)}
+#stage img.in{opacity:1}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
@@ -148,20 +168,21 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
       overflow:hidden;touch-action:none}
 #ring.on{display:block}
 #ringfield{position:absolute;left:0;top:0;will-change:transform;
-           opacity:0;transition:opacity .45s ease}
+           opacity:0;transition:opacity .5s var(--ease)}
 #ring.live #ringfield{opacity:1}
-#ringfield canvas{position:absolute;border-radius:2px;transition:opacity .35s ease}
-#ringfield canvas.chosen{transition:opacity .35s ease, transform .42s ease;z-index:2}
+#ringfield canvas{position:absolute;border-radius:2px;transition:opacity .35s var(--ease)}
+#ringfield canvas.chosen{transition:opacity .35s var(--ease), transform .46s var(--ease);z-index:2}
 #ringdot{position:absolute;width:7px;height:7px;border-radius:50%;
          background:var(--dot);opacity:.9;pointer-events:none}
 #ringhero{position:absolute;inset:0;display:none;pointer-events:none;
-          transition:transform .45s ease}
+          transition:transform .5s var(--ease)}
 #ring.hero #ringhero{display:block}
 #ringhero img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 #ringhero img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){
   #ringhero img.fresh{animation:none}
-  #ringhero,#ringfield,#ringfield canvas,#reticle{transition:none}
+  #ringhero,#ringfield,#ringfield canvas,#reticle,
+  #print,#stage img,#lensmenu,#traymenu,#tray{transition:none;animation:none}
 }
 #reticle{position:absolute;border:1.5px solid rgba(224,145,58,.75);border-radius:4px;
          pointer-events:none;transition:opacity .3s ease}
@@ -200,7 +221,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 </div>
 
 <div id="print">
-  <div class="bar"><button id="back" aria-label="Close"></button><button id="rering" aria-label="Adjust tint"></button></div>
+  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"><button id="traybar" aria-label="Developing"><span class="dot"></span></button><button id="rering" aria-label="Adjust tint"></button></span></div>
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
@@ -245,6 +266,7 @@ const allKeys = () => new Promise((res, rej) => {
 let prints = await allKeys();
 let pending = 0;
 const cooking = new Set();          /* ids mid-develop right now */
+const cookThumbs = new Map();       /* id -> latent-negative data URL */
 const unchosen = new Set();         /* developed, awaiting the easel */
 async function scanTray() {
   const raw = await new Promise((res, rej) => {
@@ -278,6 +300,14 @@ async function makeThumb(blob) {
   c.width = c.height = 0;
   return t;
 }
+const thumbURLs = new Map();
+async function thumbURL(id) {
+  if (thumbURLs.has(id)) return thumbURLs.get(id);
+  const t = await thumbOf(id); if (!t) return null;
+  const u = URL.createObjectURL(t); thumbURLs.set(id, u); return u;
+}
+const dropThumbURL = id => { const u = thumbURLs.get(id);
+  if (u) { URL.revokeObjectURL(u); thumbURLs.delete(id); } };
 async function thumbOf(id) {
   let t = await get("thumbs", id);
   if (!t) { const p = await get("prints", id);
@@ -347,7 +377,7 @@ const LADDER = [
 ];
 const labelOf = F => (LADDER.find(l => l.F === F) || { k: F + "mm" }).k;
 let phys = [];                        /* [{id, e}] native 35mm-e per camera */
-const GLASS = { mm: 44, id: null, crop: 1 };
+const GLASS = { mm: 33, id: null, crop: 1 };
 function realize(F) {
   let c = null;
   for (const p of phys) if (p.e <= F) c = p;
@@ -378,7 +408,7 @@ async function discoverLenses() {
              .sort((a, b) => a.e - b.e)
              .filter(q => !seen.has(q.e) && seen.add(q.e));
   if (!phys.length) return;
-  const r = realize(GLASS.mm) || realize(44);
+  const r = realize(GLASS.mm) || realize(33);
   if (!r) return;
   GLASS.id = r.id; GLASS.crop = r.crop;
   $("lens").textContent = labelOf(GLASS.mm);
@@ -427,7 +457,8 @@ function shutterVoice() {
      every frame, forever. MASTER calibrated in the mirror to peak 0.35. */
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
+    const cold = AC.state === "suspended";
+    if (cold) AC.resume();
     let sd = 222 | 0;
     const rnd = () => {
       sd = sd + 0x6D2B79F5 | 0;
@@ -435,7 +466,7 @@ function shutterVoice() {
       t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
-    const t0 = AC.currentTime + 0.001;
+    const t0 = AC.currentTime + (cold ? 0.06 : 0.001);
     const out = AC.createGain(); out.gain.value = 1.013; out.connect(AC.destination);
     const noiseSrc = (dur, p) => {
       const n = Math.max(8, (AC.sampleRate * dur) | 0);
@@ -505,6 +536,16 @@ $("shutterwrap").onclick = async () => {
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  const id = String(Date.now());
+  const seed = (Number(id) % 9000) + 1;
+  try {                       /* latent image: the tray's face while it cooks */
+    const tc = document.createElement("canvas");
+    const ts = 120 / Math.max(c.width, c.height);
+    tc.width = Math.round(c.width * ts); tc.height = Math.round(c.height * ts);
+    tc.getContext("2d").drawImage(c, 0, 0, tc.width, tc.height);
+    cookThumbs.set(id, tc.toDataURL("image/jpeg", 0.7));
+    tc.width = tc.height = 0;
+  } catch (e) {}
   closeLensMenu(); closeTrayMenu();
   $("flash").style.opacity = 1;
   setTimeout(() => $("flash").style.opacity = 0, 110);
@@ -512,8 +553,6 @@ $("shutterwrap").onclick = async () => {
   try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
   c.width = c.height = 0;
-  const id = String(Date.now());
-  const seed = (Number(id) % 9000) + 1;
   pending++; cooking.add(id); paintChip(); paintTray();
   try {
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed);
@@ -525,7 +564,7 @@ $("shutterwrap").onclick = async () => {
     prints.push(id);
     unchosen.add(id);
   } catch (e) { console.error(e); flagError(); }
-  cooking.delete(id);
+  cooking.delete(id); cookThumbs.delete(id);
   pending--; paintChip(); paintTray();
 };
 function flagError() {
@@ -538,33 +577,56 @@ function flagError() {
 const newestProcessed = () =>
   [...prints].reverse().find(k => !unchosen.has(k));
 async function paintChip() {
-  const chip = $("chip"); chip.innerHTML = "";
+  const chip = $("chip");
   const last = newestProcessed();
-  if (last) {
-    const t = await thumbOf(last);
-    if (t) { const img = document.createElement("img"); img.src = mkURL(t);
-             chip.appendChild(img); }
-  }
+  const u = last ? await thumbURL(last) : null;
+  let im = chip.querySelector("img");
+  if (!u) { chip.innerHTML = ""; return; }
+  if (!im) { im = document.createElement("img"); chip.appendChild(im); }
+  if (im.src !== u) im.src = u;
 }
-function paintTray() {
+async function paintTray() {
   const busy = pending > 0, any = busy || unchosen.size > 0;
   const t = $("tray");
   t.style.display = any ? "" : "none";     /* nothing to process: one square */
   t.querySelector(".dot").classList.toggle("brew", busy);
-  if (!any) closeTrayMenu();
-  else if ($("traymenu").classList.contains("on")) buildTrayMenu();
+  const tb = $("traybar");                 /* the line, reachable from gallery */
+  tb.classList.toggle("on", any);
+  tb.querySelector(".dot").classList.toggle("brew", busy);
+  if (!any) {
+    closeTrayMenu();
+    t.querySelector("img")?.remove(); t.querySelector(".scrim")?.remove();
+    return;
+  }
+  const items = [...new Set([...cooking, ...unchosen])].sort();
+  const newest = items[items.length - 1];
+  const u = cooking.has(newest) ? (cookThumbs.get(newest) || null)
+                                : await thumbURL(newest);
+  let im = t.querySelector("img"), sc = t.querySelector(".scrim");
+  if (u) {
+    if (!im) { im = document.createElement("img");
+               t.insertBefore(im, t.firstChild); }
+    if (!sc) { sc = document.createElement("i"); sc.className = "scrim";
+               t.insertBefore(sc, t.querySelector(".dot")); }
+    if (im.src !== u) im.src = u;
+  } else { im?.remove(); sc?.remove(); }
+  if ($("traymenu").classList.contains("on")) buildTrayMenu();
 }
 async function buildTrayMenu() {
   const m = $("traymenu"); m.innerHTML = "";
   const items = [...new Set([...cooking, ...unchosen])].sort().reverse();
   for (const id of items) {
     const b = document.createElement("button");
-    if (cooking.has(id)) {
-      b.innerHTML = '<span class="dot brew"></span>';   /* still in the bath */
+    if (cooking.has(id)) {                              /* still in the bath */
+      const u = cookThumbs.get(id);
+      if (u) { const img = document.createElement("img");
+               img.src = u; b.appendChild(img); }
+      b.insertAdjacentHTML("beforeend",
+        '<i class="scrim"></i><span class="dot brew"></span>');
     } else {
-      const th = await thumbOf(id);
-      if (th) { const img = document.createElement("img");
-                img.src = mkURL(th); b.appendChild(img); }
+      const u = await thumbURL(id);
+      if (u) { const img = document.createElement("img");
+               img.src = u; b.appendChild(img); }
       b.onclick = () => { closeTrayMenu(); openPrint(id); };  /* continue it */
     }
     m.appendChild(b);
@@ -572,18 +634,20 @@ async function buildTrayMenu() {
 }
 const closeTrayMenu = () => { $("traymenu").classList.remove("on");
   if (!$("lensmenu").classList.contains("on")) $("lensveil").classList.remove("on"); };
-$("tray").onclick = () => {
+function toggleTrayMenu() {
   closeLensMenu();
   const on = $("traymenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
   if (on) buildTrayMenu();
-};
+}
+$("tray").onclick = toggleTrayMenu;
+$("traybar").onclick = toggleTrayMenu;
 paintChip(); paintTray();
 $("chip").onclick = () => { const k = newestProcessed(); if (k) openPrint(k); };
 
 /* ---------- ring: the printer's easel ---------- */
 const RT = { tS: 8, tMax: 40, wS: 8, wMax: 16, gap: 10,
-             settleAt: 1500, settleMs: 450, breathAt: 250, lockAt: 3200 };
+             settleAt: 1500, settleMs: 500, breathAt: 250, lockAt: 3200 };
 const rows = []; for (let t = RT.tMax; t >= -RT.tMax; t -= RT.tS) rows.push(t);  // green top
 const cols = []; for (let w = -RT.wMax; w <= RT.wMax; w += RT.wS) cols.push(w);  // cool left
 const RING = { id: null, secs: 1, tw: 0, th: 0, x: 0, y: 0, anim: 0,
@@ -597,14 +661,19 @@ const L2S = new Uint8ClampedArray(4096);
 for (let i = 0; i < 4096; i++) { const x = i / 4095;
   L2S[i] = Math.round(255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055)); }
 const lutv = l => L2S[l <= 0 ? 0 : l >= 1 ? 4095 : Math.round(l * 4095)];
-/* density-neutral by construction: gains mean exactly 1; matches worker bake() */
+/* density-neutral by construction: gains mean exactly 1; matches worker bake().
+   Per-gain 256-entry byte LUTs: identical output, one lookup per subpixel. */
 function tintPixels(d, wPct, tPct) {
   const t = tPct / 100, w = wPct / 100;
-  const gr = 1 - t / 3 + w / 2, gg = 1 + 2 * t / 3, gb = 1 - t / 3 - w / 2;
+  const gains = [1 - t / 3 + w / 2, 1 + 2 * t / 3, 1 - t / 3 - w / 2];
+  const L = gains.map(g => {
+    const a = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) a[v] = lutv(S2L[v] * g);
+    return a;
+  });
+  const [Rl, Gl, Bl] = L;
   for (let i = 0; i < d.length; i += 4) {
-    d[i]     = lutv(S2L[d[i]]     * gr);
-    d[i + 1] = lutv(S2L[d[i + 1]] * gg);
-    d[i + 2] = lutv(S2L[d[i + 2]] * gb);
+    d[i] = Rl[d[i]]; d[i + 1] = Gl[d[i + 1]]; d[i + 2] = Bl[d[i + 2]];
   }
 }
 
@@ -644,7 +713,7 @@ function setSel(w, t, animate) {
   cancelAnimationFrame(RING.anim);
   const x0 = RING.x, y0 = RING.y, t0 = performance.now();
   const step = n => {
-    const p = Math.min(1, (n - t0) / 180), e = 1 - Math.pow(1 - p, 3);
+    const p = Math.min(1, (n - t0) / 220), e = 1 - Math.pow(1 - p, 5);
     applyXY(x0 + (X - x0) * e, y0 + (Y - y0) * e);
     if (p < 1) RING.anim = requestAnimationFrame(step);
   };
@@ -766,7 +835,8 @@ async function openRing(id, w0, t0, reveal) {
     hi.classList.remove("fresh"); hi.src = mkURL(pure);
     void hi.offsetWidth; hi.classList.add("fresh");
     ring.classList.add("hero");
-    requestAnimationFrame(() => { hero.style.transition = "transform " + RT.settleMs + "ms ease"; });
+    requestAnimationFrame(() => {
+    hero.style.transition = "transform " + RT.settleMs + "ms cubic-bezier(.32,.72,0,1)"; });
     later(() => endHero(false), calmMotion ? 60 : RT.settleAt);
   } else {
     ring.classList.add("live");
@@ -815,6 +885,7 @@ async function lockRing(w, t) {
       const finalBlob = new Blob([jpg], { type: "image/jpeg" });
       await put("prints", id, finalBlob);
       await put("thumbs", id, await makeThumb(finalBlob));
+      dropThumbURL(id);
     }                                    /* center lock: pristine stays, byte-for-byte */
     try { await put("prints", id + ":wt", w + "," + t); } catch (e) {}
     try { localStorage["wt" + id] = w + "," + t; } catch (e) {}
@@ -889,20 +960,24 @@ async function openPrint(id) {
   const img = document.createElement("img");
   stageURL = mkURL(blob); img.src = stageURL;
   stage.appendChild(img);
+  requestAnimationFrame(() => img.classList.add("in"));
   $("rering").style.visibility = pure ? "visible" : "hidden";
 
   const strip = $("strip"); strip.innerHTML = "";
-  for (const k of [...prints].reverse().filter(k => !unchosen.has(k)).slice(0, 40)) {
-    const t = await thumbOf(k); if (!t) continue;
+  const ids = [...prints].reverse().filter(k => !unchosen.has(k)).slice(0, 40);
+  const us = await Promise.all(ids.map(thumbURL));
+  ids.forEach((k, i) => {
+    if (!us[i]) return;
     const b = document.createElement("button");
     if (k === id) b.className = "sel";
-    const ti = document.createElement("img"); ti.src = mkURL(t);
+    const ti = document.createElement("img"); ti.src = us[i];
     b.appendChild(ti); b.onclick = () => openPrint(k);
     strip.appendChild(b);
-  }
+  });
   $("print").classList.add("on");
 }
-$("back").onclick = () => { $("print").classList.remove("on"); revokeAll(); paintChip(); };
+$("back").onclick = () => { $("print").classList.remove("on");
+  setTimeout(revokeAll, 220); paintChip(); };
 $("rering").onclick = async () => {
   if (!current) return;
   const wt = ((await chosenOf(current)) || "0,0").split(",");
