@@ -44,20 +44,21 @@ def _expand(lin, kmax=2.2):
 _TAUS = [1.0, 1.0, 1.0]; _CALL = [0]; _FIELDS = [None, None, None]
 
 def _make_fields(h, w, seed):
-    """LIVING DEVELOPMENT — INDEPENDENT BIOMES. Each layer has its own
-    weather: its own storm centers (spots), its own correlation length
-    (speed — R slow continental, G temperate, B fast squalls), its own
-    amplitude (flavor). Fully decorrelated, zero-mean each. No sharing.
-    Global residue is the final fixer's job. Deterministic per seed."""
+    """LIVING DEVELOPMENT — INDEPENDENT BIOMES, FULL SPECTRUM.
+    Each layer draws its entire character per frame: speed (correlation
+    length, squalls to continental), flavor (amplitude), pull (radial),
+    spots (centers). Any layer can be anything; the dice are the seed.
+    Zero-mean each; global residue is the final fixer's job."""
     import numpy as np
     from scipy.ndimage import gaussian_filter as _gf
     rng = np.random.default_rng(seed*7919 + 13)
     yy, xx = np.mgrid[0:h, 0:w]
-    spec = [(max(h, w)/4.0,  0.011, 0.009),   # R: slow continental
-            (max(h, w)/6.0,  0.010, 0.008),   # G: temperate
-            (max(h, w)/10.0, 0.008, 0.007)]   # B: fast squalls
+    L = max(h, w)
     fields = []
-    for corr, amp, rad in spec:
+    for i in range(3):
+        corr = float(L/np.exp(rng.uniform(np.log(3.5), np.log(12.0))))
+        amp  = float(rng.uniform(0.007, 0.011))
+        rad  = float(rng.uniform(0.005, 0.010))
         cx = w*(0.5 + float(rng.uniform(-0.10, 0.10)))
         cy = h*(0.5 + float(rng.uniform(-0.10, 0.10)))
         R = np.sqrt(((xx-cx)/(w/2))**2 + ((yy-cy)/(h/2))**2)/np.sqrt(2)
