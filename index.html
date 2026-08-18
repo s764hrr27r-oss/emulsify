@@ -25,7 +25,11 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
         transition:transform .26s var(--ease), opacity .24s var(--ease)}
 body.paged #camera{transform:scale(.97)}
 body.rot #camera,body.rot #print,body.rot #ring{
-  opacity:0 !important;transition:opacity .07s linear !important}
+  opacity:0 !important;
+  transform:scale(.94) rotate(var(--turnhint,0deg)) !important;
+  transition:opacity .16s ease,transform .16s ease !important}
+body.settle #camera,body.settle #print,body.settle #ring{
+  transition:opacity .5s var(--ease),transform .5s var(--ease)}
 .top{display:flex;align-items:center;justify-content:center;padding:16px 0 12px}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
@@ -199,6 +203,7 @@ body.rot #camera,body.rot #print,body.rot #ring{
   #ringhero img.fresh{animation:none}
   #ringhero,#ringfield,#ringfield canvas,#reticle,
   #print,#stage img,#lensmenu,#traymenu,#tray{transition:none;animation:none}
+  body.rot #camera,body.rot #print,body.rot #ring{transform:none !important}
 }
 #reticle{position:absolute;border:1.5px solid rgba(224,145,58,.75);border-radius:4px;
          pointer-events:none;transition:opacity .3s ease}
@@ -459,16 +464,33 @@ $("lensveil").onclick = () => { closeLensMenu(); closeTrayMenu(); };
 startCamera();
 $("video").addEventListener("loadeddata", () => $("video").classList.add("live"));
 const setPaged = b => document.body.classList.toggle("paged", b);
-let rotT = 0;
-function rotationBlink() {   /* curtain down fast, held past iOS's own rotate
-                                choreography (~700ms incl. feed re-orient),
-                                then the base transitions ease it back */
+let rotT = 0, rotS = 0, lastLand = 90;
+function onTurn() {
+  /* the curtain is a move now: content tips a few degrees toward the turn
+     as it fades (.16s), holds through iOS's own choreography (~700ms with
+     the feed re-orient), then blooms back over half a second. */
+  let a = 0;
+  try {
+    if (screen.orientation && typeof screen.orientation.angle === "number")
+      a = screen.orientation.angle;
+    else if (typeof window.orientation === "number")
+      a = window.orientation === -90 ? 270 : window.orientation === 90 ? 90 : 0;
+  } catch (e) {}
+  const hint = a === 90 ? 5 : a === 270 ? -5 : (lastLand === 90 ? -5 : 5);
+  if (a === 90 || a === 270) lastLand = a;
+  document.documentElement.style.setProperty("--turnhint", hint + "deg");
+  alignDeck();
   document.body.classList.add("rot");
-  clearTimeout(rotT);
-  rotT = setTimeout(() => document.body.classList.remove("rot"), 460);
+  document.body.classList.remove("settle");
+  clearTimeout(rotT); clearTimeout(rotS);
+  rotT = setTimeout(() => {
+    document.body.classList.remove("rot");
+    document.body.classList.add("settle");
+    rotS = setTimeout(() => document.body.classList.remove("settle"), 540);
+  }, 470);
 }
-matchMedia("(orientation: landscape)").addEventListener("change", rotationBlink);
-addEventListener("orientationchange", rotationBlink);
+matchMedia("(orientation: landscape)").addEventListener("change", onTurn);
+addEventListener("orientationchange", onTurn);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible")
     setTimeout(() => startCamera(GLASS.id || undefined), 250);
