@@ -1,9 +1,12 @@
-// lab-worker.js — v1.1. Verbatim canon; smaller develop size + JPEG prints
+// lab-worker.js — v1.2. Verbatim canon; smaller develop size + JPEG prints
 // + garbage collection to keep iOS Safari happy.
+// v1.2 adds bake(): the printer's easel — density-neutral warmth/tint gains
+// applied in linear to a finished print, EXIF re-stamped. No re-develop;
+// canon and chemistry untouched.
 
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
-let pyodide = null, develop = null;
+let pyodide = null, develop = null, bakePy = null;
 
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
@@ -218,6 +221,31 @@ def _dodge(pos, strength=0.25):
     lift = 1.0/(1.0 + strength*mask)
     return np.clip(pos**lift[..., None], 0, 1)
 
+def bake(jpg_bytes, w, t, secs):
+    """PRINTER'S EASEL: density-neutral color trim on a finished print.
+    w = warmth (R-B), t = tint (G vs R+B), both fractions (+-0.40 max app-side).
+    gains mean exactly 1.0 by construction; applied in linear light."""
+    im = Image.open(io.BytesIO(bytes(jpg_bytes))).convert("RGB")
+    arr = np.array(im); im.close()
+    lin = E.srgb_to_linear(arr)
+    g = np.array([1.0 - t/3.0 + w/2.0, 1.0 + 2.0*t/3.0, 1.0 - t/3.0 - w/2.0])
+    out = np.clip(lin*g[None, None, :], 0.0, 1.0)
+    img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
+    buf = io.BytesIO()
+    try:
+        ex = Image.Exif()
+        ex[0x010F] = "EMULSIFY"
+        ex[0x0110] = "HONEY 70 - 222"
+        ex[0x0131] = "EMULSIFY LAB"
+        ex[0x8827] = 222
+        ex[0x829A] = (int(secs) or 1, 1)
+        img.save(buf, "JPEG", quality=93, exif=ex)
+    except Exception:
+        buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
+    del arr, lin, out, img
+    gc.collect()
+    return {"jpg": buf.getvalue()}
+
 def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     import time as _t
     _t0 = _t.time()
@@ -258,13 +286,22 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     return {"jpg": buf.getvalue(), "secs": secs}
 `);
   develop = pyodide.globals.get("develop");
+  bakePy = pyodide.globals.get("bake");
   postMessage({ ready: true });
 })();
 
 onmessage = async (e) => {
-  const { id, neg, profile, seed, size } = e.data;
+  const { id, neg, profile, seed, size, bake, jpg, w, t, secs } = e.data;
   try {
     await boot;
+    if (bake) {
+      const r = bakePy(new Uint8Array(jpg), w, t, secs || 1);
+      const obj = r.toJs({ dict_converter: Object.fromEntries });
+      r.destroy();
+      const bytes = obj.jpg instanceof Uint8Array ? obj.jpg : new Uint8Array(obj.jpg);
+      postMessage({ id, ok: true, result: bytes }, [bytes.buffer]);
+      return;
+    }
     const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();

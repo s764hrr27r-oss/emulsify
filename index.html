@@ -77,6 +77,10 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #back::before{content:"";position:absolute;left:11px;top:9px;width:12px;height:12px;
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
   transform:rotate(45deg)}
+#rering{width:34px;height:34px;margin-left:auto;position:relative;visibility:hidden}
+#rering::before{content:"";position:absolute;left:8px;top:8px;width:15px;height:15px;
+  border:1.5px solid var(--dot);border-radius:50%;opacity:.35}
+#rering:active::before{opacity:.8}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
            -webkit-touch-callout:default;user-select:auto}
@@ -100,6 +104,20 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   #strip{flex:1;max-width:none}
   #strip button{width:36px;height:36px}
 }
+
+/* ---------- ring (the printer's easel: scroll to the natural print) ----------
+   vertical = tint (green up, magenta down) · horizontal = warmth (cool left,
+   warm right) · the frame under the reticle is the live pick · tap it to lock.
+   Opacity falls off exponentially with distance from center. */
+#ring{position:fixed;inset:0;background:var(--k);display:none;z-index:20;
+      overflow:hidden;touch-action:none}
+#ring.on{display:block}
+#ringfield{position:absolute;left:0;top:0;will-change:transform}
+#ringfield canvas{position:absolute;border-radius:2px}
+#ringdot{position:absolute;width:7px;height:7px;border-radius:50%;
+         background:var(--dot);opacity:.9;pointer-events:none}
+#reticle{position:absolute;border:1.5px solid rgba(224,145,58,.75);border-radius:4px;
+         pointer-events:none}
 </style>
 </head>
 <body>
@@ -121,8 +139,10 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   </div>
 </div>
 
+<div id="ring"><div id="ringfield"></div><div id="reticle"></div></div>
+
 <div id="print">
-  <div class="bar"><button id="back" aria-label="Close"></button></div>
+  <div class="bar"><button id="back" aria-label="Close"></button><button id="rering" aria-label="Adjust tint"></button></div>
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
@@ -157,9 +177,11 @@ const get = (s, k) => new Promise((res, rej) => {
   const r = DB.transaction(s).objectStore(s).get(k);
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
 });
+/* prints listing skips easel side-records (keys with ":") */
 const allKeys = () => new Promise((res, rej) => {
   const r = DB.transaction("prints").objectStore("prints").getAllKeys();
-  r.onsuccess = () => res(r.result.sort()); r.onerror = () => rej(r.error);
+  r.onsuccess = () => res(r.result.filter(k => !String(k).includes(":")).sort());
+  r.onerror = () => rej(r.error);
 });
 let prints = await allKeys();
 let pending = 0;
@@ -187,7 +209,7 @@ async function thumbOf(id) {
 }
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=9");
+const worker = new Worker("lab-worker.js?v=10");
 let msgId = 0; const waits = new Map();
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
@@ -201,6 +223,13 @@ const labDevelop = (buf, seed, size) => {
     waits.set(id, { res, rej });
     worker.postMessage({ id, neg: buf, profile: "honey",
                          seed: seed, size: size || 1100 });
+  });
+};
+const labBake = (buf, w, t, secs) => {
+  const id = ++msgId;
+  return new Promise((res, rej) => {
+    waits.set(id, { res, rej });
+    worker.postMessage({ id, bake: true, jpg: buf, w: w, t: t, secs: secs });
   });
 };
 
@@ -275,9 +304,12 @@ $("shutter").onclick = async () => {
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed);
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
     const printBlob = new Blob([jpg], { type: "image/jpeg" });
-    await put("prints", id, printBlob);
+    await put("prints", id, printBlob);          // as-developed until locked
+    await put("prints", id + ":p", printBlob);   // pristine kept for the easel
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
+    if ($("ring").classList.contains("on")) RING.queue.push(id);
+    else openRing(id, 0, 0);
   } catch (e) { console.error(e); flagError(); }
   pending--; paintChip();
 };
@@ -305,6 +337,192 @@ async function paintChip() {
 paintChip();
 $("chip").onclick = () => { if (prints.length) openPrint(prints[prints.length - 1]); };
 
+/* ---------- ring: the printer's easel ---------- */
+const RT = { tS: 8, tMax: 40, wS: 8, wMax: 16, gap: 10 };
+const rows = []; for (let t = RT.tMax; t >= -RT.tMax; t -= RT.tS) rows.push(t);  // green top
+const cols = []; for (let w = -RT.wMax; w <= RT.wMax; w += RT.wS) cols.push(w);  // cool left
+const RING = { id: null, secs: 1, tw: 0, th: 0, x: 0, y: 0, anim: 0,
+               tiles: [], queue: [], lim: null, busy: false };
+
+const S2L = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const x = i / 255;
+  S2L[i] = x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }
+const L2S = new Uint8ClampedArray(4096);
+for (let i = 0; i < 4096; i++) { const x = i / 4095;
+  L2S[i] = Math.round(255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055)); }
+const lutv = l => L2S[l <= 0 ? 0 : l >= 1 ? 4095 : Math.round(l * 4095)];
+/* density-neutral by construction: gains mean exactly 1; matches worker bake() */
+function tintPixels(d, wPct, tPct) {
+  const t = tPct / 100, w = wPct / 100;
+  const gr = 1 - t / 3 + w / 2, gg = 1 + 2 * t / 3, gb = 1 - t / 3 - w / 2;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i]     = lutv(S2L[d[i]]     * gr);
+    d[i + 1] = lutv(S2L[d[i + 1]] * gg);
+    d[i + 2] = lutv(S2L[d[i + 2]] * gb);
+  }
+}
+
+const colOf = w => cols.indexOf(w), rowOf = t => rows.indexOf(t);
+function fieldPosFor(w, t) {
+  const cx = (innerWidth - RING.tw) / 2, cy = (innerHeight - RING.th) / 2;
+  return [cx - colOf(w) * (RING.tw + RT.gap), cy - rowOf(t) * (RING.th + RT.gap)];
+}
+function selOf(x, y) {
+  const cx = (innerWidth - RING.tw) / 2, cy = (innerHeight - RING.th) / 2;
+  let ci = Math.round((cx - x) / (RING.tw + RT.gap));
+  let ri = Math.round((cy - y) / (RING.th + RT.gap));
+  ci = Math.max(0, Math.min(cols.length - 1, ci));
+  ri = Math.max(0, Math.min(rows.length - 1, ri));
+  return [cols[ci], rows[ri]];
+}
+function applyXY(x, y) {
+  RING.x = x; RING.y = y;
+  $("ringfield").style.transform = "translate3d(" + x + "px," + y + "px,0)";
+  fadeOpacities();
+}
+function fadeOpacities() {
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  const ux = RING.tw + RT.gap, uy = RING.th + RT.gap;
+  for (const c of RING.tiles) {
+    const tx = RING.x + c._x + RING.tw / 2, ty = RING.y + c._y + RING.th / 2;
+    const d = Math.hypot((tx - cx) / ux, (ty - cy) / uy);
+    c.style.opacity = Math.max(0.05, Math.pow(0.5, d)).toFixed(3);
+  }
+}
+function setSel(w, t, animate) {
+  const [X, Y] = fieldPosFor(w, t);
+  if (animate === false) { applyXY(X, Y); return; }
+  cancelAnimationFrame(RING.anim);
+  const x0 = RING.x, y0 = RING.y, t0 = performance.now();
+  const step = n => {
+    const p = Math.min(1, (n - t0) / 180), e = 1 - Math.pow(1 - p, 3);
+    applyXY(x0 + (X - x0) * e, y0 + (Y - y0) * e);
+    if (p < 1) RING.anim = requestAnimationFrame(step);
+  };
+  RING.anim = requestAnimationFrame(step);
+}
+
+async function openRing(id, w0, t0) {
+  const pure = await get("prints", id + ":p") || await get("prints", id);
+  if (!pure) return;
+  RING.id = id; RING.secs = Number(localStorage["t" + id]) || 1;
+  RING.tiles = []; RING.busy = false;
+  const bmp = await createImageBitmap(pure);
+  const vw = innerWidth, vh = innerHeight;
+  const tw = Math.round(Math.min(vw * 0.56, vh * 0.34 * bmp.width / bmp.height));
+  const th = Math.round(tw * bmp.height / bmp.width);
+  RING.tw = tw; RING.th = th;
+  const base = document.createElement("canvas");
+  base.width = Math.round(tw * 1.5); base.height = Math.round(th * 1.5);
+  const bctx = base.getContext("2d", { willReadFrequently: true });
+  bctx.drawImage(bmp, 0, 0, base.width, base.height);
+  bmp.close();
+  const baseData = bctx.getImageData(0, 0, base.width, base.height);
+  base.width = base.height = 0;
+  const field = $("ringfield");
+  field.innerHTML = "";
+  const ret = $("reticle");
+  ret.style.width  = (tw + 10) + "px"; ret.style.height = (th + 10) + "px";
+  ret.style.left = ((vw - tw) / 2 - 5) + "px";
+  ret.style.top  = ((vh - th) / 2 - 5) + "px";
+  RING.lim = {
+    minX: fieldPosFor(cols[cols.length - 1], rows[0])[0],
+    maxX: fieldPosFor(cols[0], rows[0])[0],
+    minY: fieldPosFor(cols[0], rows[rows.length - 1])[1],
+    maxY: fieldPosFor(cols[0], rows[0])[1]
+  };
+  setSel(w0 || 0, t0 || 0, false);
+  $("ring").classList.add("on");
+  let idx = 0; const total = rows.length * cols.length, myId = id;
+  const buildSome = () => {
+    if (RING.id !== myId || !$("ring").classList.contains("on")) return;
+    for (let n = 0; n < 6 && idx < total; n++, idx++) {
+      const ri = Math.floor(idx / cols.length), ci = idx % cols.length;
+      const t = rows[ri], w = cols[ci];
+      const c = document.createElement("canvas");
+      c.width = baseData.width; c.height = baseData.height;
+      c.style.width = tw + "px"; c.style.height = th + "px";
+      c._x = ci * (tw + RT.gap); c._y = ri * (th + RT.gap);
+      c.style.left = c._x + "px"; c.style.top = c._y + "px";
+      c.dataset.w = w; c.dataset.t = t;
+      const d = new ImageData(new Uint8ClampedArray(baseData.data), baseData.width, baseData.height);
+      tintPixels(d.data, w, t);
+      c.getContext("2d").putImageData(d, 0, 0);
+      field.appendChild(c); RING.tiles.push(c);
+      if (w === 0 && t === 0) {
+        const dot = document.createElement("i"); dot.id = "ringdot";
+        dot.style.left = (c._x - 15) + "px";
+        dot.style.top  = (c._y + th / 2 - 3.5) + "px";
+        field.appendChild(dot);
+      }
+    }
+    fadeOpacities();
+    if (idx < total) requestAnimationFrame(buildSome);
+  };
+  buildSome();
+}
+
+async function lockRing(w, t) {
+  if (RING.busy) return; RING.busy = true;
+  const id = RING.id;
+  $("ring").classList.remove("on");
+  $("ringfield").innerHTML = ""; RING.tiles = [];
+  try {
+    const pure = await get("prints", id + ":p") || await get("prints", id);
+    let finalBlob = pure;
+    if (w !== 0 || t !== 0) {
+      const { jpg } = await labBake(await pure.arrayBuffer(), w / 100, t / 100, RING.secs);
+      finalBlob = new Blob([jpg], { type: "image/jpeg" });
+    }
+    await put("prints", id, finalBlob);
+    await put("thumbs", id, await makeThumb(finalBlob));
+    try { localStorage["wt" + id] = w + "," + t; } catch (e) {}
+  } catch (e) { console.error(e); flagError(); }
+  RING.busy = false;
+  paintChip();
+  if (RING.queue.length) openRing(RING.queue.shift(), 0, 0);
+  else openPrint(id);
+}
+
+let RD = null;
+const ringEl = $("ring");
+ringEl.addEventListener("pointerdown", e => {
+  RD = { x: e.clientX, y: e.clientY, fx: RING.x, fy: RING.y, moved: false };
+  cancelAnimationFrame(RING.anim);
+  ringEl.setPointerCapture(e.pointerId);
+});
+ringEl.addEventListener("pointermove", e => {
+  if (!RD) return;
+  const dx = e.clientX - RD.x, dy = e.clientY - RD.y;
+  if (Math.hypot(dx, dy) > 8) RD.moved = true;
+  if (RD.moved && RING.lim) {
+    applyXY(Math.max(RING.lim.minX, Math.min(RING.lim.maxX, RD.fx + dx)),
+            Math.max(RING.lim.minY, Math.min(RING.lim.maxY, RD.fy + dy)));
+  }
+});
+ringEl.addEventListener("pointerup", e => {
+  if (!RD) return;
+  const moved = RD.moved; RD = null;
+  const [w, t] = selOf(RING.x, RING.y);
+  if (moved) { setSel(w, t); return; }
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  if (el && el.parentElement === $("ringfield") && el.tagName === "CANVAS") {
+    const ew = Number(el.dataset.w), et = Number(el.dataset.t);
+    if (ew === w && et === t) lockRing(w, t);   // tap the reticle frame: lock
+    else setSel(ew, et);                        // tap elsewhere: glide it in
+  } else setSel(w, t);
+});
+ringEl.addEventListener("pointercancel", () => {
+  if (!RD) return; RD = null;
+  const [w, t] = selOf(RING.x, RING.y); setSel(w, t);
+});
+addEventListener("resize", () => {
+  if ($("ring").classList.contains("on")) {
+    const [w, t] = selOf(RING.x, RING.y);
+    openRing(RING.id, w, t);
+  }
+});
+
 /* ---------- print view (save pre-armed for instant share) ---------- */
 let current = null, stageURL = null, armedFile = null;
 async function openPrint(id) {
@@ -320,6 +538,8 @@ async function openPrint(id) {
   const img = document.createElement("img");
   stageURL = mkURL(blob); img.src = stageURL;
   stage.appendChild(img);
+  const pure = await get("prints", id + ":p");
+  $("rering").style.visibility = pure ? "visible" : "hidden";
 
   const strip = $("strip"); strip.innerHTML = "";
   for (const k of [...prints].reverse().slice(0, 40)) {
@@ -333,6 +553,12 @@ async function openPrint(id) {
   $("print").classList.add("on");
 }
 $("back").onclick = () => { $("print").classList.remove("on"); revokeAll(); paintChip(); };
+$("rering").onclick = () => {
+  if (!current) return;
+  const wt = (localStorage["wt" + current] || "0,0").split(",");
+  $("print").classList.remove("on"); revokeAll();
+  openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0);
+};
 $("save").onclick = () => {
   if (!armedFile) return;
   if (navigator.canShare && navigator.canShare({ files: [armedFile] })) {
