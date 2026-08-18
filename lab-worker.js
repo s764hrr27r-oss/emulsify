@@ -53,8 +53,21 @@ E._develop_layer = _dev_kinetic
 
 def _meter(lin):
     import numpy as np
-    lum = lin.mean(-1); mid = (lum > 0.03) & (lum < 0.6)
-    if mid.sum() < 500: return [1.0, 1.0, 1.0]
+    lum = lin.mean(-1)
+    sat = lin.max(-1) - lin.min(-1)
+    # casts are read from NEAR-NEUTRAL midtones only; saturated content
+    # (grass, sky, fabric) never counts as a cast
+    neutral = (lum > 0.03) & (lum < 0.6) & (sat < 0.10*np.maximum(lum, 1e-6) + 0.03)
+    mid = neutral
+    if mid.sum() < 400:
+        mid = (lum > 0.03) & (lum < 0.6)
+        if mid.sum() < 500: return [1.0, 1.0, 1.0]
+        # no neutral witness: exposure correction only
+        med = float(np.median(lum[lum > 0.01]))
+        ev = float(np.clip(np.log2(0.16/med), -2.5, 3.0))
+        exc = max(ev - 0.6, 0.0) - max(-ev - 1.3, 0.0)
+        t = float(np.clip(1.0 + 0.08*exc, 0.93, 1.14))
+        return [round(t, 3)]*3
     m = np.maximum(np.array([np.median(lin[..., c][mid]) for c in range(3)]), 1e-5)
     med = float(np.median(lum[lum > 0.01]))
     ev = float(np.clip(np.log2(0.16/med), -2.5, 3.0))
