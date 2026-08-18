@@ -337,13 +337,17 @@ async function startCamera(deviceId) {
   } catch { $("denied").style.display = "grid"; }
   restarting = false;
 }
-/* GLASS — the elevens ladder. Each focal is realized from the longest
-   physical lens at or below it, cropped the rest of the way: the ladder is
-   the lingo, the crop factor is the truth. 11mm outreaches any current
-   iPhone glass and waits, dimmed, for a wider eye. Tap the badge: menu. */
-const LADDER = [11, 22, 33, 44, 55, 66, 77, 88];
+/* GLASS — the ladder, named at the ends. WIDE is the ultra's true eye
+   (13e, uncropped); 22–55 are elevens realized from the longest glass at or
+   below them; LONG is the 66 (a 2.54× cut of the wide — the deepest crop
+   that still fills the negative). Tap the badge: menu. */
+const LADDER = [
+  { k: "WIDE", F: 13 }, { k: "22mm", F: 22 }, { k: "33mm", F: 33 },
+  { k: "44mm", F: 44 }, { k: "55mm", F: 55 }, { k: "LONG", F: 66 }
+];
+const labelOf = F => (LADDER.find(l => l.F === F) || { k: F + "mm" }).k;
 let phys = [];                        /* [{id, e}] native 35mm-e per camera */
-const GLASS = { mm: 33, id: null, crop: 1 };
+const GLASS = { mm: 44, id: null, crop: 1 };
 function realize(F) {
   let c = null;
   for (const p of phys) if (p.e <= F) c = p;
@@ -358,7 +362,7 @@ function setGlass(F) {
   const sameDev = r.id === GLASS.id;
   if (!sameDev && restarting) return;
   GLASS.mm = F; GLASS.id = r.id; GLASS.crop = r.crop;
-  $("lens").textContent = F + "mm";
+  $("lens").textContent = labelOf(F);
   lensView();
   paintLensMenu();
   if (!sameDev) startCamera(r.id);    /* crops on the same glass are instant */
@@ -374,19 +378,19 @@ async function discoverLenses() {
              .sort((a, b) => a.e - b.e)
              .filter(q => !seen.has(q.e) && seen.add(q.e));
   if (!phys.length) return;
-  const r = realize(GLASS.mm) || realize(33);
+  const r = realize(GLASS.mm) || realize(44);
   if (!r) return;
   GLASS.id = r.id; GLASS.crop = r.crop;
-  $("lens").textContent = GLASS.mm + "mm";
+  $("lens").textContent = labelOf(GLASS.mm);
   $("lens").style.visibility = "visible";
   lensView();
   paintLensMenu();
 }
 function paintLensMenu() {
   const m = $("lensmenu"); m.innerHTML = "";
-  for (const F of LADDER) {
+  for (const { k, F } of LADDER) {
     const b = document.createElement("button");
-    b.textContent = F + "mm";
+    b.textContent = k;
     if (!realize(F)) b.disabled = true;
     if (F === GLASS.mm) b.className = "cur";
     b.onclick = () => { closeLensMenu(); setGlass(F); };
