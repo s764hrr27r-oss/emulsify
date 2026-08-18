@@ -56,13 +56,18 @@ def _meter(lin):
     lum = lin.mean(-1); mid = (lum > 0.03) & (lum < 0.6)
     if mid.sum() < 500: return [1.0, 1.0, 1.0]
     m = np.maximum(np.array([np.median(lin[..., c][mid]) for c in range(3)]), 1e-5)
-    med = np.median(lum[lum > 0.01])
-    ev = np.clip(np.log2(0.16/med), -2.5, 3.0)
-    t_exp = np.clip(1.0 + 0.06*ev, 0.92, 1.15)
-    # cast vs content: color correction fades out in bright scenes
-    # (dark warmth is contamination; bright coolness is the world)
-    wcol = float(np.clip(1.0 - (med - 0.14)*4.0, 0.10, 1.0))
-    t_col = np.clip((m/m.mean())**(-0.12*wcol), 0.94, 1.06)
+    med = float(np.median(lum[lum > 0.01]))
+    ev = float(np.clip(np.log2(0.16/med), -2.5, 3.0))
+    # dead zones: rescue engages past +0.6 stop under; pulls only past 1.3 over.
+    # a fine frame gets tau = 1.0 exactly — canon, untouched.
+    exc = max(ev - 0.6, 0.0) - max(-ev - 1.3, 0.0)
+    t_exp = np.clip(1.0 + 0.08*exc, 0.93, 1.14)
+    # cast vs content: zero color correction in bright scenes, and
+    # sub-6% channel deviation is scene, not cast.
+    wcol = float(np.clip(1.0 - (med - 0.12)*5.0, 0.0, 1.0))
+    dev = m/m.mean() - 1.0
+    devx = np.sign(dev)*np.maximum(np.abs(dev) - 0.06, 0)
+    t_col = np.clip((1.0 + devx)**(-0.12*wcol), 0.94, 1.06)
     return [float(x) for x in np.round(t_exp*t_col, 3)]
 
 def _dodge(pos, strength=0.25):
