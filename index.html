@@ -10,7 +10,7 @@
 <title>Emulsify</title>
 <style>
 :root{ --k:#0a0a0a; --w:#f4f2ed; --mute:#8a8a86; --dot:#e0913a; --hair:#232323 }
-*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 html,body{height:100%;overscroll-behavior:none}
 body{background:var(--k);color:var(--w);
      font-family:-apple-system,"Helvetica Neue",system-ui,sans-serif;
@@ -56,6 +56,16 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   border:1px solid var(--hair);color:var(--mute);
   font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
+#lensmenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:5;
+  background:rgba(10,10,10,.94);border:1px solid var(--hair);border-radius:14px;
+  padding:8px 4px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 106px)}
+#lensmenu.on{display:flex}
+#lensmenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+  letter-spacing:.05em;color:var(--mute);padding:8px 18px;border-radius:8px}
+#lensmenu button.cur{color:var(--dot)}
+#lensmenu button:disabled{opacity:.25}
+#lensveil{position:fixed;inset:0;display:none;z-index:4}
+#lensveil.on{display:block}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
@@ -72,6 +82,8 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   #shutter i{width:57px;height:57px}
   #chip{order:2}
   .spacer{display:none}
+  #lensmenu{right:calc(env(safe-area-inset-right) + 122px);bottom:auto;
+            top:50%;transform:translateY(-50%)}
 }
 
 /* ---------- print ---------- */
@@ -158,6 +170,9 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
     <button id="lens" class="lensbtn" aria-label="Lens" style="visibility:hidden">1×</button>
   </div>
 </div>
+
+<div id="lensveil"></div>
+<div id="lensmenu"></div>
 
 <div id="ring">
   <div id="ringfield"></div>
@@ -267,7 +282,6 @@ const labBake = (buf, w, t, secs) => {
 
 /* ---------- camera: multi-lens, no rotation handling by design ---------- */
 let stream = null, restarting = false;
-let lenses = [], lensIdx = 0;
 async function startCamera(deviceId) {
   if (restarting) return; restarting = true;
   try {
@@ -286,67 +300,75 @@ async function startCamera(deviceId) {
   } catch { $("denied").style.display = "grid"; }
   restarting = false;
 }
-/* GLASS, named in millimetres like the lens it is (35mm-equivalents by
-   class: ultra 13 / wide 26 / tele 77 — close for most bodies; exact
-   per-model numbers are a one-line retune). Tap toggles the working pair
-   26mm ⇆ 13mm; press-and-hold reaches the 77mm. */
+/* GLASS — the elevens ladder. Each focal is realized from the longest
+   physical lens at or below it, cropped the rest of the way: the ladder is
+   the lingo, the crop factor is the truth. 11mm outreaches any current
+   iPhone glass and waits, dimmed, for a wider eye. Tap the badge: menu. */
+const LADDER = [11, 22, 33, 44, 55, 66, 77, 88];
+let phys = [];                        /* [{id, e}] native 35mm-e per camera */
+const GLASS = { mm: 33, id: null, crop: 1 };
+function realize(F) {
+  let c = null;
+  for (const p of phys) if (p.e <= F) c = p;
+  return c ? { id: c.id, crop: F / c.e } : null;
+}
+function lensView() {                 /* WYSIWYG: the glass shows the crop */
+  $("video").style.transform = GLASS.crop > 1.001 ? "scale(" + GLASS.crop + ")" : "none";
+}
+function setGlass(F) {
+  const r = realize(F);
+  if (!r) return;
+  const sameDev = r.id === GLASS.id;
+  if (!sameDev && restarting) return;
+  GLASS.mm = F; GLASS.id = r.id; GLASS.crop = r.crop;
+  $("lens").textContent = F + "mm";
+  lensView();
+  paintLensMenu();
+  if (!sameDev) startCamera(r.id);    /* crops on the same glass are instant */
+}
 async function discoverLenses() {
-  if (lenses.length) return;
+  if (phys.length) return;
   const devs = await navigator.mediaDevices.enumerateDevices();
   const back = devs.filter(d => d.kind === "videoinput" &&
                                 !/front|user/i.test(d.label));
-  const rank = l => /ultra/i.test(l) ? 0 : /tele/i.test(l) ? 2 : 1;
-  const mark = l => /ultra/i.test(l) ? "13mm" : /tele/i.test(l) ? "77mm" : "26mm";
-  back.sort((a, b) => rank(a.label) - rank(b.label));
-  lenses = back.map(d => ({ id: d.deviceId, mark: mark(d.label) }));
-  const w0 = lenses.findIndex(l => l.mark === "26mm");
-  if (w0 >= 0) lenses.splice(w0 + 1, 0,      /* the nifty fifty: a 1.923x */
-    { id: lenses[w0].id, mark: "50mm", crop: 50 / 26 });  /* crop of the 26 */
-  if (lenses.length > 1) {
-    lensIdx = Math.max(0, lenses.findIndex(l => l.mark === "26mm"));
-    const b = $("lens");
-    b.textContent = lenses[lensIdx].mark;
-    b.style.visibility = "visible";
+  const E = l => /ultra/i.test(l) ? 13 : /tele/i.test(l) ? 77 : 26;
+  const seen = new Set();
+  phys = back.map(d => ({ id: d.deviceId, e: E(d.label) }))
+             .sort((a, b) => a.e - b.e)
+             .filter(q => !seen.has(q.e) && seen.add(q.e));
+  if (!phys.length) return;
+  const r = realize(GLASS.mm) || realize(33);
+  if (!r) return;
+  GLASS.id = r.id; GLASS.crop = r.crop;
+  $("lens").textContent = GLASS.mm + "mm";
+  $("lens").style.visibility = "visible";
+  lensView();
+  paintLensMenu();
+}
+function paintLensMenu() {
+  const m = $("lensmenu"); m.innerHTML = "";
+  for (const F of LADDER) {
+    const b = document.createElement("button");
+    b.textContent = F + "mm";
+    if (!realize(F)) b.disabled = true;
+    if (F === GLASS.mm) b.className = "cur";
+    b.onclick = () => { closeLensMenu(); setGlass(F); };
+    m.appendChild(b);
   }
 }
-const lensOf = m => lenses.findIndex(l => l.mark === m);
-function lensView() {          /* WYSIWYG: the glass shows what the neg gets */
-  const c = lenses[lensIdx] && lenses[lensIdx].crop;
-  $("video").style.transform = c ? "scale(" + c + ")" : "none";
-}
-function setLens(i) {
-  if (i < 0 || i === lensIdx) return;
-  const sameDev = lenses[i] && lenses[lensIdx] &&
-                  lenses[i].id === lenses[lensIdx].id;
-  if (!sameDev && restarting) return;
-  lensIdx = i;
-  $("lens").textContent = lenses[i].mark;
-  lensView();
-  if (!sameDev) startCamera(lenses[i].id);   /* 26 <-> 50 never restarts */
-}
-let lensHold = 0, lensHeld = false;
-$("lens").addEventListener("pointerdown", () => {
-  if (lenses.length < 2) return;
-  lensHeld = false;
-  lensHold = setTimeout(() => {
-    lensHeld = true;
-    const fifty = lensOf("50mm"), tele = lensOf("77mm");
-    setLens(lensIdx === fifty && tele >= 0 ? tele : fifty);
-  }, 450);
-});
-$("lens").addEventListener("pointerup", () => {
-  clearTimeout(lensHold);
-  if (lensHeld || lenses.length < 2) return;
-  const wide = lensOf("26mm"), ultra = lensOf("13mm"),
-        tele = lensOf("77mm"), fifty = lensOf("50mm");
-  const alt = ultra >= 0 ? ultra : (tele >= 0 ? tele : fifty);  // the working pair
-  setLens(lensIdx === wide ? alt : wide);
-});
-$("lens").addEventListener("pointercancel", () => clearTimeout(lensHold));
+const closeLensMenu = () => {
+  $("lensmenu").classList.remove("on"); $("lensveil").classList.remove("on");
+};
+$("lens").onclick = () => {
+  if (!phys.length) return;
+  const on = $("lensmenu").classList.toggle("on");
+  $("lensveil").classList.toggle("on", on);
+};
+$("lensveil").onclick = closeLensMenu;
 startCamera();
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible")
-    setTimeout(() => startCamera(lenses[lensIdx] && lenses[lensIdx].id), 250);
+    setTimeout(() => startCamera(GLASS.id || undefined), 250);
   else ringHoldTimers();   // never auto-lock behind the user's back
 });
 
@@ -431,7 +453,7 @@ $("shutterwrap").onclick = async () => {
   if (vw / vh > A) { ch = vh; cw = Math.round(vh * A); }
   else { cw = vw; ch = Math.round(vw / A); }
   let sx = Math.round((vw - cw) / 2), sy = Math.round((vh - ch) / 2);
-  const glass = lenses[lensIdx], f = (glass && glass.crop) || 1;
+  const f = GLASS.crop || 1;
   if (f > 1) {
     const cw2 = Math.round(cw / f), ch2 = Math.round(ch / f);
     sx += Math.round((cw - cw2) / 2); sy += Math.round((ch - ch2) / 2);
@@ -441,6 +463,7 @@ $("shutterwrap").onclick = async () => {
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  closeLensMenu();
   $("flash").style.opacity = 1;
   setTimeout(() => $("flash").style.opacity = 0, 110);
   shutterVoice();
