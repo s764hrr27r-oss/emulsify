@@ -285,31 +285,51 @@ async function startCamera(deviceId) {
   } catch { $("denied").style.display = "grid"; }
   restarting = false;
 }
+/* GLASS, named in millimetres like the lens it is (35mm-equivalents by
+   class: ultra 13 / wide 26 / tele 77 — close for most bodies; exact
+   per-model numbers are a one-line retune). Tap toggles the working pair
+   26mm ⇆ 13mm; press-and-hold reaches the 77mm. */
 async function discoverLenses() {
   if (lenses.length) return;
   const devs = await navigator.mediaDevices.enumerateDevices();
   const back = devs.filter(d => d.kind === "videoinput" &&
                                 !/front|user/i.test(d.label));
   const rank = l => /ultra/i.test(l) ? 0 : /tele/i.test(l) ? 2 : 1;
-  const mark = l => /ultra/i.test(l) ? "0.5×" : /tele/i.test(l) ? "2×" : "1×";
+  const mark = l => /ultra/i.test(l) ? "13mm" : /tele/i.test(l) ? "77mm" : "26mm";
   back.sort((a, b) => rank(a.label) - rank(b.label));
   lenses = back.map(d => ({ id: d.deviceId, mark: mark(d.label) }));
   if (lenses.length > 1) {
-    lensIdx = Math.max(0, lenses.findIndex(l => l.mark === "1×"));
+    lensIdx = Math.max(0, lenses.findIndex(l => l.mark === "26mm"));
     const b = $("lens");
     b.textContent = lenses[lensIdx].mark;
     b.style.visibility = "visible";
   }
 }
-$("lens").onclick = () => {
-  if (lenses.length < 2 || restarting) return;
-  lensIdx = (lensIdx + 1) % lenses.length;
-  $("lens").textContent = lenses[lensIdx].mark;
-  startCamera(lenses[lensIdx].id);
-};
+const lensOf = m => lenses.findIndex(l => l.mark === m);
+function setLens(i) {
+  if (i < 0 || i === lensIdx || restarting) return;
+  lensIdx = i;
+  $("lens").textContent = lenses[i].mark;
+  startCamera(lenses[i].id);
+}
+let lensHold = 0, lensHeld = false;
+$("lens").addEventListener("pointerdown", () => {
+  if (lenses.length < 2) return;
+  lensHeld = false;
+  lensHold = setTimeout(() => { lensHeld = true; setLens(lensOf("77mm")); }, 450);
+});
+$("lens").addEventListener("pointerup", () => {
+  clearTimeout(lensHold);
+  if (lensHeld || lenses.length < 2) return;
+  const wide = lensOf("26mm"), ultra = lensOf("13mm"), tele = lensOf("77mm");
+  const alt = ultra >= 0 ? ultra : tele;          // the working pair
+  setLens(lensIdx === wide ? alt : wide);
+});
+$("lens").addEventListener("pointercancel", () => clearTimeout(lensHold));
 startCamera();
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") setTimeout(startCamera, 250);
+  if (document.visibilityState === "visible")
+    setTimeout(() => startCamera(lenses[lensIdx] && lenses[lensIdx].id), 250);
   else ringHoldTimers();   // never auto-lock behind the user's back
 });
 
