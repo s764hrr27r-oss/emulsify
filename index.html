@@ -78,11 +78,8 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
   transform:rotate(45deg)}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
-#stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-#fining{position:absolute;inset:0;display:none;place-items:center;
-        background:rgba(10,10,10,.45)}
-#fining .dot{width:14px;height:14px;animation:breathe 1.6s ease-in-out infinite}
-#stage.fining #fining{display:grid}
+#stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+           -webkit-touch-callout:default;user-select:auto}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
@@ -190,7 +187,7 @@ async function thumbOf(id) {
 }
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=7");
+const worker = new Worker("lab-worker.js?v=8");
 let msgId = 0; const waits = new Map();
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
@@ -273,8 +270,7 @@ $("shutter").onclick = async () => {
   c.width = c.height = 0;
   pending++; paintChip();
   const id = String(Date.now());
-  const seed = (Number(id) % 9000) + 1;          // the batch: stored, reproducible
-  try { localStorage["s" + id] = seed; await put("negs", id, blob); } catch (e) {}
+  const seed = (Number(id) % 9000) + 1;
   try {
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed);
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
@@ -324,10 +320,6 @@ async function openPrint(id) {
   const img = document.createElement("img");
   stageURL = mkURL(blob); img.src = stageURL;
   stage.appendChild(img);
-  const fin = document.createElement("div");
-  fin.id = "fining"; fin.innerHTML = '<span class="dot"></span>';
-  stage.appendChild(fin);
-  attachHold(img, id);
 
   const strip = $("strip"); strip.innerHTML = "";
   for (const k of [...prints].reverse().slice(0, 40)) {
@@ -340,38 +332,6 @@ async function openPrint(id) {
   }
   $("print").classList.add("on");
 }
-/* hold the print ~0.5s: re-develop the stored negative at fine size.
-   Same seed, same weather, same minerals — the identical photo, larger. */
-const FINE = 1800;
-let holdT = null, fining = false;
-function attachHold(img, id) {
-  const start = () => {
-    if (fining || localStorage["f" + id]) return;
-    holdT = setTimeout(() => refine(id), 550);
-  };
-  const cancel = () => { clearTimeout(holdT); holdT = null; };
-  img.addEventListener("pointerdown", start);
-  img.addEventListener("pointerup", cancel);
-  img.addEventListener("pointerleave", cancel);
-  img.addEventListener("pointermove", cancel);
-}
-async function refine(id) {
-  const neg = await get("negs", id);
-  if (!neg) return;                              // pre-update prints have no negative
-  const seed = Number(localStorage["s" + id]) || 1;
-  fining = true; $("stage").classList.add("fining");
-  try {
-    const { jpg, secs } = await labDevelop(await neg.arrayBuffer(), seed, FINE);
-    const printBlob = new Blob([jpg], { type: "image/jpeg" });
-    await put("prints", id, printBlob);
-    await put("thumbs", id, await makeThumb(printBlob));
-    localStorage["t" + id] = secs || "";
-    localStorage["f" + id] = "1";                // fine now; hold disarmed
-    await openPrint(id);
-  } catch (e) { console.error(e); }
-  fining = false; $("stage").classList.remove("fining");
-}
-
 $("back").onclick = () => { $("print").classList.remove("on"); revokeAll(); paintChip(); };
 $("save").onclick = () => {
   if (!armedFile) return;
