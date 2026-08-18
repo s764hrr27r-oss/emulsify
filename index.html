@@ -232,7 +232,13 @@ async function thumbOf(id) {
     if (!p) return null; t = await makeThumb(p); await put("thumbs", id, t); }
   return t;
 }
-const chosenOf = id => { try { return localStorage["wt" + id]; } catch (e) { return "0,0"; } };
+const chosenOf = async id => {
+  let v = null;
+  try { v = await get("prints", id + ":wt"); } catch (e) {}
+  if (!v) { try { v = localStorage["wt" + id] || null; } catch (e) {} }
+  return v;
+};
+const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
 const worker = new Worker("lab-worker.js?v=10");
@@ -318,31 +324,39 @@ function shutterVoice() {
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === "suspended") AC.resume();
-    const t0 = AC.currentTime, out = AC.createGain();
-    out.gain.value = 0.9; out.connect(AC.destination);
-    const noise = (at, dur, freq, q, amp) => {
-      const b = AC.createBuffer(1, Math.max(1, (AC.sampleRate * dur) | 0), AC.sampleRate);
-      const d = b.getChannelData(0);
-      for (let i = 0; i < d.length; i++)
-        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.4);
-      const s = AC.createBufferSource(); s.buffer = b;
-      const f = AC.createBiquadFilter(); f.type = "bandpass";
-      f.frequency.value = freq; f.Q.value = q;
-      const g = AC.createGain(); g.gain.value = amp;
-      s.connect(f); f.connect(g); g.connect(out);
-      s.start(t0 + at);
+    const t0 = AC.currentTime + 0.001, out = AC.createGain();
+    out.gain.value = 0.34; out.connect(AC.destination);
+    const jit = ms => (Math.random() * 2 - 1) * ms / 1000;
+    const fire = (src, at, taps, wobble) => {
+      for (const [f, q, amp] of taps) {
+        const bp = AC.createBiquadFilter(); bp.type = "bandpass";
+        bp.frequency.value = f * (0.98 + Math.random() * 0.04);
+        bp.Q.value = q;
+        const g = AC.createGain();
+        g.gain.value = amp * (wobble ? 0.9 + Math.random() * 0.2 : 1);
+        src.connect(bp); bp.connect(g); g.connect(out);
+      }
+      src.start(t0 + Math.max(0, at));
     };
-    noise(0,     0.045, 2300, 0.9, 0.30);   // curtain
-    noise(0.068, 0.018, 3400, 1.4, 0.12);   // claw tick
-    const o = AC.createOscillator(); o.type = "sine";
-    o.frequency.setValueAtTime(165, t0);
-    o.frequency.exponentialRampToValueAtTime(68, t0 + 0.10);
-    const g2 = AC.createGain();
-    g2.gain.setValueAtTime(0.0001, t0);
-    g2.gain.exponentialRampToValueAtTime(0.30, t0 + 0.007);
-    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
-    o.connect(g2); g2.connect(out);
-    o.start(t0); o.stop(t0 + 0.13);
+    const snapNoise = dur => {
+      const n = Math.max(8, (AC.sampleRate * dur) | 0);
+      const b = AC.createBuffer(1, n, AC.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < n; i++)
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 1.6);
+      const s = AC.createBufferSource(); s.buffer = b; return s;
+    };
+    const knock = () => {
+      const b = AC.createBuffer(1, 8, AC.sampleRate), d = b.getChannelData(0);
+      d[0] = 1; d[1] = -0.55;
+      const s = AC.createBufferSource(); s.buffer = b; return s;
+    };
+    /* the mechanism, in order: curtain trip, body knock ringing three damped
+       modes, cap click, soft return clack. No tones anywhere; the "note" is
+       the camera body itself. Gains bench-calibrated (see lab notes). */
+    fire(snapNoise(0.0020), 0.000 + jit(1), [[2600, 1.2, 0.61]], true);
+    fire(knock(),           0.004,          [[330, 14, 173.5], [760, 16, 54.0], [1500, 12, 11.5]], false);
+    fire(snapNoise(0.0015), 0.016 + jit(2), [[4300, 2.2, 0.45]], true);
+    fire(knock(),           0.070 + jit(6), [[950, 8, 10.14], [3000, 2.0, 0.78]], false);
   } catch (e) {}
 }
 const hapEl = $("hap");
@@ -417,7 +431,7 @@ const rows = []; for (let t = RT.tMax; t >= -RT.tMax; t -= RT.tS) rows.push(t); 
 const cols = []; for (let w = -RT.wMax; w <= RT.wMax; w += RT.wS) cols.push(w);  // cool left
 const RING = { id: null, secs: 1, tw: 0, th: 0, x: 0, y: 0, anim: 0,
                tiles: [], lim: null, busy: false, awake: false,
-               heroing: false, reveal: false, timers: [] };
+               heroing: false, reveal: false, closing: false, timers: [] };
 
 const S2L = new Float32Array(256);
 for (let i = 0; i < 256; i++) { const x = i / 255;
@@ -538,6 +552,8 @@ function autoLock() {
   animateOut(c, 0, 0);
 }
 function animateOut(tileEl, w, t) {      /* the pick swells back to full frame */
+  if (RING.closing) return;
+  RING.closing = true;                   /* from here the lock cannot be cancelled */
   ringHoldTimers();
   if (tileEl && !calmMotion) {
     const cw = Math.min(innerWidth, innerHeight * RING.pw / RING.ph);
@@ -545,7 +561,7 @@ function animateOut(tileEl, w, t) {      /* the pick swells back to full frame *
     tileEl.style.opacity = 1;
     tileEl.style.transform = "scale(" + (cw / RING.tw) + ")";
     for (const s of RING.tiles) if (s !== tileEl) s.style.opacity = 0;  // siblings fade as the pick grows
-    later(() => lockRing(w, t), 430);
+    setTimeout(() => lockRing(w, t), 430);   // plain timer: no wake can clear it
   } else lockRing(w, t);
 }
 
@@ -554,7 +570,7 @@ async function openRing(id, w0, t0, reveal) {
   if (!pure) return;
   ringHoldTimers();
   RING.id = id; RING.secs = Number(localStorage["t" + id]) || 1;
-  RING.tiles = []; RING.busy = false; RING.awake = false;
+  RING.tiles = []; RING.busy = false; RING.awake = false; RING.closing = false;
   RING.reveal = !!reveal; RING.heroing = false;
   const bmp = await createImageBitmap(pure);
   RING.pw = bmp.width; RING.ph = bmp.height;
@@ -643,9 +659,10 @@ async function lockRing(w, t) {
       await put("prints", id, finalBlob);
       await put("thumbs", id, await makeThumb(finalBlob));
     }                                    /* center lock: pristine stays, byte-for-byte */
+    try { await put("prints", id + ":wt", w + "," + t); } catch (e) {}
     try { localStorage["wt" + id] = w + "," + t; } catch (e) {}
   } catch (e) { console.error(e); flagError(); }
-  RING.busy = false;
+  RING.busy = false; RING.closing = false;
   paintChip();
   openPrint(id);
 }
@@ -653,6 +670,7 @@ async function lockRing(w, t) {
 let RD = null;
 const ringEl = $("ring");
 ringEl.addEventListener("pointerdown", e => {
+  if (RING.closing) return;              /* the door is already closing */
   wakeRing();
   RD = { x: e.clientX, y: e.clientY, fx: RING.x, fy: RING.y, moved: false };
   cancelAnimationFrame(RING.anim);
@@ -668,7 +686,7 @@ ringEl.addEventListener("pointermove", e => {
   }
 });
 ringEl.addEventListener("pointerup", e => {
-  if (!RD) return;
+  if (RING.closing || !RD) return;
   const moved = RD.moved; RD = null;
   const [w, t] = selOf(RING.x, RING.y);
   if (moved) { setSel(w, t); return; }
@@ -684,7 +702,7 @@ ringEl.addEventListener("pointercancel", () => {
   const [w, t] = selOf(RING.x, RING.y); setSel(w, t);
 });
 addEventListener("resize", () => {
-  if ($("ring").classList.contains("on") && !RING.busy) {
+  if ($("ring").classList.contains("on") && !RING.busy && !RING.closing) {
     const [w, t] = selOf(RING.x, RING.y);
     openRing(RING.id, w, t, false);
   }
@@ -694,7 +712,9 @@ addEventListener("resize", () => {
 let current = null, stageURL = null, armedFile = null;
 async function openPrint(id) {
   const pure = await get("prints", id + ":p");
-  if (pure && !chosenOf(id)) {           /* unchosen: the reveal waits here */
+  const wt = await chosenOf(id);
+  if (pure && !wt && !revealSeen.has(id)) {   /* unchosen: the reveal waits here */
+    revealSeen.add(id);                       /* …and never twice per session */
     $("print").classList.remove("on");
     openRing(id, 0, 0, true);
     return;
@@ -725,9 +745,9 @@ async function openPrint(id) {
   $("print").classList.add("on");
 }
 $("back").onclick = () => { $("print").classList.remove("on"); revokeAll(); paintChip(); };
-$("rering").onclick = () => {
+$("rering").onclick = async () => {
   if (!current) return;
-  const wt = (chosenOf(current) || "0,0").split(",");
+  const wt = ((await chosenOf(current)) || "0,0").split(",");
   $("print").classList.remove("on"); revokeAll();
   openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0, false);
 };
