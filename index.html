@@ -44,11 +44,17 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #shutter:active i{transform:scale(.88)}
 .spacer{width:46px;height:46px;flex:0 0 auto}
 
-/* landscape: same layout, just sized sanely — no reflow surprises */
+/* landscape: real camera layout — glass fills, controls on the right */
 @media (orientation: landscape){
-  .deck{padding:14px 34px calc(14px + env(safe-area-inset-bottom))}
-  #shutter{width:62px;height:62px}
-  #shutter i{width:50px;height:50px}
+  #camera{flex-direction:row}
+  .top{position:absolute;top:calc(6px + env(safe-area-inset-top));left:0;right:110px;
+       z-index:2;padding:6px 0}
+  #glass{flex:1}
+  .deck{flex-direction:column-reverse;justify-content:center;gap:26px;
+        width:110px;padding:0 calc(10px + env(safe-area-inset-right)) 0 10px}
+  .spacer{display:none}
+  #shutter{width:66px;height:66px}
+  #shutter i{width:54px;height:54px}
 }
 
 /* ---------- print ---------- */
@@ -58,7 +64,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #print .top{justify-content:space-between;padding:14px 22px 12px}
 #print .top button{font-size:13px;color:var(--mute);letter-spacing:.12em;padding:6px}
 #stage{flex:1;display:grid;place-items:center;padding:0 16px;min-height:0}
-#stage img{max-width:100%;max-height:100%;display:block}
+#stage img{max-width:100%;max-height:100%;display:block;-webkit-touch-callout:default;user-select:auto}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}
                   to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.4s ease-out both}
@@ -75,7 +81,9 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
       border:1px solid var(--hair);border-radius:999px;padding:12px 34px}
 #save:active{background:var(--hair)}
 @media (orientation: landscape){
-  #print .foot{gap:10px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  #print .foot{flex-direction:row;justify-content:center;gap:16px;
+               padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
+  #strip{flex:1;max-width:none}
   #strip button{width:36px;height:36px}
 }
 </style>
