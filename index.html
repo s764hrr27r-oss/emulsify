@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Emulsify</title>
+<style>
+:root{ --k:#0a0a0a; --w:#f4f2ed; --mute:#8a8a86; --dot:#e0913a; --hair:#232323 }
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{height:100%;overscroll-behavior:none}
+body{background:var(--k);color:var(--w);
+     font-family:-apple-system,"Helvetica Neue",system-ui,sans-serif;
+     font-weight:300;letter-spacing:.01em;
+     padding-top:env(safe-area-inset-top)}
+button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+
+.film-code{font-size:11px;font-weight:400;letter-spacing:.32em;color:var(--mute)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dot);display:inline-block}
+
+/* ---------- camera ---------- */
+#camera{height:100%;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:center;gap:10px;
+     padding:14px 0 12px}
+#glass{flex:1;position:relative;overflow:hidden;background:#000}
+#glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;
+       transition:opacity .1s}
+#denied{position:absolute;inset:0;display:none;place-items:center;
+        font-size:13px;color:var(--mute);text-align:center;padding:40px}
+
+.deck{display:flex;align-items:center;justify-content:space-between;
+      padding:26px 34px calc(26px + env(safe-area-inset-bottom))}
+#chip{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
+      overflow:hidden;position:relative;display:grid;place-items:center}
+#chip img{width:100%;height:100%;object-fit:cover;display:block}
+#chip .n{font-size:10px;color:var(--mute);letter-spacing:.1em}
+#chip .busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,10,10,.55)}
+@keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
+#chip .busy .dot{animation:breathe 1.6s ease-in-out infinite}
+
+#shutter{width:78px;height:78px;border-radius:50%;
+         border:2.5px solid var(--w);display:grid;place-items:center}
+#shutter i{width:64px;height:64px;border-radius:50%;background:var(--w);
+           display:block;transition:transform .1s}
+#shutter:active i{transform:scale(.88)}
+.spacer{width:46px;height:46px}
+
+/* ---------- print ---------- */
+#print{position:fixed;inset:0;background:var(--k);display:none;
+       flex-direction:column;z-index:10;
+       padding-top:env(safe-area-inset-top)}
+#print.on{display:flex}
+#print .top{justify-content:space-between;padding:14px 22px 12px}
+#print .top button{font-size:13px;color:var(--mute);letter-spacing:.12em;padding:6px}
+#stage{flex:1;display:grid;place-items:center;padding:0 16px;min-height:0}
+#stage img{max-width:100%;max-height:100%;display:block}
+@keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}
+                  to{opacity:1;filter:none}}
+#stage img.fresh{animation:comeup 1.4s ease-out both}
+@media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
+#print .foot{display:flex;flex-direction:column;align-items:center;gap:18px;
+             padding:18px 0 calc(24px + env(safe-area-inset-bottom))}
+#strip{display:flex;gap:6px;overflow-x:auto;max-width:100%;padding:0 22px}
+#strip button{flex:0 0 auto;width:44px;height:44px;border-radius:3px;overflow:hidden;
+              border:1px solid transparent}
+#strip button.sel{border-color:var(--w)}
+#strip img{width:100%;height:100%;object-fit:cover;display:block}
+#save{font-size:13px;letter-spacing:.22em;color:var(--w);
+      border:1px solid var(--hair);border-radius:999px;padding:12px 34px}
+#save:active{background:var(--hair)}
+</style>
+</head>
+<body>
+
+<div id="camera">
+  <div class="top">
+    <span class="dot"></span>
+    <span class="film-code">HONEY 70 · 200</span>
+  </div>
+  <div id="glass">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="flash"></div>
+    <div id="denied">Emulsify is a camera.<br>Allow camera access in Settings › Safari.</div>
+  </div>
+  <div class="deck">
+    <button id="chip" aria-label="Prints"></button>
+    <button id="shutter" aria-label="Shutter"><i></i></button>
+    <div class="spacer"></div>
+  </div>
+</div>
+
+<div id="print">
+  <div class="top">
+    <button id="back">CLOSE</button>
+    <span class="film-code">HONEY 70</span>
+    <button style="visibility:hidden">CLOSE</button>
+  </div>
+  <div id="stage"></div>
+  <div class="foot">
+    <div id="strip"></div>
+    <button id="save">SAVE</button>
+  </div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+
+/* ---------- store ---------- */
+const DB = await new Promise((res, rej) => {
+  const q = indexedDB.open("emulsify-one", 1);
+  q.onupgradeneeded = () => q.result.createObjectStore("prints");   // id -> Blob
+  q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+});
+const put = (k, v) => new Promise((res, rej) => {
+  const t = DB.transaction("prints", "readwrite");
+  t.objectStore("prints").put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error);
+});
+const get = k => new Promise((res, rej) => {
+  const r = DB.transaction("prints").objectStore("prints").get(k);
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+});
+const allKeys = () => new Promise((res, rej) => {
+  const r = DB.transaction("prints").objectStore("prints").getAllKeys();
+  r.onsuccess = () => res(r.result.sort()); r.onerror = () => rej(r.error);
+});
+let prints = await allKeys();          // ids, ascending (id = timestamp)
+let pending = 0;
+
+/* ---------- lab (verbatim canon in a worker) ---------- */
+const worker = new Worker("lab-worker.js");
+let msgId = 0; const waits = new Map();
+worker.onmessage = e => {
+  const { id, ok, result, error, ready } = e.data;
+  if (ready !== undefined) return;
+  const w = waits.get(id); if (!w) return; waits.delete(id);
+  ok ? w.res(result) : w.rej(new Error(error));
+};
+const labDevelop = buf => {
+  const id = ++msgId;
+  return new Promise((res, rej) => {
+    waits.set(id, { res, rej });
+    worker.postMessage({ id, neg: buf, profile: "honey", seed: id * 7 + Date.now() % 97 });
+  });
+};
+
+/* ---------- camera ---------- */
+try {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment", width: { ideal: 4032 }, height: { ideal: 3024 } },
+    audio: false });
+  $("video").srcObject = stream;
+} catch { $("denied").style.display = "grid"; }
+
+$("shutter").onclick = async () => {
+  const v = $("video");
+  if (!v.videoWidth) return;
+  const c = document.createElement("canvas");
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext("2d").drawImage(v, 0, 0);
+  $("flash").style.opacity = 1;
+  setTimeout(() => $("flash").style.opacity = 0, 110);
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.95));
+  pending++; paintChip();
+  const id = String(Date.now());
+  try {
+    const png = await labDevelop(await blob.arrayBuffer());
+    await put(id, new Blob([png], { type: "image/png" }));
+    prints.push(id);
+  } catch (e) { console.error(e); }
+  pending--; paintChip();
+};
+
+/* ---------- chip ---------- */
+async function paintChip() {
+  const chip = $("chip"); chip.innerHTML = "";
+  const last = prints[prints.length - 1];
+  if (last) {
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(await get(last));
+    chip.appendChild(img);
+  } else if (!pending) {
+    chip.innerHTML = '<span class="n">—</span>';
+  }
+  if (pending) {
+    const b = document.createElement("div"); b.className = "busy";
+    b.innerHTML = '<span class="dot"></span>';
+    chip.appendChild(b);
+  }
+}
+paintChip();
+$("chip").onclick = () => { if (prints.length) openPrint(prints[prints.length - 1]); };
+
+/* ---------- print view ---------- */
+let current = null;
+async function openPrint(id, fresh = false) {
+  current = id;
+  const stage = $("stage"); stage.innerHTML = "";
+  const img = document.createElement("img");
+  img.src = URL.createObjectURL(await get(id));
+  if (fresh) img.className = "fresh";
+  stage.appendChild(img);
+  const strip = $("strip"); strip.innerHTML = "";
+  for (const k of [...prints].reverse().slice(0, 30)) {
+    const b = document.createElement("button");
+    if (k === id) b.className = "sel";
+    const t = document.createElement("img");
+    t.src = URL.createObjectURL(await get(k));
+    b.appendChild(t); b.onclick = () => openPrint(k);
+    strip.appendChild(b);
+  }
+  $("print").classList.add("on");
+}
+$("back").onclick = () => $("print").classList.remove("on");
+$("save").onclick = async () => {
+  if (!current) return;
+  const blob = await get(current);
+  const file = new File([blob], "emulsify-" + current + ".png", { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); } catch {}
+  } else {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file); a.download = file.name; a.click();
+  }
+};
+</script>
+</body>
+</html>
