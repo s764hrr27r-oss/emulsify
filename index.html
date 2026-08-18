@@ -42,11 +42,16 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #chip .busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,10,10,.55)}
 @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
 #chip .busy .dot{animation:breathe 1.6s ease-in-out infinite}
+#shutterwrap{position:relative;flex:0 0 auto}
 #shutter{width:78px;height:78px;border-radius:50%;border:2.5px solid var(--w);
-         display:grid;place-items:center;flex:0 0 auto}
+         display:grid;place-items:center}
 #shutter i{width:64px;height:64px;border-radius:50%;background:var(--w);
            display:block;transition:transform .1s}
-#shutter:active i{transform:scale(.88)}
+#shutter:active i, #shutter.pressed i{transform:scale(.88)}
+/* a real, invisible native switch rides the shutter: the finger's own tap
+   toggles it, so iOS plays the Taptic tick — no script, nothing to patch */
+#hap{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
+     clip-path:circle(50%);-webkit-appearance:auto}
 .lensbtn{width:46px;height:46px;flex:0 0 auto;border-radius:50%;
   border:1px solid var(--hair);color:var(--mute);
   font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
@@ -62,7 +67,8 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   .deck{position:absolute;top:0;bottom:0;
         right:calc(env(safe-area-inset-right));width:112px;
         flex-direction:column;justify-content:center;gap:26px;padding:0}
-  #shutter{order:1;width:70px;height:70px}
+  #shutterwrap{order:1}
+  #shutter{width:70px;height:70px}
   #shutter i{width:57px;height:57px}
   #chip{order:2}
   .spacer{display:none}
@@ -148,7 +154,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   </div>
   <div class="deck">
     <button id="chip" aria-label="Prints"></button>
-    <button id="shutter" aria-label="Shutter"><i></i></button>
+    <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
     <button id="lens" class="lensbtn" aria-label="Lens" style="visibility:hidden">1×</button>
   </div>
 </div>
@@ -301,10 +307,54 @@ document.addEventListener("visibilitychange", () => {
   else ringHoldTimers();   // never auto-lock behind the user's back
 });
 
+/* ---------- snap feedback ----------
+   Haptic: the invisible native switch over the shutter ticks the Taptic
+   Engine on the physical tap itself (iOS 17.4+, survives the 26.5 patch);
+   navigator.vibrate covers Android. Sound: a synthesized kachunk — curtain
+   snap, low thump, claw tick — honest Web Audio, no asset, and it respects
+   the mute switch like a real camera. */
+let AC = null;
+function shutterVoice() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const t0 = AC.currentTime, out = AC.createGain();
+    out.gain.value = 0.9; out.connect(AC.destination);
+    const noise = (at, dur, freq, q, amp) => {
+      const b = AC.createBuffer(1, Math.max(1, (AC.sampleRate * dur) | 0), AC.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++)
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.4);
+      const s = AC.createBufferSource(); s.buffer = b;
+      const f = AC.createBiquadFilter(); f.type = "bandpass";
+      f.frequency.value = freq; f.Q.value = q;
+      const g = AC.createGain(); g.gain.value = amp;
+      s.connect(f); f.connect(g); g.connect(out);
+      s.start(t0 + at);
+    };
+    noise(0,     0.045, 2300, 0.9, 0.30);   // curtain
+    noise(0.068, 0.018, 3400, 1.4, 0.12);   // claw tick
+    const o = AC.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(165, t0);
+    o.frequency.exponentialRampToValueAtTime(68, t0 + 0.10);
+    const g2 = AC.createGain();
+    g2.gain.setValueAtTime(0.0001, t0);
+    g2.gain.exponentialRampToValueAtTime(0.30, t0 + 0.007);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+    o.connect(g2); g2.connect(out);
+    o.start(t0); o.stop(t0 + 0.13);
+  } catch (e) {}
+}
+const hapEl = $("hap");
+hapEl.addEventListener("pointerdown", () => $("shutter").classList.add("pressed"));
+const unpress = () => $("shutter").classList.remove("pressed");
+hapEl.addEventListener("pointerup", unpress);
+hapEl.addEventListener("pointercancel", unpress);
+
 /* shutter: crop the sensor to the exact 4:5 the frame shows (cover-centered)
    The develop never interrupts: the chip carries the news; the easel waits
    inside the print's first opening. */
-$("shutter").onclick = async () => {
+$("shutterwrap").onclick = async () => {
   const v = $("video");
   if (!v.videoWidth || restarting || pending > 2) return;
   const vw = v.videoWidth, vh = v.videoHeight, A = aspect();
@@ -318,6 +368,8 @@ $("shutter").onclick = async () => {
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
   $("flash").style.opacity = 1;
   setTimeout(() => $("flash").style.opacity = 0, 110);
+  shutterVoice();
+  try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
   c.width = c.height = 0;
   pending++; paintChip();
