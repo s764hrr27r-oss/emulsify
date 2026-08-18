@@ -16,24 +16,30 @@ body{background:var(--k);color:var(--w);
      font-family:-apple-system,"Helvetica Neue",system-ui,sans-serif;
      font-weight:300;letter-spacing:.01em}
 button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
-.film-code{font-size:11px;font-weight:400;letter-spacing:.32em;color:var(--mute)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--dot);display:inline-block}
 
-/* ---------- camera ---------- */
+/* ---------- camera (portrait-locked presentation) ---------- */
 #camera{position:fixed;inset:0;display:flex;flex-direction:column;
-         padding-top:env(safe-area-inset-top)}
-.top{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 0 12px}
-#glass{flex:1;position:relative;overflow:hidden;background:#000}
+        padding-top:env(safe-area-inset-top)}
+.top{display:flex;align-items:center;justify-content:center;padding:16px 0 12px}
+#frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
+#glass{position:relative;width:100%;max-width:100vw;aspect-ratio:4/5;
+       max-height:100%;overflow:hidden;background:#000}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#grid{position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:
+   linear-gradient(to right, transparent calc(33.33% - .5px), rgba(244,242,237,.45) 33.33%, transparent calc(33.33% + .5px)),
+   linear-gradient(to right, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px)),
+   linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(244,242,237,.45) 33.33%, transparent calc(33.33% + .5px)),
+   linear-gradient(to bottom, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px))}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 #denied{position:absolute;inset:0;display:none;place-items:center;
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
 .deck{display:flex;align-items:center;justify-content:space-between;
-      padding:26px 34px calc(26px + env(safe-area-inset-bottom))}
+      padding:18px 34px calc(22px + env(safe-area-inset-bottom))}
 #chip{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
       overflow:hidden;position:relative;display:grid;place-items:center;flex:0 0 auto}
 #chip img{width:100%;height:100%;object-fit:cover;display:block}
-#chip .n{font-size:10px;color:var(--mute);letter-spacing:.1em}
 #chip .busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,10,10,.55)}
 @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
 #chip .busy .dot{animation:breathe 1.6s ease-in-out infinite}
@@ -44,30 +50,20 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #shutter:active i{transform:scale(.88)}
 .spacer{width:46px;height:46px;flex:0 0 auto}
 
-/* landscape: real camera layout — glass fills, controls on the right */
-@media (orientation: landscape){
-  #camera{flex-direction:row}
-  .top{position:absolute;top:calc(6px + env(safe-area-inset-top));left:0;right:110px;
-       z-index:2;padding:6px 0}
-  #glass{flex:1}
-  .deck{flex-direction:column-reverse;justify-content:center;gap:26px;
-        width:110px;padding:0 calc(10px + env(safe-area-inset-right)) 0 10px}
-  .spacer{display:none}
-  #shutter{width:66px;height:66px}
-  #shutter i{width:54px;height:54px}
-}
-
 /* ---------- print ---------- */
 #print{position:fixed;inset:0;background:var(--k);display:none;flex-direction:column;
        z-index:10;padding-top:env(safe-area-inset-top)}
 #print.on{display:flex}
-#print .top{justify-content:space-between;padding:14px 22px 12px}
-#print .top button{font-size:13px;color:var(--mute);letter-spacing:.12em;padding:6px}
+#print .bar{display:flex;align-items:center;padding:12px 18px}
+#back{width:34px;height:34px;position:relative}
+#back::before{content:"";position:absolute;left:11px;top:9px;width:12px;height:12px;
+  border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
+  transform:rotate(45deg)}
 #stage{flex:1;display:grid;place-items:center;padding:0 16px;min-height:0}
-#stage img{max-width:100%;max-height:100%;display:block;-webkit-touch-callout:default;user-select:auto}
-@keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}
-                  to{opacity:1;filter:none}}
-#stage img.fresh{animation:comeup 1.4s ease-out both}
+#stage img{max-width:100%;max-height:100%;display:block;
+           -webkit-touch-callout:default;user-select:auto}
+@keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
+#stage img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
 #print .foot{display:flex;flex-direction:column;align-items:center;gap:16px;
              padding:16px 0 calc(22px + env(safe-area-inset-bottom))}
@@ -80,25 +76,19 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #save{font-size:13px;letter-spacing:.22em;color:var(--w);
       border:1px solid var(--hair);border-radius:999px;padding:12px 34px}
 #save:active{background:var(--hair)}
-@media (orientation: landscape){
-  #print .foot{flex-direction:row;justify-content:center;gap:16px;
-               padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
-  #strip{flex:1;max-width:none}
-  #strip button{width:36px;height:36px}
-}
 </style>
 </head>
 <body>
 
 <div id="camera">
-  <div class="top">
-    <span class="dot"></span>
-    <span class="film-code">HONEY 70 · 200</span>
-  </div>
-  <div id="glass">
-    <video id="video" autoplay playsinline muted></video>
-    <div id="flash"></div>
-    <div id="denied">Emulsify is a camera.<br>Allow camera access in Settings › Safari.</div>
+  <div class="top"><span class="dot"></span></div>
+  <div id="frame">
+    <div id="glass">
+      <video id="video" autoplay playsinline muted></video>
+      <div id="grid"></div>
+      <div id="flash"></div>
+      <div id="denied">Allow camera access in Settings › Safari.</div>
+    </div>
   </div>
   <div class="deck">
     <button id="chip" aria-label="Prints"></button>
@@ -108,11 +98,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 </div>
 
 <div id="print">
-  <div class="top">
-    <button id="back">CLOSE</button>
-    <span class="film-code">HONEY 70</span>
-    <button style="visibility:hidden">CLOSE</button>
-  </div>
+  <div class="bar"><button id="back" aria-label="Close"></button></div>
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
@@ -122,9 +108,10 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 
 <script type="module">
 const $ = id => document.getElementById(id);
-const MAX_NEG = 2200;    // capture cap — plenty for a 1100px develop
+const MAX_NEG = 2200;
+const ASPECT = 4 / 5;          // w / h — the frame
 
-/* ---------- store (prints + tiny thumbs) ---------- */
+/* ---------- store ---------- */
 const DB = await new Promise((res, rej) => {
   const q = indexedDB.open("emulsify-one", 2);
   q.onupgradeneeded = () => {
@@ -149,12 +136,11 @@ const allKeys = () => new Promise((res, rej) => {
 let prints = await allKeys();
 let pending = 0;
 
-/* blob-url hygiene: one registry, revoke aggressively */
 const urls = new Set();
-const mkURL = blob => { const u = URL.createObjectURL(blob); urls.add(u); return u; };
-function revokeAll() { for (const u of urls) URL.revokeObjectURL(u); urls.clear(); }
+const mkURL = b => { const u = URL.createObjectURL(b); urls.add(u); return u; };
+const revokeAll = () => { for (const u of urls) URL.revokeObjectURL(u); urls.clear(); };
 
-async function makeThumb(blob) {           // 220px JPEG thumb
+async function makeThumb(blob) {
   const bmp = await createImageBitmap(blob);
   const s = 220 / Math.max(bmp.width, bmp.height);
   const c = document.createElement("canvas");
@@ -165,7 +151,7 @@ async function makeThumb(blob) {           // 220px JPEG thumb
   c.width = c.height = 0;
   return t;
 }
-async function thumbOf(id) {               // lazy-migrate old prints
+async function thumbOf(id) {
   let t = await get("thumbs", id);
   if (!t) { const p = await get("prints", id);
     if (!p) return null; t = await makeThumb(p); await put("thumbs", id, t); }
@@ -190,10 +176,7 @@ const labDevelop = buf => {
   });
 };
 
-/* ---------- camera: restart-on-rotation manager ----------
-   iOS WebKit breaks the live camera track when the device rotates or the
-   app is backgrounded; the reliable fix is to stop and re-acquire the
-   stream. */
+/* ---------- camera (no rotation handling by design) ---------- */
 let stream = null, restarting = false;
 async function startCamera() {
   if (restarting) return; restarting = true;
@@ -209,31 +192,27 @@ async function startCamera() {
   restarting = false;
 }
 startCamera();
-
-let rotT = null;
-function onRotate() {                 // iOS wants a beat after rotation
-  clearTimeout(rotT);
-  rotT = setTimeout(startCamera, 350);
-}
-if (screen.orientation && screen.orientation.addEventListener)
-  screen.orientation.addEventListener("change", onRotate);
-matchMedia("(orientation: landscape)").addEventListener?.("change", onRotate);
-window.addEventListener("orientationchange", onRotate);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") onRotate();   // wake from background
+  if (document.visibilityState === "visible") setTimeout(startCamera, 250);
 });
 
+/* shutter: crop the sensor to the exact 4:5 the frame shows (cover-centered) */
 $("shutter").onclick = async () => {
   const v = $("video");
   if (!v.videoWidth || restarting || pending > 2) return;
-  const s = Math.min(1, MAX_NEG / Math.max(v.videoWidth, v.videoHeight));
+  const vw = v.videoWidth, vh = v.videoHeight;
+  let cw, ch;
+  if (vw / vh > ASPECT) { ch = vh; cw = Math.round(vh * ASPECT); }
+  else { cw = vw; ch = Math.round(vw / ASPECT); }
+  const sx = Math.round((vw - cw) / 2), sy = Math.round((vh - ch) / 2);
+  const s = Math.min(1, MAX_NEG / ch);
   const c = document.createElement("canvas");
-  c.width = Math.round(v.videoWidth * s); c.height = Math.round(v.videoHeight * s);
-  c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+  c.width = Math.round(cw * s); c.height = Math.round(ch * s);
+  c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
   $("flash").style.opacity = 1;
   setTimeout(() => $("flash").style.opacity = 0, 110);
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
-  c.width = c.height = 0;                        // release canvas memory (iOS)
+  c.width = c.height = 0;
   pending++; paintChip();
   const id = String(Date.now());
   try {
@@ -254,7 +233,7 @@ async function paintChip() {
     const t = await thumbOf(last);
     if (t) { const img = document.createElement("img"); img.src = mkURL(t);
              chip.appendChild(img); }
-  } else if (!pending) chip.innerHTML = '<span class="n">—</span>';
+  }
   if (pending) {
     const b = document.createElement("div"); b.className = "busy";
     b.innerHTML = '<span class="dot"></span>';
@@ -264,14 +243,15 @@ async function paintChip() {
 paintChip();
 $("chip").onclick = () => { if (prints.length) openPrint(prints[prints.length - 1]); };
 
-/* ---------- print view ---------- */
-let current = null, stageURL = null;
+/* ---------- print view (save pre-armed for instant share) ---------- */
+let current = null, stageURL = null, armedFile = null;
 async function openPrint(id) {
   current = id;
   const stage = $("stage"); stage.innerHTML = "";
   if (stageURL) { URL.revokeObjectURL(stageURL); urls.delete(stageURL); }
   const blob = await get("prints", id);
   if (!blob) return;
+  armedFile = new File([blob], "emulsify-" + id + ".jpg", { type: "image/jpeg" });
   const img = document.createElement("img");
   stageURL = mkURL(blob); img.src = stageURL;
   stage.appendChild(img);
@@ -288,15 +268,13 @@ async function openPrint(id) {
   $("print").classList.add("on");
 }
 $("back").onclick = () => { $("print").classList.remove("on"); revokeAll(); paintChip(); };
-$("save").onclick = async () => {
-  if (!current) return;
-  const blob = await get("prints", current);
-  const file = new File([blob], "emulsify-" + current + ".jpg", { type: "image/jpeg" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file] }); } catch {}
+$("save").onclick = () => {
+  if (!armedFile) return;
+  if (navigator.canShare && navigator.canShare({ files: [armedFile] })) {
+    navigator.share({ files: [armedFile] }).catch(() => {});
   } else {
     const a = document.createElement("a");
-    a.href = mkURL(file); a.download = file.name; a.click();
+    a.href = mkURL(armedFile); a.download = armedFile.name; a.click();
   }
 };
 </script>
