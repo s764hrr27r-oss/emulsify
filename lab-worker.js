@@ -22,7 +22,7 @@ from honey_sr import unrender
 from canon_profiles import HONEY70_CANON, SCOPE70_CANON
 from scipy.special import erf
 
-LONG_EDGE = 1100   # phone-friendly memory + speed; the look holds
+LONG_EDGE = 1100   # daily develop size; fine re-develop passes its own
 
 def _expand(lin, kmax=2.2):
     """DYNAMIC EXPANSION: per-channel, highlights only. Mids stay anchored;
@@ -208,14 +208,15 @@ def _dodge(pos, strength=0.25):
     lift = 1.0/(1.0 + strength*mask)
     return np.clip(pos**lift[..., None], 0, 1)
 
-def develop(neg_bytes, profile, seed):
+def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     import time as _t
     _t0 = _t.time()
     src = ImageOps.exif_transpose(Image.open(io.BytesIO(bytes(neg_bytes)))).convert("RGB")
+    long_edge = int(long_edge)
     if src.width >= src.height:
-        w = LONG_EDGE; h = round(src.height*LONG_EDGE/src.width)
+        w = long_edge; h = round(src.height*long_edge/src.width)
     else:
-        h = LONG_EDGE; w = round(src.width*LONG_EDGE/src.height)
+        h = long_edge; w = round(src.width*long_edge/src.height)
     arr = np.array(src.resize((w, h), Image.LANCZOS)); src.close()
     _FIELDS[:] = _make_fields(arr.shape[0], arr.shape[1], int(seed))
     _BEDS[:] = _draw_beds(int(seed))
@@ -251,10 +252,10 @@ def develop(neg_bytes, profile, seed):
 })();
 
 onmessage = async (e) => {
-  const { id, neg, profile, seed } = e.data;
+  const { id, neg, profile, seed, size } = e.data;
   try {
     await boot;
-    const result = develop(new Uint8Array(neg), profile, seed);
+    const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
     const bytes = obj.jpg instanceof Uint8Array ? obj.jpg : new Uint8Array(obj.jpg);

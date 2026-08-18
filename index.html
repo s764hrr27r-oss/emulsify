@@ -75,8 +75,11 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
   transform:rotate(45deg)}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
-#stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
-           -webkit-touch-callout:default;user-select:auto}
+#stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#fining{position:absolute;inset:0;display:none;place-items:center;
+        background:rgba(10,10,10,.45)}
+#fining .dot{width:14px;height:14px;animation:breathe 1.6s ease-in-out infinite}
+#stage.fining #fining{display:grid}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
@@ -134,11 +137,12 @@ const aspect = () => matchMedia("(orientation: landscape)").matches ? 5/4 : 4/5;
 
 /* ---------- store ---------- */
 const DB = await new Promise((res, rej) => {
-  const q = indexedDB.open("emulsify-one", 2);
+  const q = indexedDB.open("emulsify-one", 3);
   q.onupgradeneeded = () => {
     const db = q.result;
     if (!db.objectStoreNames.contains("prints")) db.createObjectStore("prints");
     if (!db.objectStoreNames.contains("thumbs")) db.createObjectStore("thumbs");
+    if (!db.objectStoreNames.contains("negs"))   db.createObjectStore("negs");
   };
   q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
 });
@@ -183,17 +187,17 @@ async function thumbOf(id) {
 const worker = new Worker("lab-worker.js");
 let msgId = 0; const waits = new Map();
 worker.onmessage = e => {
-  const { id, ok, result, error, ready } = e.data;
+  const { id, ok, result, secs, error, ready } = e.data;
   if (ready !== undefined || e.data.progress) return;
   const w = waits.get(id); if (!w) return; waits.delete(id);
-  ok ? w.res(result) : w.rej(new Error(error));
+  ok ? w.res({ jpg: result, secs }) : w.rej(new Error(error));
 };
-const labDevelop = buf => {
+const labDevelop = (buf, seed, size) => {
   const id = ++msgId;
   return new Promise((res, rej) => {
     waits.set(id, { res, rej });
     worker.postMessage({ id, neg: buf, profile: "honey",
-                         seed: id * 7 + Date.now() % 97 });
+                         seed: seed, size: size || 1100 });
   });
 };
 
@@ -236,8 +240,12 @@ $("shutter").onclick = async () => {
   c.width = c.height = 0;
   pending++; paintChip();
   const id = String(Date.now());
+  const seed = (Number(id) % 9000) + 1;          // the batch: stored, reproducible
+  localStorage["s" + id] = seed;
+  await put("negs", id, blob);                   // the negative is kept
   try {
-    const jpg = await labDevelop(await blob.arrayBuffer());
+    const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed);
+    localStorage["t" + id] = secs || "";
     const printBlob = new Blob([jpg], { type: "image/jpeg" });
     await put("prints", id, printBlob);
     await put("thumbs", id, await makeThumb(printBlob));
@@ -272,10 +280,17 @@ async function openPrint(id) {
   if (stageURL) { URL.revokeObjectURL(stageURL); urls.delete(stageURL); }
   const blob = await get("prints", id);
   if (!blob) return;
-  armedFile = new File([blob], "emulsify-" + id + ".jpg", { type: "image/jpeg" });
+  const secs = localStorage["t" + id] || "";
+  armedFile = new File([blob],
+    "EMULSIFY-222" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
+    { type: "image/jpeg" });
   const img = document.createElement("img");
   stageURL = mkURL(blob); img.src = stageURL;
   stage.appendChild(img);
+  const fin = document.createElement("div");
+  fin.id = "fining"; fin.innerHTML = '<span class="dot"></span>';
+  stage.appendChild(fin);
+  attachHold(img, id);
 
   const strip = $("strip"); strip.innerHTML = "";
   for (const k of [...prints].reverse().slice(0, 40)) {
@@ -288,6 +303,38 @@ async function openPrint(id) {
   }
   $("print").classList.add("on");
 }
+/* hold the print ~0.5s: re-develop the stored negative at fine size.
+   Same seed, same weather, same minerals — the identical photo, larger. */
+const FINE = 1800;
+let holdT = null, fining = false;
+function attachHold(img, id) {
+  const start = () => {
+    if (fining || localStorage["f" + id]) return;
+    holdT = setTimeout(() => refine(id), 550);
+  };
+  const cancel = () => { clearTimeout(holdT); holdT = null; };
+  img.addEventListener("pointerdown", start);
+  img.addEventListener("pointerup", cancel);
+  img.addEventListener("pointerleave", cancel);
+  img.addEventListener("pointermove", cancel);
+}
+async function refine(id) {
+  const neg = await get("negs", id);
+  if (!neg) return;                              // pre-update prints have no negative
+  const seed = Number(localStorage["s" + id]) || 1;
+  fining = true; $("stage").classList.add("fining");
+  try {
+    const { jpg, secs } = await labDevelop(await neg.arrayBuffer(), seed, FINE);
+    const printBlob = new Blob([jpg], { type: "image/jpeg" });
+    await put("prints", id, printBlob);
+    await put("thumbs", id, await makeThumb(printBlob));
+    localStorage["t" + id] = secs || "";
+    localStorage["f" + id] = "1";                // fine now; hold disarmed
+    await openPrint(id);
+  } catch (e) { console.error(e); }
+  fining = false; $("stage").classList.remove("fining");
+}
+
 $("back").onclick = () => { $("print").classList.remove("on"); revokeAll(); paintChip(); };
 $("save").onclick = () => {
   if (!armedFile) return;
