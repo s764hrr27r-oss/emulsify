@@ -113,7 +113,17 @@ def _draw_beds(seed):
         rem = 1.0 - f_m - f_g
         r1 = float(rng.uniform(0.45, 0.65))
         bed = [(matrix, f_m), (m1, rem*r1), (m2, rem*(1-r1)), (gem, f_g)]
-        beds.append([(n, f) + MINERALS[n][1:] for n, f in bed])
+        full = [(n, f) + MINERALS[n][1:] for n, f in bed]
+        # NORMALIZE THE BED: the mixture stays wild, but its aggregate
+        # light-catching and development rate are pinned to 1.0 — like a
+        # real emulsion blended to its rated speed. A bed can shape
+        # texture and character; it can never tilt a layer's color.
+        ls = sum(f*np.log10(sp) for (n, f, sz, sp, dr, gl, ct) in full)
+        ld = sum(f*np.log10(dr) for (n, f, sz, sp, dr, gl, ct) in full)
+        ks, kd = 10.0**ls, 10.0**ld
+        full = [(n, f, sz, sp/ks, dr/kd, gl, ct)
+                for (n, f, sz, sp, dr, gl, ct) in full]
+        beds.append(full)
     return beds
 
 def _make_fields(h, w, seed):

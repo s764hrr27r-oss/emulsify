@@ -187,7 +187,7 @@ async function thumbOf(id) {
 }
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=8");
+const worker = new Worker("lab-worker.js?v=9");
 let msgId = 0; const waits = new Map();
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
