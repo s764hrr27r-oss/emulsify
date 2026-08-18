@@ -24,6 +24,18 @@ from scipy.special import erf
 
 LONG_EDGE = 1100   # phone-friendly memory + speed; the look holds
 
+def _expand(lin, kmax=2.2):
+    """DYNAMIC EXPANSION: per-channel, highlights only. Mids stay anchored;
+    the JPEG's crushed top end stretches back into real light ratios, so
+    flames, windows and sky feed the emulsion's shoulder and halation with
+    the energy the scene actually had. Colored light expands in its own
+    color."""
+    import numpy as np
+    t = 0.75
+    over = np.clip((lin - t)/(1 - t), 0, 1)
+    gain = 1.0 + (kmax - 1.0)*over**1.8
+    return np.clip(lin*gain, 0, kmax + 0.3)
+
 # ---- KINETIC STABILIZER (documented addendum to the frozen canon) ----
 # The negative meters its own development: each layer's rate leans gently
 # against exposure error and color cast (max ~ +/-6% color, +/-15% time).
@@ -32,24 +44,28 @@ LONG_EDGE = 1100   # phone-friendly memory + speed; the look holds
 _TAUS = [1.0, 1.0, 1.0]; _CALL = [0]; _FIELDS = [None, None, None]
 
 def _make_fields(h, w, seed):
-    """LIVING DEVELOPMENT: each layer develops in its own zero-mean weather
-    (offset development center + organic drift). Spatial variation only —
-    zero-mean by construction, so it can never introduce a color cast.
-    Deterministic per seed."""
+    """LIVING DEVELOPMENT — INDEPENDENT BIOMES. Each layer has its own
+    weather: its own storm centers (spots), its own correlation length
+    (speed — R slow continental, G temperate, B fast squalls), its own
+    amplitude (flavor). Fully decorrelated, zero-mean each. No sharing.
+    Global residue is the final fixer's job. Deterministic per seed."""
     import numpy as np
     from scipy.ndimage import gaussian_filter as _gf
     rng = np.random.default_rng(seed*7919 + 13)
     yy, xx = np.mgrid[0:h, 0:w]
+    spec = [(max(h, w)/4.0,  0.011, 0.009),   # R: slow continental
+            (max(h, w)/6.0,  0.010, 0.008),   # G: temperate
+            (max(h, w)/10.0, 0.008, 0.007)]   # B: fast squalls
     fields = []
-    for i in range(3):
-        cx = w*(0.5 + float(rng.uniform(-0.07, 0.07)))
-        cy = h*(0.5 + float(rng.uniform(-0.07, 0.07)))
+    for corr, amp, rad in spec:
+        cx = w*(0.5 + float(rng.uniform(-0.10, 0.10)))
+        cy = h*(0.5 + float(rng.uniform(-0.10, 0.10)))
         R = np.sqrt(((xx-cx)/(w/2))**2 + ((yy-cy)/(h/2))**2)/np.sqrt(2)
         n = rng.normal(0, 1, (h, w))
-        n = _gf(n, max(w, h)/6.0); n /= max(n.std(), 1e-6)
-        f = -0.014*R + 0.010*n
+        n = _gf(n, corr); n /= max(n.std(), 1e-6)
+        f = -rad*R + amp*n
         f -= f.mean()
-        fields.append(np.clip(1.0 + f, 0.97, 1.035))
+        fields.append(np.clip(1.0 + f, 0.972, 1.033))
     return fields
 
 def _dev_kinetic(light, st, um, rng, gain, ms, gs):
@@ -77,36 +93,33 @@ def _dev_kinetic(light, st, um, rng, gain, ms, gs):
 E._develop_layer = _dev_kinetic
 
 def _meter(lin):
+    """Exposure-only development metering. Color correction now lives in
+    the FINAL FIXER, measured on the developed print itself."""
     import numpy as np
     lum = lin.mean(-1)
-    sat = lin.max(-1) - lin.min(-1)
-    # casts are read from NEAR-NEUTRAL midtones only; saturated content
-    # (grass, sky, fabric) never counts as a cast
-    neutral = (lum > 0.03) & (lum < 0.6) & (sat < 0.10*np.maximum(lum, 1e-6) + 0.03)
-    mid = neutral
-    if mid.sum() < 400:
-        mid = (lum > 0.03) & (lum < 0.6)
-        if mid.sum() < 500: return [1.0, 1.0, 1.0]
-        # no neutral witness: exposure correction only
-        med = float(np.median(lum[lum > 0.01]))
-        ev = float(np.clip(np.log2(0.16/med), -2.5, 3.0))
-        exc = max(ev - 0.6, 0.0) - max(-ev - 1.3, 0.0)
-        t = float(np.clip(1.0 + 0.08*exc, 0.93, 1.14))
-        return [round(t, 3)]*3
-    m = np.maximum(np.array([np.median(lin[..., c][mid]) for c in range(3)]), 1e-5)
     med = float(np.median(lum[lum > 0.01]))
     ev = float(np.clip(np.log2(0.16/med), -2.5, 3.0))
-    # dead zones: rescue engages past +0.6 stop under; pulls only past 1.3 over.
-    # a fine frame gets tau = 1.0 exactly — canon, untouched.
     exc = max(ev - 0.6, 0.0) - max(-ev - 1.3, 0.0)
-    t_exp = np.clip(1.0 + 0.08*exc, 0.93, 1.14)
-    # cast vs content: zero color correction in bright scenes, and
-    # sub-6% channel deviation is scene, not cast.
-    wcol = float(np.clip(1.0 - (med - 0.12)*5.0, 0.0, 1.0))
-    dev = m/m.mean() - 1.0
-    devx = np.sign(dev)*np.maximum(np.abs(dev) - 0.06, 0)
-    t_col = np.clip((1.0 + devx)**(-0.12*wcol), 0.94, 1.06)
-    return [float(x) for x in np.round(t_exp*t_col, 3)]
+    t = float(np.clip(1.0 + 0.08*exc, 0.93, 1.14))
+    return [round(t, 3)]*3
+
+def _final_fix(out):
+    """THE FINAL FIXER: color trim measured on the developed print.
+    Neutral witness + brightness gate + dead zone; density-neutral gains.
+    Fires only when the print itself testifies to a cast."""
+    import numpy as np
+    lum = out.mean(-1); sat = out.max(-1) - out.min(-1)
+    neutral = (lum > 0.10) & (lum < 0.75) & (sat < 0.10*np.maximum(lum, 1e-6) + 0.03)
+    med = float(np.median(lum[lum > 0.02]))
+    wcol = float(np.clip(1.0 - (med - 0.16)*4.0, 0.0, 1.0))
+    if neutral.sum() < 400 or wcol <= 0:
+        return out
+    m = np.maximum(np.array([np.median(out[..., c][neutral]) for c in range(3)]), 1e-5)
+    dv = m/m.mean() - 1.0
+    dvx = np.sign(dv)*np.maximum(np.abs(dv) - 0.05, 0)
+    g = np.clip((1.0 + dvx)**(-0.55*wcol), 0.955, 1.045)
+    g = g/g.mean()
+    return np.clip(out*g[None, None, :], 0, 1)
 
 def _dodge(pos, strength=0.25):
     if strength <= 0: return pos
@@ -133,7 +146,8 @@ def develop(neg_bytes, profile, seed):
     else:
         lin = E.srgb_to_linear(arr)
         _TAUS[:] = _meter(lin); _CALL[0] = 0
-        out = HONEY70_CANON(lin, seed=int(seed))
+        out = HONEY70_CANON(_expand(lin), seed=int(seed))
+    out = _final_fix(out)
     out = _dodge(out, 0.25)
     img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
     secs = int(round(_t.time() - _t0)) or 1
