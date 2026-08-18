@@ -42,13 +42,15 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #shutterwrap{justify-self:center}
 #chip{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
       overflow:hidden;position:relative;display:grid;place-items:center;flex:0 0 auto}
-#chip img{width:100%;height:100%;object-fit:cover;display:block}
+#chip img{width:100%;height:100%;object-fit:cover;display:block;
+          transition:opacity .2s var(--ease)}
 @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
 @keyframes chipin{from{opacity:0;transform:scale(.9)}}
 #tray{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
       display:grid;place-items:center;flex:0 0 auto;position:relative;overflow:hidden;
       animation:chipin .24s var(--ease)}
-#tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+          transition:opacity .2s var(--ease)}
 #tray .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #tray .dot{position:relative}
 #tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
@@ -66,8 +68,8 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #shutter{width:78px;height:78px;border-radius:50%;border:2.5px solid var(--w);
          display:grid;place-items:center}
 #shutter i{width:64px;height:64px;border-radius:50%;background:var(--w);
-           display:block;transition:transform .1s}
-#shutter:active i, #shutter.pressed i{transform:scale(.88)}
+           display:block;transition:transform .22s var(--ease)}
+#shutter:active i, #shutter.pressed i{transform:scale(.88);transition-duration:.07s}
 /* a real, invisible native switch rides the shutter: the finger's own tap
    toggles it, so iOS plays the Taptic tick — no script, nothing to patch */
 #hap{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
@@ -583,7 +585,8 @@ async function paintChip() {
   let im = chip.querySelector("img");
   if (!u) { chip.innerHTML = ""; return; }
   if (!im) { im = document.createElement("img"); chip.appendChild(im); }
-  if (im.src !== u) im.src = u;
+  if (im.src !== u) { im.style.opacity = 0;
+    im.onload = () => { im.style.opacity = ""; }; im.src = u; }
 }
 async function paintTray() {
   const busy = pending > 0, any = busy || unchosen.size > 0;
@@ -608,7 +611,8 @@ async function paintTray() {
                t.insertBefore(im, t.firstChild); }
     if (!sc) { sc = document.createElement("i"); sc.className = "scrim";
                t.insertBefore(sc, t.querySelector(".dot")); }
-    if (im.src !== u) im.src = u;
+    if (im.src !== u) { im.style.opacity = 0;
+      im.onload = () => { im.style.opacity = ""; }; im.src = u; }
   } else { im?.remove(); sc?.remove(); }
   if ($("traymenu").classList.contains("on")) buildTrayMenu();
 }
@@ -695,25 +699,33 @@ function applyXY(x, y) {
   $("ringfield").style.transform = "translate3d(" + x + "px," + y + "px,0)";
   fadeOpacities();
 }
-/* neighbors are progressive: at rest only the first ring breathes in;
-   the far field materializes once the hand moves */
+/* neighbors are progressive: at rest only the first ring breathes in; the
+   far field materializes once the hand moves. Writes are rAF-coalesced and
+   delta-gated so a 120Hz drag never floods the style system. */
 function fadeOpacities(yOff) {
+  if (yOff !== undefined) { fadeNow(yOff); return; }
+  if (RING.fadeReq) return;
+  RING.fadeReq = requestAnimationFrame(() => { RING.fadeReq = 0; fadeNow(0); });
+}
+function fadeNow(yOff) {
   const cx = innerWidth / 2, cy = innerHeight / 2 + (yOff || 0);
   const ux = RING.tw + RT.gap, uy = RING.th + RT.gap;
   for (const c of RING.tiles) {
     const tx = RING.x + c._x + RING.tw / 2, ty = RING.y + c._y + RING.th / 2;
     const d = Math.hypot((tx - cx) / ux, (ty - cy) / uy);
     const o = (!RING.awake && d > 1.6) ? 0 : Math.max(0.05, Math.pow(0.5, d));
-    c.style.opacity = o.toFixed(3);
+    if (Math.abs((c._o || 0) - o) > 0.004) { c._o = o; c.style.opacity = o.toFixed(3); }
   }
 }
-function setSel(w, t, animate) {
+function setSel(w, t, animate, dur) {
   const [X, Y] = fieldPosFor(w, t);
   if (animate === false) { applyXY(X, Y); return; }
   cancelAnimationFrame(RING.anim);
   const x0 = RING.x, y0 = RING.y, t0 = performance.now();
+  const D = dur || Math.min(460, Math.max(220,
+            180 + Math.hypot(X - x0, Y - y0) * 0.35));
   const step = n => {
-    const p = Math.min(1, (n - t0) / 220), e = 1 - Math.pow(1 - p, 5);
+    const p = Math.min(1, (n - t0) / D), e = 1 - Math.pow(1 - p, 5);
     applyXY(x0 + (X - x0) * e, y0 + (Y - y0) * e);
     if (p < 1) RING.anim = requestAnimationFrame(step);
   };
@@ -909,6 +921,10 @@ ringEl.addEventListener("pointermove", e => {
   if (!RD) return;
   const dx = e.clientX - RD.x, dy = e.clientY - RD.y;
   if (Math.hypot(dx, dy) > 8) RD.moved = true;
+  const n = performance.now(), dt = Math.max(1, n - (RD.t || n));
+  RD.vx = 0.75 * (RD.vx || 0) + 0.25 * ((e.clientX - (RD.lx ?? e.clientX)) / dt);
+  RD.vy = 0.75 * (RD.vy || 0) + 0.25 * ((e.clientY - (RD.ly ?? e.clientY)) / dt);
+  RD.lx = e.clientX; RD.ly = e.clientY; RD.t = n;
   if (RD.moved && RING.lim) {
     applyXY(Math.max(RING.lim.minX, Math.min(RING.lim.maxX, RD.fx + dx)),
             Math.max(RING.lim.minY, Math.min(RING.lim.maxY, RD.fy + dy)));
@@ -916,9 +932,15 @@ ringEl.addEventListener("pointermove", e => {
 });
 ringEl.addEventListener("pointerup", e => {
   if (RING.closing || !RD) return;
-  const moved = RD.moved; RD = null;
+  const moved = RD.moved, vx = RD.vx || 0, vy = RD.vy || 0; RD = null;
+  if (moved) {                       /* a flick carries: project, then settle */
+    const px = Math.max(RING.lim.minX, Math.min(RING.lim.maxX, RING.x + vx * 140));
+    const py = Math.max(RING.lim.minY, Math.min(RING.lim.maxY, RING.y + vy * 140));
+    const [w, t] = selOf(px, py);
+    setSel(w, t);
+    return;
+  }
   const [w, t] = selOf(RING.x, RING.y);
-  if (moved) { setSel(w, t); return; }
   const el = document.elementFromPoint(e.clientX, e.clientY);
   if (el && el.parentElement === $("ringfield") && el.tagName === "CANVAS") {
     const ew = Number(el.dataset.w), et = Number(el.dataset.t);
