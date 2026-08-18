@@ -50,6 +50,15 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 #shutter:active i{transform:scale(.88)}
 .spacer{width:46px;height:46px;flex:0 0 auto}
 
+/* ---------- portrait gate: this is a 4:5 vertical camera ---------- */
+#rotgate{position:fixed;inset:0;background:var(--k);z-index:100;
+         display:none;place-items:center}
+#rotgate i{display:block;width:42px;height:56px;border:2px solid var(--dot);
+           border-radius:6px}
+@media (orientation: landscape){
+  #rotgate{display:grid}
+}
+
 /* ---------- print ---------- */
 #print{position:fixed;inset:0;background:var(--k);display:none;flex-direction:column;
        z-index:10;padding-top:env(safe-area-inset-top)}
@@ -79,6 +88,8 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
 </style>
 </head>
 <body>
+
+<div id="rotgate"><i></i></div>
 
 <div id="camera">
   <div class="top"><span class="dot"></span></div>
@@ -199,6 +210,7 @@ document.addEventListener("visibilitychange", () => {
 /* shutter: crop the sensor to the exact 4:5 the frame shows (cover-centered) */
 $("shutter").onclick = async () => {
   const v = $("video");
+  if (matchMedia("(orientation: landscape)").matches) return;
   if (!v.videoWidth || restarting || pending > 2) return;
   const vw = v.videoWidth, vh = v.videoHeight;
   let cw, ch;
