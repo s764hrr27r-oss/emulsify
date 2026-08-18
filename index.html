@@ -14,14 +14,14 @@
 html,body{height:100%;overscroll-behavior:none}
 body{background:var(--k);color:var(--w);
      font-family:-apple-system,"Helvetica Neue",system-ui,sans-serif;
-     font-weight:300;letter-spacing:.01em;
-     padding-top:env(safe-area-inset-top)}
+     font-weight:300;letter-spacing:.01em}
 button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
 .film-code{font-size:11px;font-weight:400;letter-spacing:.32em;color:var(--mute)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--dot);display:inline-block}
 
 /* ---------- camera ---------- */
-#camera{height:100%;display:flex;flex-direction:column}
+#camera{position:fixed;inset:0;display:flex;flex-direction:column;
+         padding-top:env(safe-area-inset-top)}
 .top{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 0 12px}
 #glass{flex:1;position:relative;overflow:hidden;background:#000}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -190,17 +190,42 @@ const labDevelop = buf => {
   });
 };
 
-/* ---------- camera ---------- */
-try {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment",
-             width: { ideal: 4032 }, height: { ideal: 3024 } }, audio: false });
-  $("video").srcObject = stream;
-} catch { $("denied").style.display = "grid"; }
+/* ---------- camera: restart-on-rotation manager ----------
+   iOS WebKit breaks the live camera track when the device rotates or the
+   app is backgrounded; the reliable fix is to stop and re-acquire the
+   stream. */
+let stream = null, restarting = false;
+async function startCamera() {
+  if (restarting) return; restarting = true;
+  try {
+    stream?.getTracks().forEach(t => t.stop());
+    $("video").srcObject = null;
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment",
+               width: { ideal: 4032 }, height: { ideal: 3024 } }, audio: false });
+    $("video").srcObject = stream;
+    $("denied").style.display = "none";
+  } catch { $("denied").style.display = "grid"; }
+  restarting = false;
+}
+startCamera();
+
+let rotT = null;
+function onRotate() {                 // iOS wants a beat after rotation
+  clearTimeout(rotT);
+  rotT = setTimeout(startCamera, 350);
+}
+if (screen.orientation && screen.orientation.addEventListener)
+  screen.orientation.addEventListener("change", onRotate);
+matchMedia("(orientation: landscape)").addEventListener?.("change", onRotate);
+window.addEventListener("orientationchange", onRotate);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") onRotate();   // wake from background
+});
 
 $("shutter").onclick = async () => {
   const v = $("video");
-  if (!v.videoWidth || pending > 2) return;      // small queue cap
+  if (!v.videoWidth || restarting || pending > 2) return;
   const s = Math.min(1, MAX_NEG / Math.max(v.videoWidth, v.videoHeight));
   const c = document.createElement("canvas");
   c.width = Math.round(v.videoWidth * s); c.height = Math.round(v.videoHeight * s);
