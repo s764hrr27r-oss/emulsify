@@ -29,25 +29,50 @@ LONG_EDGE = 1100   # phone-friendly memory + speed; the look holds
 # against exposure error and color cast (max ~ +/-6% color, +/-15% time).
 # Deterministic — driven only by the image. Rescued frames carry a trace
 # of push character, as real rescued rolls did.
-_TAUS = [1.0, 1.0, 1.0]; _CALL = [0]
+_TAUS = [1.0, 1.0, 1.0]; _CALL = [0]; _FIELDS = [None, None, None]
+
+def _make_fields(h, w, seed):
+    """LIVING DEVELOPMENT: each layer develops in its own zero-mean weather
+    (offset development center + organic drift). Spatial variation only —
+    zero-mean by construction, so it can never introduce a color cast.
+    Deterministic per seed."""
+    import numpy as np
+    from scipy.ndimage import gaussian_filter as _gf
+    rng = np.random.default_rng(seed*7919 + 13)
+    yy, xx = np.mgrid[0:h, 0:w]
+    fields = []
+    for i in range(3):
+        cx = w*(0.5 + float(rng.uniform(-0.07, 0.07)))
+        cy = h*(0.5 + float(rng.uniform(-0.07, 0.07)))
+        R = np.sqrt(((xx-cx)/(w/2))**2 + ((yy-cy)/(h/2))**2)/np.sqrt(2)
+        n = rng.normal(0, 1, (h, w))
+        n = _gf(n, max(w, h)/6.0); n /= max(n.std(), 1e-6)
+        f = -0.014*R + 0.010*n
+        f -= f.mean()
+        fields.append(np.clip(1.0 + f, 0.97, 1.035))
+    return fields
 
 def _dev_kinetic(light, st, um, rng, gain, ms, gs):
     import numpy as np
     from scipy.ndimage import gaussian_filter as _gf
-    tau = _TAUS[_CALL[0] % 3]; _CALL[0] += 1
+    i = _CALL[0] % 3
+    tau = _TAUS[i]; F = _FIELDS[i]; _CALL[0] += 1
     soft = _gf(light, sigma=st.film_mtf_um*ms/um)
     H = np.log10(np.maximum(soft*(st.iso/100.0)*gain, 1e-8)); Hm = np.log10(0.18)
     spread = np.where(H < Hm, 0.58, 1.40)
     p = np.clip(st.toe + (1-st.toe)*(0.5*(1+erf((H-Hm)/(spread*np.sqrt(2))))), 0, 1)
-    p = 1.0 - (1.0 - p)**tau
+    tau_xy = tau*(F if F is not None else 1.0)
+    p = 1.0 - np.power(1.0 - p, tau_xy)          # living kinetics
+    r = np.clip((p - 0.04)/0.55, 0, 1)**0.7      # crystal resolve: dev completeness
     dev = 0.0
     for size, frac, amp in ((st.crystal_fine_um*gs, 1-st.coarse_frac, 0.85),
                             (st.crystal_coarse_um*gs, st.coarse_frac, 0.55)):
         area = np.pi*(size/2)**2*np.exp(2*st.crystal_sigma**2)
         n = max((um**2)*0.40*frac/area, 6.0)
         pop = rng.binomial(int(round(n)), p)/round(n)
-        pop = _gf(pop, max(1.6*size/um, 0.4)*0.5)
-        dev = dev + frac*(p + (pop-p)*amp*(0.94 + 0.06*tau))
+        s0 = max(1.6*size/um, 0.4)*0.5
+        pe = r*_gf(pop, s0) + (1-r)*_gf(pop, s0*2.6)   # resolved=crisp, thin=mushy
+        dev = dev + frac*(p + (pe-p)*amp*(0.94 + 0.06*tau)*(0.72 + 0.45*r))
     return np.clip(dev, 0, 1)
 E._develop_layer = _dev_kinetic
 
@@ -100,6 +125,7 @@ def develop(neg_bytes, profile, seed):
     else:
         h = LONG_EDGE; w = round(src.width*LONG_EDGE/src.height)
     arr = np.array(src.resize((w, h), Image.LANCZOS)); src.close()
+    _FIELDS[:] = _make_fields(arr.shape[0], arr.shape[1], int(seed))
     if profile == "scope":
         light = unrender(arr)
         _TAUS[:] = _meter(np.clip(light, 0, 1)); _CALL[0] = 0
