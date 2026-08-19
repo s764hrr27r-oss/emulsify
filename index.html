@@ -154,27 +154,23 @@ body.settle #camera,body.settle #print,body.settle #ring{
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
            -webkit-touch-callout:default;user-select:auto;
-           opacity:0;transition:opacity .22s var(--ease)}
+           opacity:0;transition:opacity .22s var(--ease),transform .3s var(--ease)}
 #stage img.in{opacity:1}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
-#print .foot{display:flex;flex-direction:column;align-items:center;gap:16px;
-             padding:16px 0 calc(22px + env(safe-area-inset-bottom))}
+#print .foot{position:absolute;left:0;right:0;bottom:0;display:flex;
+             justify-content:center;pointer-events:none;
+             padding:12px 0 calc(14px + env(safe-area-inset-bottom));
+             background:linear-gradient(transparent, rgba(10,10,10,.55))}
 #strip{display:flex;gap:6px;overflow-x:auto;max-width:100%;padding:0 22px;
-       -webkit-overflow-scrolling:touch}
+       -webkit-overflow-scrolling:touch;pointer-events:auto}
 #strip button{flex:0 0 auto;width:44px;height:44px;border-radius:3px;overflow:hidden;
               border:1px solid transparent}
 #strip button.sel{border-color:var(--w)}
 #strip img{width:100%;height:100%;object-fit:cover;display:block}
-#save{font-size:13px;letter-spacing:.22em;color:var(--w);
-      border:1px solid var(--hair);border-radius:999px;padding:12px 34px}
-#save:active{background:var(--hair)}
 @media (orientation: landscape){
-  #print .foot{flex-direction:row;justify-content:center;gap:16px;
-               padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
-  #strip{flex:1;max-width:none}
-  #strip button{width:36px;height:36px}
+  #print .foot{display:none}    /* landscape: the print gets the whole room */
 }
 
 /* ---------- ring (the printer's easel) ----------
@@ -247,7 +243,6 @@ body.settle #camera,body.settle #print,body.settle #ring{
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
-    <button id="save">SAVE</button>
   </div>
 </div>
 
@@ -464,7 +459,10 @@ $("lensveil").onclick = () => { closeLensMenu(); closeTrayMenu(); };
 startCamera();
 $("video").addEventListener("loadeddata", () => $("video").classList.add("live"));
 const setPaged = b => document.body.classList.toggle("paged", b);
-let rotT = 0, rotS = 0, lastLand = 90;
+let rotT = 0, rotS = 0, lastLand = 90, rotResized = false;
+addEventListener("resize", () => {
+  if (document.body.classList.contains("rot")) rotResized = true;
+});
 function onTurn() {
   /* the curtain is a move now: content tips a few degrees toward the turn
      as it fades (.16s), holds through iOS's own choreography (~700ms with
@@ -482,12 +480,17 @@ function onTurn() {
   alignDeck();
   document.body.classList.add("rot");
   document.body.classList.remove("settle");
+  rotResized = false;
   clearTimeout(rotT); clearTimeout(rotS);
-  rotT = setTimeout(() => {
+  const release = () => {
     document.body.classList.remove("rot");
     document.body.classList.add("settle");
     rotS = setTimeout(() => document.body.classList.remove("settle"), 540);
-  }, 470);
+  };
+  rotT = setTimeout(() => {           /* wait for the layout to have swapped */
+    if (rotResized) release();
+    else rotT = setTimeout(release, 320);
+  }, 600);
 }
 matchMedia("(orientation: landscape)").addEventListener("change", onTurn);
 addEventListener("orientationchange", onTurn);
@@ -1020,8 +1023,8 @@ addEventListener("resize", () => {
   }
 });
 
-/* ---------- print view (save pre-armed for instant share) ---------- */
-let current = null, stageURL = null, armedFile = null;
+/* ---------- print view; long-press the print itself to save ---------- */
+let current = null, stageURL = null, SLIDE = 0;
 async function openPrint(id) {
   const pure = await get("prints", id + ":p");
   const wt = await chosenOf(id);
@@ -1036,14 +1039,12 @@ async function openPrint(id) {
   if (stageURL) { URL.revokeObjectURL(stageURL); urls.delete(stageURL); }
   const blob = await get("prints", id);
   if (!blob) return;
-  const secs = localStorage["t" + id] || "";
-  armedFile = new File([blob],
-    "EMULSIFY-222" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
-    { type: "image/jpeg" });
   const img = document.createElement("img");
   stageURL = mkURL(blob); img.src = stageURL;
+  if (SLIDE) img.style.transform = "translateX(" + (SLIDE * 34) + "px)";
+  SLIDE = 0;
   stage.appendChild(img);
-  requestAnimationFrame(() => img.classList.add("in"));
+  requestAnimationFrame(() => { img.classList.add("in"); img.style.transform = ""; });
   $("rering").style.visibility = pure ? "visible" : "hidden";
 
   const strip = $("strip"); strip.innerHTML = "";
@@ -1068,15 +1069,43 @@ $("rering").onclick = async () => {
   $("print").classList.remove("on"); revokeAll();
   openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0, false);
 };
-$("save").onclick = () => {
-  if (!armedFile) return;
-  if (navigator.canShare && navigator.canShare({ files: [armedFile] })) {
-    navigator.share({ files: [armedFile] }).catch(() => {});
-  } else {
-    const a = document.createElement("a");
-    a.href = mkURL(armedFile); a.download = armedFile.name; a.click();
-  }
-};
+/* ---------- swipe between prints (both orientations) ---------- */
+const navList = () => [...prints].reverse().filter(k => !unchosen.has(k));
+let SW = null;
+$("stage").addEventListener("pointerdown", e => {
+  SW = { x: e.clientX, y: e.clientY, dx: 0, t: performance.now(),
+         v: 0, lx: e.clientX, drag: false };
+});
+$("stage").addEventListener("pointermove", e => {
+  if (!SW) return;
+  const dx = e.clientX - SW.x, dy = e.clientY - SW.y;
+  if (!SW.drag && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2)
+    SW.drag = true;
+  if (!SW.drag) return;
+  const n = performance.now(), dt = Math.max(1, n - SW.t);
+  SW.v = 0.75 * SW.v + 0.25 * ((e.clientX - SW.lx) / dt);
+  SW.lx = e.clientX; SW.t = n; SW.dx = dx;
+  const list = navList(), i = list.indexOf(current);
+  const has = dx < 0 ? i < list.length - 1 : i > 0;
+  const img = $("stage").querySelector("img");
+  if (img) { img.style.transition = "none";
+             img.style.transform = "translateX(" + (has ? dx : dx * 0.35) + "px)"; }
+});
+function swEnd() {
+  if (!SW) return;
+  const { dx, v, drag } = SW; SW = null;
+  const img = $("stage").querySelector("img");
+  if (img) img.style.transition = "";
+  if (!drag) return;
+  const list = navList(), i = list.indexOf(current);
+  const commit = Math.abs(dx) > 72 || (Math.abs(v) > 0.45 && Math.abs(dx) > 24);
+  const dir = dx < 0 ? 1 : -1;                 /* finger left -> older */
+  const target = list[i + dir];
+  if (commit && target) { SLIDE = dir; openPrint(target); }
+  else if (img) img.style.transform = "";
+}
+$("stage").addEventListener("pointerup", swEnd);
+$("stage").addEventListener("pointercancel", swEnd);
 </script>
 </body>
 </html>
