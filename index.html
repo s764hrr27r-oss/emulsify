@@ -235,7 +235,7 @@ body.f-rf #rf{display:block}
 
 /* ---------- ring (the printer's easel) ----------
    The print arrives first, full frame, then settles back into the reticle as
-   its neighbors breathe in. vertical = tint (green up) · horizontal = warmth
+   its neighbors breathe in. vertical = tint (green up) · horizontal = vibrance
    (warm right) · the frame under the reticle is the live pick · tap it to
    lock. Left alone, the reticle fades and the as-developed frame locks
    itself — the easel is a pause, not a demand. */
@@ -422,7 +422,7 @@ const chosenOf = async id => {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=18");
+const worker = new Worker("lab-worker.js?v=19");
 let msgId = 0; const waits = new Map();
 const jobFrame = new Map();
 worker.onmessage = e => {
@@ -889,7 +889,7 @@ paintChip(); paintTray();
 $("chip").onclick = () => { const k = newestProcessed(); if (k) openPrint(k); };
 
 /* ---------- ring: the printer's easel ---------- */
-const RT = { tS: 8, tMax: 40, wS: 8, wMax: 16, gap: 10,
+const RT = { tS: 8, tMax: 40, wS: 10, wMax: 50, gap: 10,
              settleAt: 1500, settleMs: 500, breathAt: 250, lockAt: 3200 };
 const rows = []; for (let t = RT.tMax; t >= -RT.tMax; t -= RT.tS) rows.push(t);  // green top
 const cols = []; for (let w = -RT.wMax; w <= RT.wMax; w += RT.wS) cols.push(w);  // cool left
@@ -904,19 +904,21 @@ const L2S = new Uint8ClampedArray(4096);
 for (let i = 0; i < 4096; i++) { const x = i / 4095;
   L2S[i] = Math.round(255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055)); }
 const lutv = l => L2S[l <= 0 ? 0 : l >= 1 ? 4095 : Math.round(l * 4095)];
-/* density-neutral by construction: gains mean exactly 1; matches worker bake().
-   Per-gain 256-entry byte LUTs: identical output, one lookup per subpixel. */
-function tintPixels(d, wPct, tPct) {
-  const t = tPct / 100, w = wPct / 100;
-  const gains = [1 - t / 3 + w / 2, 1 + 2 * t / 3, 1 - t / 3 - w / 2];
-  const L = gains.map(g => {
-    const a = new Uint8ClampedArray(256);
-    for (let v = 0; v < 256; v++) a[v] = lutv(S2L[v] * g);
-    return a;
-  });
-  const [Rl, Gl, Bl] = L;
+/* density-neutral by construction: tint gains mean exactly 1, and vibrance
+   scales chroma around untouched luminance; matches worker bake(). */
+function tintPixels(d, vPct, tPct) {
+  const t = tPct / 100, v = vPct / 100;
+  const gr = 1 - t / 3, gg = 1 + 2 * t / 3, gb = 1 - t / 3;
   for (let i = 0; i < d.length; i += 4) {
-    d[i] = Rl[d[i]]; d[i + 1] = Gl[d[i + 1]]; d[i + 2] = Bl[d[i + 2]];
+    let Rl = S2L[d[i]] * gr, Gl = S2L[d[i + 1]] * gg, Bl = S2L[d[i + 2]] * gb;
+    if (v) {
+      const Y = 0.2126 * Rl + 0.7152 * Gl + 0.0722 * Bl;
+      const mx = Math.max(Rl, Gl, Bl), mn = Math.min(Rl, Gl, Bl);
+      const sat = mx > 1e-4 ? (mx - mn) / mx : 0;
+      const k = 1 + v * (1 - sat);
+      Rl = Y + (Rl - Y) * k; Gl = Y + (Gl - Y) * k; Bl = Y + (Bl - Y) * k;
+    }
+    d[i] = lutv(Rl); d[i + 1] = lutv(Gl); d[i + 2] = lutv(Bl);
   }
 }
 

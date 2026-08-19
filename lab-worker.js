@@ -1,4 +1,6 @@
-// lab-worker.js — v2.0. Verbatim canon; JPEG prints
+// lab-worker.js — v2.1. Verbatim canon; JPEG prints
+// v2.1: the easel's horizontal axis becomes VIBRANCE (chroma-only, luminance
+// byte-preserved — the density law holds). Vertical stays green/magenta.
 // v2.0: THE WHISPER. The sandwich retuned to the owner's spec — "a little
 // detail from the darks, that's it": one-third strength, reach tightened to
 // the truly deep, donor ceiling lowered so recovered tones stay dark, and
@@ -247,14 +249,21 @@ def _dodge(pos, strength=0.25):
     return np.clip(pos**lift[..., None], 0, 1)
 
 def bake(jpg_bytes, w, t, secs):
-    """PRINTER'S EASEL: density-neutral color trim on a finished print.
-    w = warmth (R-B), t = tint (G vs R+B), both fractions (+-0.40 max app-side).
-    gains mean exactly 1.0 by construction; applied in linear light."""
+    """PRINTER'S EASEL: density-neutral trim on a finished print.
+    w = VIBRANCE fraction (+-0.50 app-side): chroma scaled around luminance,
+        weighted toward quiet colors; luminance untouched.
+    t = tint (G vs R+B, +-0.40): per-channel gains, mean exactly 1.0."""
     im = Image.open(io.BytesIO(bytes(jpg_bytes))).convert("RGB")
     arr = np.array(im); im.close()
     lin = E.srgb_to_linear(arr)
-    g = np.array([1.0 - t/3.0 + w/2.0, 1.0 + 2.0*t/3.0, 1.0 - t/3.0 - w/2.0])
+    g = np.array([1.0 - t/3.0, 1.0 + 2.0*t/3.0, 1.0 - t/3.0])
     out = np.clip(lin*g[None, None, :], 0.0, 1.0)
+    if abs(w) > 1e-6:
+        Y = (out * np.array([0.2126, 0.7152, 0.0722])).sum(-1, keepdims=True)
+        mx = out.max(-1, keepdims=True); mn = out.min(-1, keepdims=True)
+        sat = np.where(mx > 1e-4, (mx - mn)/np.maximum(mx, 1e-4), 0.0)
+        k = 1.0 + w*(1.0 - sat)
+        out = np.clip(Y + (out - Y)*k, 0.0, 1.0)
     img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
     buf = io.BytesIO()
     try:
