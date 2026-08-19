@@ -1,4 +1,7 @@
-// lab-worker.js — v1.2. Verbatim canon; smaller develop size + JPEG prints
+// lab-worker.js — v1.3. Verbatim canon; smaller develop size + JPEG prints
+// v1.3 adds the paper pre-flash (FLASH 2): a whisper of uniform print
+// exposure lifting only the deepest shadows onto the toe of the paper
+// curve. Additive wrapper at the _dodge seam; every canon line untouched.
 // + garbage collection to keep iOS Safari happy.
 // v1.2 adds bake(): the printer's easel — density-neutral warmth/tint gains
 // applied in linear to a finished print, EXIF re-stamped. No re-develop;
@@ -284,6 +287,21 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     del arr, out, img
     gc.collect()
     return {"jpg": buf.getvalue(), "secs": secs}
+
+
+# ---- ADDENDUM v1.3: paper pre-flash (owner-called, 2026-08-18) ----
+# Shadows were crushing to paper black; the darkroom answer is to pre-flash
+# the paper. Below linear 0.04 (~22% gray) the print rises on a C1-smooth,
+# monotone toe: black lands at #141414 (FLASH 2). Above the join: untouched,
+# byte for byte. Canon above this line: FROZEN.
+_canon_dodge_v12 = _dodge
+_FLASH_A, _FLASH_T = 0.007, 0.04
+def _dodge(pos, strength=0.25):
+    out = _canon_dodge_v12(pos, strength)
+    m = out < _FLASH_T
+    d = 1.0 - out[m] / _FLASH_T
+    out[m] = out[m] + _FLASH_A * d * d
+    return np.clip(out, 0.0, 1.0)
 `);
   develop = pyodide.globals.get("develop");
   bakePy = pyodide.globals.get("bake");
