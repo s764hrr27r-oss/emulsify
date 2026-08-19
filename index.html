@@ -104,8 +104,8 @@ body.f-rf #rf{display:block}
 #tray{width:46px;height:46px;border-radius:5px;border:1px solid var(--hair);
       display:grid;place-items:center;flex:0 0 auto;position:relative;overflow:hidden;
       animation:chipin .24s var(--ease)}
-#tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-          transition:opacity 1.2s var(--ease)}
+#tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#tray img.step{animation:stepup 2.4s var(--ease) both}
 #tray .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #tray .dot{position:relative}
 #tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
@@ -116,8 +116,11 @@ body.f-rf #rf{display:block}
   max-height:52vh;overflow-y:auto}
 #traymenu button{width:180px;height:180px;border-radius:12px;overflow:hidden;
   border:1px solid var(--hair);display:grid;place-items:center;position:relative}
-@keyframes facein{from{opacity:0}}
-#traymenu img{animation:facein 1.6s var(--ease)}
+@keyframes stepup{
+  from{opacity:0;filter:brightness(1.65) contrast(.55) saturate(.85)}
+  55%{opacity:1}
+  to{opacity:1;filter:none}}
+#traymenu img{animation:stepup 3.2s var(--ease) both}
 #traymenu img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #traymenu .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #traymenu .dot{position:relative}
@@ -208,7 +211,7 @@ body.f-rf #rf{display:block}
 #rering:active::before{opacity:.8}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
-           -webkit-touch-callout:default;user-select:auto;
+           -webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto;
            opacity:0;transition:opacity .22s var(--ease),transform .3s var(--ease)}
 #stage img.in{opacity:1}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
@@ -419,7 +422,7 @@ const chosenOf = async id => {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=15");
+const worker = new Worker("lab-worker.js?v=16");
 let msgId = 0; const waits = new Map();
 const jobFrame = new Map();
 worker.onmessage = e => {
@@ -829,14 +832,13 @@ async function paintTray() {
   if (u) {
     if (!sc) { sc = document.createElement("i"); sc.className = "scrim";
                t.insertBefore(sc, t.querySelector(".dot")); }
-    if (!top || top.src !== u) {           /* a new step: fade it over the old */
+    if (!top || top.src !== u) {     /* a new step comes up in the bath */
       const im = document.createElement("img");
-      im.style.opacity = 0; im.src = u;
+      im.className = "step"; im.src = u;
       t.insertBefore(im, sc);
-      requestAnimationFrame(() => { im.style.opacity = ""; });
       setTimeout(() => {
         for (const o of t.querySelectorAll("img")) if (o !== im) o.remove();
-      }, 1400);
+      }, 2600);
     }
   } else { for (const o of ims) o.remove(); sc?.remove(); }
   if ($("traymenu").classList.contains("on")) buildTrayMenu();
@@ -859,7 +861,7 @@ async function buildTrayMenu() {
       b.insertBefore(ni, b.firstChild);
       setTimeout(() => {
         for (const o of b.querySelectorAll("img")) if (o !== ni) o.remove();
-      }, 1800);
+      }, 3400);
     } else if (!u && img) img.remove();
     let sc = b.querySelector(".scrim"), dd = b.querySelector(".dot");
     if (cook) {
@@ -1207,7 +1209,7 @@ addEventListener("resize", () => {
 });
 
 /* ---------- print view; long-press the print itself to save ---------- */
-let current = null;
+let current = null, armedFile = null;
 async function openPrint(id) {
   const pure = await get("prints", id + ":p");
   const wt = await chosenOf(id);
@@ -1221,6 +1223,13 @@ async function openPrint(id) {
   const stage = $("stage"); stage.innerHTML = "";
   const u = await printURL(id);
   if (!u) return;
+  try {                                   /* arm the print for hold-to-save */
+    const blob = await get("prints", id);
+    const secs = localStorage["t" + id] || "";
+    armedFile = new File([blob],
+      "EMULSIFY-222" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
+      { type: "image/jpeg" });
+  } catch (e) { armedFile = null; }
   const img = document.createElement("img");
   img.src = u;
   stage.appendChild(img);
@@ -1250,7 +1259,24 @@ $("rering").onclick = async () => {
   $("print").classList.remove("on"); revokeAll();
   openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0, false);
 };
-/* navigation is the strip: tap a thumb below; long-press the print saves */
+/* navigation is the strip: tap a thumb below; hold the print to save */
+let HOLD = null;
+$("stage").addEventListener("pointerdown", e => {
+  HOLD = { t: performance.now(), x: e.clientX, y: e.clientY, moved: false };
+});
+$("stage").addEventListener("pointermove", e => {
+  if (HOLD && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 10)
+    HOLD.moved = true;
+});
+$("stage").addEventListener("pointercancel", () => { HOLD = null; });
+$("stage").addEventListener("pointerup", () => {
+  const h = HOLD; HOLD = null;
+  if (!h || h.moved || performance.now() - h.t < 550) return;
+  if (armedFile && navigator.canShare &&
+      navigator.canShare({ files: [armedFile] })) {
+    navigator.share({ files: [armedFile] }).catch(() => {});
+  }
+});
 </script>
 </body>
 </html>
