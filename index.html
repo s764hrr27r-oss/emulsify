@@ -272,7 +272,7 @@ body.f-rf #rf{display:block}
       <button id="tray" aria-label="Developing" style="display:none"><span class="dot"></span></button>
     </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
-    <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn ghost" aria-label="Lens">1×</button></span>
+    <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn" aria-label="Lens">33mm</button></span>
   </div>
 </div>
 
@@ -472,6 +472,7 @@ const LADDER = [
 const labelOf = F => (LADDER.find(l => l.F === F) || { k: F + "mm" }).k;
 let phys = [];                        /* [{id, e}] native 35mm-e per camera */
 const GLASS = { mm: 33, id: null, crop: 1 };
+tickBadge($("lens"));                 /* visible from frame one, live on discovery */
 function realize(F) {
   let c = null;
   for (const p of phys) if (p.e <= F) c = p;
@@ -508,7 +509,6 @@ async function discoverLenses() {
   GLASS.id = r.id; GLASS.crop = r.crop;
   $("lens").textContent = labelOf(GLASS.mm);
   tickBadge($("lens"));
-  $("lens").classList.remove("ghost");
   lensView();
   paintLensMenu();
 }
