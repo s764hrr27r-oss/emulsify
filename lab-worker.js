@@ -1,7 +1,8 @@
-// lab-worker.js — v1.4. Verbatim canon; JPEG prints
-// v1.4: develop size 1100 -> 1400 (glue constant), and the tray watches the
-// bath — read-only snapshots posted at two real pipeline moments (the
-// exposed negative as the developer hits it, and the print at the fixer).
+// lab-worker.js — v1.5. Verbatim canon; JPEG prints
+// v1.4 added the bath-watcher (read-only snapshots at two real pipeline
+// moments). v1.5 reverts develop size to 1100: 1400 exceeded iOS's web
+// process memory ceiling mid-chemistry and the OS killed the page.
+// Fine/large develops stay a desktop idea, not a phone one.
 // v1.3 adds the paper pre-flash (FLASH 2): a whisper of uniform print
 // exposure lifting only the deepest shadows onto the toe of the paper
 // curve. Additive wrapper at the _dodge seam; every canon line untouched.
@@ -31,7 +32,7 @@ from honey_sr import unrender
 from canon_profiles import HONEY70_CANON, SCOPE70_CANON
 from scipy.special import erf
 
-LONG_EDGE = 1400   # daily develop size (v1.4 bump); fine passes its own
+LONG_EDGE = 1100   # daily develop size; the phone's memory ceiling is law
 
 def _expand(lin, kmax=2.2):
     """DYNAMIC EXPANSION: per-channel, highlights only. Mids stay anchored;
@@ -364,7 +365,7 @@ onmessage = async (e) => {
       return;
     }
     CURJOB = id;
-    const result = develop(new Uint8Array(neg), profile, seed, size || 1400);
+    const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
     const bytes = obj.jpg instanceof Uint8Array ? obj.jpg : new Uint8Array(obj.jpg);

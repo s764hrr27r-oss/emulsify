@@ -10,10 +10,11 @@
 <title>Emulsify</title>
 <style>
 :root{ --k:#0a0a0a; --w:#f4f2ed; --mute:#8a8a86; --dot:#e0913a; --hair:#232323;
-       --ease:cubic-bezier(.32,.72,0,1) }
+       --ease:cubic-bezier(.32,.72,0,1);
+       --grain:url(data:image/png;base64,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) }
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 html,body{height:100%;overscroll-behavior:none}
-body{background:var(--k);color:var(--w);
+body{background:var(--k);background-image:var(--grain);color:var(--w);
      font-family:-apple-system,"Helvetica Neue",system-ui,sans-serif;
      font-weight:300;letter-spacing:.01em}
 button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
@@ -44,13 +45,32 @@ body.settle #camera,body.settle #print,body.settle #ring{
    linear-gradient(to right, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px)),
    linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(244,242,237,.45) 33.33%, transparent calc(33.33% + .5px)),
    linear-gradient(to bottom, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px))}
+body.f-off #grid,body.f-rf #grid,body.f-cross #grid{display:none}
+#cross{position:absolute;left:50%;top:50%;width:16px;height:16px;
+       translate:-50% -50%;display:none;pointer-events:none}
+body.f-cross #cross{display:block}
+#cross::before,#cross::after{content:"";position:absolute;background:rgba(244,242,237,.8)}
+#cross::before{left:0;right:0;top:50%;height:1px}
+#cross::after{top:0;bottom:0;left:50%;width:1px}
+#rf{position:absolute;inset:0;pointer-events:none;display:none}
+body.f-rf #rf{display:block}
+#rf i{position:absolute;width:18px;height:18px;border:0 solid rgba(244,242,237,.8)}
+#rf i:nth-child(1){left:7%;top:7%;border-left-width:2px;border-top-width:2px}
+#rf i:nth-child(2){right:7%;top:7%;border-right-width:2px;border-top-width:2px}
+#rf i:nth-child(3){left:7%;bottom:7%;border-left-width:2px;border-bottom-width:2px}
+#rf i:nth-child(4){right:7%;bottom:7%;border-right-width:2px;border-bottom-width:2px}
+#rf b{position:absolute;left:50%;top:50%;width:17%;aspect-ratio:5/3;
+      translate:-50% -50%;border:1px solid rgba(224,145,58,.7)}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 #denied{position:absolute;inset:0;display:none;place-items:center;
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
 .deck{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
-      padding:18px 34px calc(22px + env(safe-area-inset-bottom))}
+      padding:18px 34px calc(22px + env(safe-area-inset-bottom));position:relative}
+.deck::before{content:"";position:absolute;pointer-events:none;
+      inset:6px 16px calc(env(safe-area-inset-bottom) + 10px);
+      border:1px solid var(--hair);border-radius:16px}
 #chips{display:flex;gap:10px;align-items:center;justify-self:start}
-#lens{justify-self:end}
+#rightstack{justify-self:end;display:flex;flex-direction:column;gap:10px;align-items:center}
 #shutterwrap{justify-self:center}
 #chip{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
       overflow:hidden;position:relative;display:grid;place-items:center;flex:0 0 auto}
@@ -122,6 +142,7 @@ body.settle #camera,body.settle #print,body.settle #ring{
   .deck{position:absolute;top:0;bottom:0;display:flex;
         right:calc(env(safe-area-inset-right));width:100px;
         flex-direction:column;justify-content:center;gap:20px;padding:0}
+  .deck::before{inset:auto 6px auto 6px;top:50%;translate:0 -50%;height:372px}
   body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
   #shutterwrap{order:1}
   #shutter{width:70px;height:70px}
@@ -137,7 +158,8 @@ body.settle #camera,body.settle #print,body.settle #ring{
 }
 
 /* ---------- print ---------- */
-#print{position:fixed;inset:0;background:var(--k);display:flex;flex-direction:column;
+#print{position:fixed;inset:0;background:var(--k);background-image:var(--grain);
+       display:flex;flex-direction:column;
        z-index:10;padding-top:env(safe-area-inset-top);
        opacity:0;pointer-events:none;transform:scale(.985);
        transition:opacity .26s var(--ease),transform .26s var(--ease)}
@@ -188,7 +210,8 @@ body.settle #camera,body.settle #print,body.settle #ring{
    lock. Left alone, the reticle fades and the as-developed frame locks
    itself — the easel is a pause, not a demand. */
 @keyframes fadein{from{opacity:0}}
-#ring{position:fixed;inset:0;background:var(--k);display:none;z-index:20;
+#ring{position:fixed;inset:0;background:var(--k);background-image:var(--grain);
+      display:none;z-index:20;
       overflow:hidden;touch-action:none;transition:opacity .24s var(--ease)}
 #ring.on{display:block;animation:fadein .22s var(--ease)}
 #ringfield{position:absolute;left:0;top:0;will-change:transform;
@@ -221,6 +244,8 @@ body.settle #camera,body.settle #print,body.settle #ring{
     <div id="glass">
       <video id="video" autoplay playsinline muted></video>
       <div id="grid"></div>
+      <div id="rf"><i></i><i></i><i></i><i></i><b></b></div>
+      <div id="cross"></div>
       <div id="flash"></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
@@ -231,7 +256,7 @@ body.settle #camera,body.settle #print,body.settle #ring{
       <button id="tray" aria-label="Developing" style="display:none"><span class="dot"></span></button>
     </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
-    <button id="lens" class="lensbtn" aria-label="Lens" style="visibility:hidden">1×</button>
+    <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn" aria-label="Lens" style="visibility:hidden">1×</button></span>
   </div>
 </div>
 
@@ -364,7 +389,7 @@ const chosenOf = async id => {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=12");
+const worker = new Worker("lab-worker.js?v=13");
 let msgId = 0; const waits = new Map();
 const jobFrame = new Map();
 worker.onmessage = e => {
@@ -490,6 +515,27 @@ $("lens").onclick = () => {
   $("lensveil").classList.toggle("on", on);
 };
 $("lensveil").onclick = () => { closeLensMenu(); closeTrayMenu(); };
+
+/* ---------- the finder: GRID -> RF -> OFF (remembered) ---------- */
+const FINDERS = ["grid", "rf", "cross", "off"];
+function setFinder(m) {
+  document.body.classList.remove("f-rf", "f-cross", "f-off");
+  if (m === "rf") document.body.classList.add("f-rf");
+  if (m === "cross") document.body.classList.add("f-cross");
+  if (m === "off") document.body.classList.add("f-off");
+  $("finder").textContent =
+    m === "grid" ? "GRID" : m === "rf" ? "RF" : m === "cross" ? "CROSS" : "OFF";
+  $("finder").insertAdjacentHTML("beforeend",
+    '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
+  try { localStorage["finder"] = m; } catch (e) {}
+}
+setFinder((() => { try { return FINDERS.includes(localStorage["finder"])
+  ? localStorage["finder"] : "grid"; } catch (e) { return "grid"; } })());
+$("finder").addEventListener("click", () => {
+  const cur = (() => { try { return localStorage["finder"] || "grid"; }
+                       catch (e) { return "grid"; } })();
+  setFinder(FINDERS[(FINDERS.indexOf(cur) + 1) % FINDERS.length]);
+});
 startCamera();
 $("video").addEventListener("loadeddata", () => $("video").classList.add("live"));
 const setPaged = b => document.body.classList.toggle("paged", b);
@@ -1122,10 +1168,11 @@ $("rering").onclick = async () => {
 /* ---------- stage gestures: conveyor paging + gallery zoom ---------- */
 const navList = () => [...prints].reverse().filter(k => !unchosen.has(k));
 const Z = { s: 1, tx: 0, ty: 0 };
-function zoomApply(img) {
-  (img || $("stage").querySelector("img")) &&
-  (($("stage").querySelector("img")).style.transform =
-    Z.s > 1.001 ? "translate(" + Z.tx + "px," + Z.ty + "px) scale(" + Z.s + ")" : "");
+function zoomApply() {
+  const img = $("stage").querySelector("img");
+  if (!img) return;
+  img.style.transform = Z.s > 1.001
+    ? "translate(" + Z.tx + "px," + Z.ty + "px) scale(" + Z.s + ")" : "";
 }
 function zoomReset() { Z.s = 1; Z.tx = 0; Z.ty = 0; }
 function zoomClamp() {
