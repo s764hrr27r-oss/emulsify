@@ -114,12 +114,15 @@ body.settle #camera,body.settle #print,body.settle #ring{
 @media (orientation: landscape){
   .top{position:absolute;top:calc(4px + env(safe-area-inset-top));left:0;right:0;
        z-index:3;padding:8px 0}
-  #frame{padding:calc(30px + env(safe-area-inset-top)) 116px 10px
-                 calc(10px + env(safe-area-inset-left))}
+  #frame{padding:calc(12px + env(safe-area-inset-top)) 104px 8px
+                 calc(6px + env(safe-area-inset-left))}
+  body.flip #frame{padding:calc(12px + env(safe-area-inset-top))
+                   calc(6px + env(safe-area-inset-right)) 8px 104px}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
   .deck{position:absolute;top:0;bottom:0;display:flex;
-        right:calc(env(safe-area-inset-right));width:112px;
-        flex-direction:column;justify-content:center;gap:26px;padding:0}
+        right:calc(env(safe-area-inset-right));width:100px;
+        flex-direction:column;justify-content:center;gap:20px;padding:0}
+  body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
   #shutterwrap{order:1}
   #shutter{width:70px;height:70px}
   #shutter i{width:57px;height:57px}
@@ -129,6 +132,8 @@ body.settle #camera,body.settle #print,body.settle #ring{
             top:50%;translate:0 -50%}
   #traymenu{left:auto;right:calc(env(safe-area-inset-right) + 122px);
             bottom:auto;top:50%;translate:0 -50%}
+  body.flip #lensmenu,body.flip #traymenu{
+            right:auto;left:calc(env(safe-area-inset-left) + 122px)}
 }
 
 /* ---------- print ---------- */
@@ -170,6 +175,9 @@ body.settle #camera,body.settle #print,body.settle #ring{
 #strip button.sel{border-color:var(--w)}
 #strip img{width:100%;height:100%;object-fit:cover;display:block}
 @media (orientation: landscape){
+  #print{padding-top:0}
+  #print .bar{position:absolute;top:0;left:0;right:0;z-index:2;
+              padding:calc(6px + env(safe-area-inset-top)) 14px 6px}
   #print .foot{display:none}    /* landscape: the print gets the whole room */
 }
 
@@ -459,9 +467,20 @@ $("lensveil").onclick = () => { closeLensMenu(); closeTrayMenu(); };
 startCamera();
 $("video").addEventListener("loadeddata", () => $("video").classList.add("live"));
 const setPaged = b => document.body.classList.toggle("paged", b);
+const inpr = document.createElement("div");
+inpr.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;" +
+  "padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)";
+document.body.appendChild(inpr);
+function alignDeck() {
+  const cs = getComputedStyle(inpr);
+  const L = parseFloat(cs.paddingLeft) || 0, Rr = parseFloat(cs.paddingRight) || 0;
+  /* island on the right = clockwise turn = grip left: the deck flips */
+  document.body.classList.toggle("flip", Rr > L + 1);
+}
+alignDeck();
 let rotT = 0, rotS = 0, lastLand = 90, rotResized = false;
 addEventListener("resize", () => {
-  if (document.body.classList.contains("rot")) rotResized = true;
+  if (document.body.classList.contains("rot")) { rotResized = true; alignDeck(); }
 });
 function onTurn() {
   /* the curtain is a move now: content tips a few degrees toward the turn
@@ -478,6 +497,8 @@ function onTurn() {
   if (a === 90 || a === 270) lastLand = a;
   document.documentElement.style.setProperty("--turnhint", hint + "deg");
   alignDeck();
+  const si = $("stage").querySelector("img");
+  if (si) si.style.transform = "";
   document.body.classList.add("rot");
   document.body.classList.remove("settle");
   rotResized = false;
