@@ -82,7 +82,7 @@ body.f-rf #rf{display:block}
       display:grid;place-items:center;flex:0 0 auto;position:relative;overflow:hidden;
       animation:chipin .24s var(--ease)}
 #tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-          transition:opacity .2s var(--ease)}
+          transition:opacity .45s var(--ease)}
 #tray .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #tray .dot{position:relative}
 #tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
@@ -90,8 +90,10 @@ body.f-rf #rf{display:block}
   background:rgba(10,10,10,.94);border:1px solid var(--hair);border-radius:14px;
   padding:8px;left:24px;bottom:calc(env(safe-area-inset-bottom) + 106px);
   max-height:52vh;overflow-y:auto}
-#traymenu button{width:46px;height:46px;border-radius:6px;overflow:hidden;
+#traymenu button{width:138px;height:138px;border-radius:10px;overflow:hidden;
   border:1px solid var(--hair);display:grid;place-items:center;position:relative}
+@keyframes facein{from{opacity:0}}
+#traymenu img{animation:facein .45s var(--ease)}
 #traymenu img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #traymenu .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #traymenu .dot{position:relative}
@@ -573,7 +575,7 @@ function onTurn() {
   if (a === 90 || a === 270) lastLand = a;
   document.documentElement.style.setProperty("--turnhint", hint + "deg");
   alignDeck();
-  zoomReset();
+  zoomReset(); resetGestures();
   const si = $("stage").querySelector("img");
   if (si) si.style.transform = "";
   document.body.classList.add("rot");
@@ -757,15 +759,22 @@ async function paintTray() {
   const newest = items[items.length - 1];
   const u = cooking.has(newest) ? (cookThumbs.get(newest) || null)
                                 : await thumbURL(newest);
-  let im = t.querySelector("img"), sc = t.querySelector(".scrim");
+  let sc = t.querySelector(".scrim");
+  const ims = t.querySelectorAll("img");
+  const top = ims[ims.length - 1];
   if (u) {
-    if (!im) { im = document.createElement("img");
-               t.insertBefore(im, t.firstChild); }
     if (!sc) { sc = document.createElement("i"); sc.className = "scrim";
                t.insertBefore(sc, t.querySelector(".dot")); }
-    if (im.src !== u) { im.style.opacity = 0;
-      im.onload = () => { im.style.opacity = ""; }; im.src = u; }
-  } else { im?.remove(); sc?.remove(); }
+    if (!top || top.src !== u) {           /* a new step: fade it over the old */
+      const im = document.createElement("img");
+      im.style.opacity = 0; im.src = u;
+      t.insertBefore(im, sc);
+      requestAnimationFrame(() => { im.style.opacity = ""; });
+      setTimeout(() => {
+        for (const o of t.querySelectorAll("img")) if (o !== im) o.remove();
+      }, 500);
+    }
+  } else { for (const o of ims) o.remove(); sc?.remove(); }
   if ($("traymenu").classList.contains("on")) buildTrayMenu();
 }
 async function buildTrayMenu() {
@@ -1133,7 +1142,7 @@ async function openPrint(id) {
     return;
   }
   current = id;
-  zoomReset();
+  zoomReset(); resetGestures();
   const stage = $("stage"); stage.innerHTML = "";
   const u = await printURL(id);
   if (!u) return;
@@ -1161,7 +1170,7 @@ async function openPrint(id) {
   setPaged(true);
 }
 $("back").onclick = () => { $("print").classList.remove("on"); setPaged(false);
-  zoomReset();
+  zoomReset(); resetGestures();
   setTimeout(revokeAll, 220); paintChip(); };
 $("rering").onclick = async () => {
   if (!current) return;
@@ -1217,7 +1226,11 @@ async function settlePrint(id) {        /* the neighbor became the print */
   const pure = await get("prints", id + ":p");
   $("rering").style.visibility = pure ? "visible" : "hidden";
 }
+function resetGestures() {
+  PTRS.clear(); SW = null; PAN = null; PINCH = null; clearSides();
+}
 $("stage").addEventListener("pointerdown", e => {
+  try { $("stage").setPointerCapture(e.pointerId); } catch (err) {}
   PTRS.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (PTRS.size === 2) {                 /* pinch begins; paging stands down */
     const [a, b] = [...PTRS.values()];
@@ -1322,6 +1335,7 @@ function swEnd(e) {
 }
 $("stage").addEventListener("pointerup", swEnd);
 $("stage").addEventListener("pointercancel", swEnd);
+$("stage").addEventListener("lostpointercapture", swEnd);
 </script>
 </body>
 </html>
