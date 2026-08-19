@@ -57,16 +57,16 @@ body.f-cross #cross{display:block}
 #cross::before,#cross::after{content:"";position:absolute;background:rgba(244,242,237,.8)}
 #cross::before{left:0;right:0;top:50%;height:1px}
 #cross::after{top:0;bottom:0;left:50%;width:1px}
-#evrow{position:absolute;left:50%;bottom:10px;translate:-50% 0;width:min(64%,320px);
-  height:34px;display:grid;align-items:center;touch-action:none;z-index:2}
-#evrow .track{position:relative;height:1px;background:var(--hair)}
-#evrow .tick{position:absolute;left:50%;top:-3px;width:1px;height:7px;
+#evrow{position:absolute;left:10px;top:50%;translate:0 -50%;height:min(58%,300px);
+  width:34px;display:grid;justify-items:center;touch-action:none;z-index:2}
+#evrow .track{position:relative;width:1px;height:100%;background:var(--hair)}
+#evrow .tick{position:absolute;top:50%;left:-3px;height:1px;width:7px;
   background:var(--mute);opacity:.6}
-#evrow .fill{position:absolute;top:0;height:1px;background:var(--dot)}
-#evrow .thumb{position:absolute;top:50%;left:50%;width:12px;height:12px;
+#evrow .fill{position:absolute;left:0;width:1px;background:var(--dot)}
+#evrow .thumb{position:absolute;left:50%;top:50%;width:12px;height:12px;
   border-radius:50%;background:var(--w);translate:-50% -50%;
   transition:translate .18s var(--ease)}
-#evrow .val{position:absolute;left:50%;top:-22px;translate:-50% 0;
+#evrow .val{position:absolute;left:14px;top:50%;translate:0 -50%;
   font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;
   color:var(--dot);opacity:0;transition:opacity .22s var(--ease)}
 #evrow.live .val{opacity:1}
@@ -105,7 +105,7 @@ body.f-rf #rf{display:block}
       display:grid;place-items:center;flex:0 0 auto;position:relative;overflow:hidden;
       animation:chipin .24s var(--ease)}
 #tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-          transition:opacity .45s var(--ease)}
+          transition:opacity 1.2s var(--ease)}
 #tray .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #tray .dot{position:relative}
 #tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
@@ -114,10 +114,10 @@ body.f-rf #rf{display:block}
   border:1px solid var(--hair);border-radius:14px;
   padding:8px;left:24px;bottom:calc(env(safe-area-inset-bottom) + 106px);
   max-height:52vh;overflow-y:auto}
-#traymenu button{width:138px;height:138px;border-radius:12px;overflow:hidden;
+#traymenu button{width:180px;height:180px;border-radius:12px;overflow:hidden;
   border:1px solid var(--hair);display:grid;place-items:center;position:relative}
 @keyframes facein{from{opacity:0}}
-#traymenu img{animation:facein .45s var(--ease)}
+#traymenu img{animation:facein 1.6s var(--ease)}
 #traymenu img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #traymenu .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #traymenu .dot{position:relative}
@@ -206,7 +206,7 @@ body.f-rf #rf{display:block}
 #rering::before{content:"";position:absolute;left:8px;top:8px;width:15px;height:15px;
   border:1.5px solid var(--dot);border-radius:50%;opacity:.35}
 #rering:active::before{opacity:.8}
-#stage{flex:1;position:relative;min-height:0;margin:0 16px;touch-action:none;overflow:hidden}
+#stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
            -webkit-touch-callout:default;user-select:auto;
            opacity:0;transition:opacity .22s var(--ease),transform .3s var(--ease)}
@@ -222,13 +222,12 @@ body.f-rf #rf{display:block}
        -webkit-overflow-scrolling:touch;pointer-events:auto}
 #strip button{flex:0 0 auto;width:44px;height:44px;border-radius:5px;overflow:hidden;
               border:1px solid transparent}
-#strip button.sel{border-color:var(--w)}
+#strip button.sel{border-color:var(--dot)}
 #strip img{width:100%;height:100%;object-fit:cover;display:block}
 @media (orientation: landscape){
   #print{padding-top:0}
   #print .bar{position:absolute;top:0;left:0;right:0;z-index:2;
               padding:calc(6px + env(safe-area-inset-top)) 14px 6px}
-  #print .foot{display:none}    /* landscape: the print gets the whole room */
 }
 
 /* ---------- ring (the printer's easel) ----------
@@ -561,11 +560,12 @@ function setEV(v) {
   const t = $("evrow").querySelector(".thumb");
   const f = $("evrow").querySelector(".fill");
   const lab = $("evrow").querySelector(".val");
-  const pct = 50 + v / 2 * 50;
-  t.style.left = pct + "%";
-  if (v === 0) { f.style.left = "50%"; f.style.width = "0"; }
-  else if (v > 0) { f.style.left = "50%"; f.style.width = (pct - 50) + "%"; }
-  else { f.style.left = pct + "%"; f.style.width = (50 - pct) + "%"; }
+  const pct = 50 - v / 2 * 50;                 /* up = brighter */
+  t.style.top = pct + "%";
+  lab.style.top = pct + "%";
+  if (v === 0) { f.style.top = "50%"; f.style.height = "0"; }
+  else if (v > 0) { f.style.top = pct + "%"; f.style.height = (50 - pct) + "%"; }
+  else { f.style.top = "50%"; f.style.height = (pct - 50) + "%"; }
   lab.textContent = (v > 0 ? "+" : "") + v.toFixed(1).replace(/\.0$/, "");
   $("evrow").classList.toggle("live", v !== 0);
   $("video").style.filter = v ? "brightness(" + Math.pow(2, v).toFixed(3) + ")" : "";
@@ -574,15 +574,15 @@ function setEV(v) {
 setEV((() => { try { return parseFloat(localStorage["ev"]) || 0; }
                catch (e) { return 0; } })());
 let EVD = null;
-function evFromX(x) {
+function evFromY(y) {
   const r = $("evrow").querySelector(".track").getBoundingClientRect();
-  return ((x - r.left) / r.width - 0.5) * 4;
+  return (0.5 - (y - r.top) / r.height) * 4;
 }
 $("evrow").addEventListener("pointerdown", e => {
   try { $("evrow").setPointerCapture(e.pointerId); } catch (err) {}
-  EVD = true; setEV(evFromX(e.clientX));
+  EVD = true; setEV(evFromY(e.clientY));
 });
-$("evrow").addEventListener("pointermove", e => { if (EVD) setEV(evFromX(e.clientX)); });
+$("evrow").addEventListener("pointermove", e => { if (EVD) setEV(evFromY(e.clientY)); });
 const evEnd = () => { EVD = null; };
 $("evrow").addEventListener("pointerup", evEnd);
 $("evrow").addEventListener("pointercancel", evEnd);
@@ -640,7 +640,6 @@ function onTurn() {
   if (a === 90 || a === 270) lastLand = a;
   document.documentElement.style.setProperty("--turnhint", hint + "deg");
   alignDeck();
-  zoomReset(); resetGestures();
   const si = $("stage").querySelector("img");
   if (si) si.style.transform = "";
   document.body.classList.add("rot");
@@ -837,7 +836,7 @@ async function paintTray() {
       requestAnimationFrame(() => { im.style.opacity = ""; });
       setTimeout(() => {
         for (const o of t.querySelectorAll("img")) if (o !== im) o.remove();
-      }, 500);
+      }, 1400);
     }
   } else { for (const o of ims) o.remove(); sc?.remove(); }
   if ($("traymenu").classList.contains("on")) buildTrayMenu();
@@ -860,7 +859,7 @@ async function buildTrayMenu() {
       b.insertBefore(ni, b.firstChild);
       setTimeout(() => {
         for (const o of b.querySelectorAll("img")) if (o !== ni) o.remove();
-      }, 500);
+      }, 1800);
     } else if (!u && img) img.remove();
     let sc = b.querySelector(".scrim"), dd = b.querySelector(".dot");
     if (cook) {
@@ -1208,7 +1207,7 @@ addEventListener("resize", () => {
 });
 
 /* ---------- print view; long-press the print itself to save ---------- */
-let current = null, SLIDE = 0;
+let current = null;
 async function openPrint(id) {
   const pure = await get("prints", id + ":p");
   const wt = await chosenOf(id);
@@ -1219,16 +1218,13 @@ async function openPrint(id) {
     return;
   }
   current = id;
-  zoomReset(); resetGestures();
   const stage = $("stage"); stage.innerHTML = "";
   const u = await printURL(id);
   if (!u) return;
   const img = document.createElement("img");
   img.src = u;
-  if (SLIDE) img.style.transform = "translateX(" + (SLIDE * 34) + "px)";
-  SLIDE = 0;
   stage.appendChild(img);
-  requestAnimationFrame(() => { img.classList.add("in"); img.style.transform = ""; });
+  requestAnimationFrame(() => img.classList.add("in"));
   $("rering").classList.toggle("ghost", !pure);
 
   const strip = $("strip"); strip.innerHTML = "";
@@ -1247,7 +1243,6 @@ async function openPrint(id) {
   setPaged(true);
 }
 $("back").onclick = () => { $("print").classList.remove("on"); setPaged(false);
-  zoomReset(); resetGestures();
   setTimeout(revokeAll, 220); paintChip(); };
 $("rering").onclick = async () => {
   if (!current) return;
@@ -1255,164 +1250,7 @@ $("rering").onclick = async () => {
   $("print").classList.remove("on"); revokeAll();
   openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0, false);
 };
-/* ---------- stage gestures: conveyor paging + gallery zoom ---------- */
-const navList = () => [...prints].reverse().filter(k => !unchosen.has(k));
-const Z = { s: 1, tx: 0, ty: 0 };
-function zoomApply() {
-  const img = $("stage").querySelector("img");
-  if (!img) return;
-  img.style.transform = Z.s > 1.001
-    ? "translate(" + Z.tx + "px," + Z.ty + "px) scale(" + Z.s + ")" : "";
-}
-function zoomReset() { Z.s = 1; Z.tx = 0; Z.ty = 0; }
-function zoomClamp() {
-  const st = $("stage");
-  const mx = (Z.s - 1) * st.clientWidth / 2, my = (Z.s - 1) * st.clientHeight / 2;
-  Z.tx = Math.max(-mx, Math.min(mx, Z.tx));
-  Z.ty = Math.max(-my, Math.min(my, Z.ty));
-}
-function zoomTo(ns, px, py) {           /* keep the touched point fixed */
-  const st = $("stage").getBoundingClientRect();
-  const cx = st.left + st.width / 2, cy = st.top + st.height / 2;
-  Z.tx = (px - cx) - ((px - cx) - Z.tx) * (ns / Z.s);
-  Z.ty = (py - cy) - ((py - cy) - Z.ty) * (ns / Z.s);
-  Z.s = ns; zoomClamp();
-}
-const PTRS = new Map();
-let SW = null, PAN = null, PINCH = null, lastTapT = 0, lastTapX = 0, lastTapY = 0;
-const sideImgs = new Map();             /* -1 / +1 -> preloaded neighbor img */
-async function ensureSide(dir) {
-  if (sideImgs.has(dir)) return;
-  const list = navList(), i = list.indexOf(current);
-  const id = list[i + dir]; if (!id) return;
-  const u = await printURL(id); if (!u || sideImgs.has(dir)) return;
-  const img = document.createElement("img");
-  img.className = "in"; img.dataset.pid = id;
-  img.style.transition = "none";
-  img.style.transform = "translateX(" + (dir * $("stage").clientWidth) + "px)";
-  $("stage").appendChild(img); sideImgs.set(dir, img);
-}
-function clearSides() {
-  for (const img of sideImgs.values()) img.remove();
-  sideImgs.clear();
-}
-async function settlePrint(id) {        /* the neighbor became the print */
-  current = id;
-  for (const b of $("strip").children)
-    b.classList.toggle("sel", b.dataset.pid === id);
-  const pure = await get("prints", id + ":p");
-  $("rering").classList.toggle("ghost", !pure);
-}
-function resetGestures() {
-  PTRS.clear(); SW = null; PAN = null; PINCH = null; clearSides();
-}
-$("stage").addEventListener("pointerdown", e => {
-  try { $("stage").setPointerCapture(e.pointerId); } catch (err) {}
-  PTRS.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (PTRS.size === 2) {                 /* pinch begins; paging stands down */
-    const [a, b] = [...PTRS.values()];
-    PINCH = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, s0: Z.s };
-    SW = null; PAN = null;
-    const img = $("stage").querySelector("img");
-    if (img) img.style.transition = "none";
-    return;
-  }
-  const n = performance.now();
-  if (n - lastTapT < 300 && Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 24) {
-    lastTapT = 0;                        /* double tap: zoom toggle */
-    const img = $("stage").querySelector("img");
-    if (img) img.style.transition = "";
-    if (Z.s > 1.4) zoomReset(); else zoomTo(2.4, e.clientX, e.clientY);
-    zoomApply();
-    return;
-  }
-  lastTapT = n; lastTapX = e.clientX; lastTapY = e.clientY;
-  if (Z.s > 1.02) {
-    PAN = { x: e.clientX, y: e.clientY, tx: Z.tx, ty: Z.ty };
-  } else {
-    SW = { x: e.clientX, y: e.clientY, dx: 0, t: performance.now(),
-           v: 0, lx: e.clientX, drag: false };
-  }
-});
-$("stage").addEventListener("pointermove", e => {
-  const pt = PTRS.get(e.pointerId);
-  if (pt) { pt.x = e.clientX; pt.y = e.clientY; }
-  if (PINCH && PTRS.size === 2) {
-    const [a, b] = [...PTRS.values()];
-    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    const ns = Math.max(1, Math.min(4, PINCH.s0 * (Math.hypot(a.x - b.x, a.y - b.y) / PINCH.d0)));
-    zoomTo(ns, mid.x, mid.y); zoomApply();
-    return;
-  }
-  if (PAN) {
-    Z.tx = PAN.tx + (e.clientX - PAN.x);
-    Z.ty = PAN.ty + (e.clientY - PAN.y);
-    zoomClamp(); zoomApply();
-    return;
-  }
-  if (!SW) return;
-  const dx = e.clientX - SW.x, dy = e.clientY - SW.y;
-  if (!SW.drag && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-    SW.drag = true;
-    ensureSide(dx < 0 ? 1 : -1);
-  }
-  if (!SW.drag) return;
-  const n = performance.now(), dt = Math.max(1, n - SW.t);
-  SW.v = 0.75 * SW.v + 0.25 * ((e.clientX - SW.lx) / dt);
-  SW.lx = e.clientX; SW.t = n; SW.dx = dx;
-  ensureSide(dx < 0 ? 1 : -1);
-  const list = navList(), i = list.indexOf(current);
-  const has = dx < 0 ? i < list.length - 1 : i > 0;
-  const off = has ? dx : dx * 0.35;
-  const W = $("stage").clientWidth;
-  const img = $("stage").querySelector("img");
-  if (img) { img.style.transition = "none";
-             img.style.transform = "translateX(" + off + "px)"; }
-  for (const [d, si] of sideImgs)
-    si.style.transform = "translateX(" + (d * W + off) + "px)";
-});
-function swEnd(e) {
-  PTRS.delete(e.pointerId);
-  if (PINCH) {
-    if (PTRS.size < 2) {
-      PINCH = null;
-      const img = $("stage").querySelector("img");
-      if (img) img.style.transition = "";
-      if (Z.s < 1.06) { zoomReset(); zoomApply(); }
-    }
-    return;
-  }
-  if (PAN) { if (PTRS.size === 0) PAN = null; return; }
-  if (!SW) return;
-  const { dx, v, drag } = SW; SW = null;
-  const stage = $("stage"), W = stage.clientWidth;
-  const img = stage.querySelector("img");
-  if (img) img.style.transition = "";
-  for (const si of sideImgs.values()) si.style.transition = "";
-  if (!drag) { clearSides(); return; }
-  const list = navList(), i = list.indexOf(current);
-  const commit = Math.abs(dx) > 72 || (Math.abs(v) > 0.45 && Math.abs(dx) > 24);
-  const dir = dx < 0 ? 1 : -1;                 /* finger left -> older */
-  const target = list[i + dir];
-  const incoming = sideImgs.get(dir);
-  if (commit && target && incoming) {          /* the conveyor carries on */
-    if (img) img.style.transform = "translateX(" + (-dir * W) + "px)";
-    incoming.style.transform = "";
-    sideImgs.delete(dir);
-    clearSides();
-    const old = img;
-    setTimeout(() => { if (old && old !== incoming) old.remove(); }, 320);
-    settlePrint(target);
-  } else {                                     /* spring home together */
-    if (img) img.style.transform = "";
-    for (const [d, si] of sideImgs)
-      si.style.transform = "translateX(" + (d * W) + "px)";
-    setTimeout(clearSides, 320);
-  }
-}
-$("stage").addEventListener("pointerup", swEnd);
-$("stage").addEventListener("pointercancel", swEnd);
-$("stage").addEventListener("lostpointercapture", swEnd);
+/* navigation is the strip: tap a thumb below; long-press the print saves */
 </script>
 </body>
 </html>
