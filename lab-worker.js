@@ -1,4 +1,9 @@
-// lab-worker.js — v1.6. Verbatim canon; JPEG prints
+// lab-worker.js — v1.7. Verbatim canon; JPEG prints
+// v1.7: SANDWICH PRINTING — in the deep zone the print is blended toward a
+// soft positive of the base negative itself (owner's design: borrow from the
+// base), then the film's own grain field is transplanted over the donated
+// tones so the technique is invisible. Fixed law, deterministic, gated to
+// true shadows; outside the mask the math is exact identity.
 // v1.6: exposure compensation — a user EV bias (±2 stops) rides into the
 // chemistry through the existing emulsify2 seam. EV 0 is float-identity:
 // the golden is untouched by construction and re-proven by hash.
@@ -303,18 +308,50 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
 # byte for byte. Canon above this line: FROZEN.
 _canon_dodge_v12 = _dodge
 _FLASH_A, _FLASH_T = 0.007, 0.04
+# SANDWICH constants (owner-picked 80%): weight space, donor mapping, gate
+_SW_ST, _SW_SW, _SW_TUP, _SW_GD, _SW_GATE = 0.80, 0.12, 0.16, 0.75, 0.10
 def _dodge(pos, strength=0.25):
     out = _canon_dodge_v12(pos, strength)
     m = out < _FLASH_T
     d = 1.0 - out[m] / _FLASH_T
     out[m] = out[m] + _FLASH_A * d * d
-    return np.clip(out, 0.0, 1.0)
+    out = np.clip(out, 0.0, 1.0)
+    try:
+        B = _BASE[0]
+        if B is None: return out
+        H, W = out.shape[:2]
+        Lb = np.repeat(np.repeat(B, 2, 0), 2, 1)[:H, :W].astype(np.float64)
+        WY = np.array([0.2126, 0.7152, 0.0722])
+        Yp = (out * WY).sum(-1); Yb = (Lb * WY).sum(-1)
+        w = (_SW_ST * np.clip(1 - Yb / _SW_SW, 0, 1) ** 1.5
+             * np.clip((_SW_GATE - Yp) / _SW_GATE + 0.3, 0, 1))
+        if not (w > 1e-4).any(): return out
+        dY = _FLASH_A + (_SW_TUP - _FLASH_A) * np.power(np.clip(Yb / _SW_SW, 0, 1), _SW_GD)
+        donor = (Lb / np.maximum(Yb, 1e-6)[..., None]) * dY[..., None]
+        Psm = _gblur(out, (1.1, 1.1, 0))          # smooth tone of the print
+        grain = out / np.maximum(Psm, 3e-3)       # the film's own grain field
+        tone = Psm * (1 - w[..., None]) + donor * w[..., None]
+        laced = tone * np.clip(grain, 0.5, 1.8)
+        out = np.where(w[..., None] > 1e-4, np.clip(laced, 0, 1), out)
+        del Lb, donor, Psm, grain, tone
+    except Exception:
+        pass
+    return out
 
 # ---- ADDENDUM v1.4: the tray watches the bath (owner-called) ----
 # Two read-only snapshots at real pipeline moments. Snapshot math touches
 # nothing the chemistry uses; purity is regression-proven (seed-99 hash
 # identical with the watcher forced on). Canon above: FROZEN.
 import base64 as _b64
+from scipy.ndimage import gaussian_filter as _gblur
+_BASE = [None]                          # half-res float32 copy of the negative
+_canon_meter_v17 = _meter
+def _meter(lin):
+    try:
+        _BASE[0] = lin[::2, ::2].astype(np.float32)
+    except Exception:
+        _BASE[0] = None
+    return _canon_meter_v17(lin)
 def _post_stage(tag, arr8):
     try:
         import js
