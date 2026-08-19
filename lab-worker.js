@@ -1,4 +1,7 @@
-// lab-worker.js — v1.5. Verbatim canon; JPEG prints
+// lab-worker.js — v1.6. Verbatim canon; JPEG prints
+// v1.6: exposure compensation — a user EV bias (±2 stops) rides into the
+// chemistry through the existing emulsify2 seam. EV 0 is float-identity:
+// the golden is untouched by construction and re-proven by hash.
 // v1.4 added the bath-watcher (read-only snapshots at two real pipeline
 // moments). v1.5 reverts develop size to 1100: 1400 exceeded iOS's web
 // process memory ceiling mid-chemistry and the OS killed the page.
@@ -324,8 +327,14 @@ def _stage_thumb(a):
     im = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
     return np.array(im.resize((max(1, int(w * sc)), max(1, int(h * sc))),
                               Image.BILINEAR))
+_EV_BIAS = 0.0
 _canon_emulsify2_v14 = E.emulsify2
 def _emulsify2_watched(lit, st, **kw):
+    try:
+        b = float(globals().get("_EV_BIAS", 0.0) or 0.0)
+        if b: kw["exposure_ev"] = kw.get("exposure_ev", 0.0) + b
+    except Exception:
+        pass
     try:                                  # the developer hits the film:
         expo = np.clip(lit / max(float(np.percentile(lit, 99.0)), 1e-6), 0, 1) ** 0.45
         neg = (1.0 - expo) * np.array([1.00, 0.62, 0.36])   # orange-masked negative
@@ -365,6 +374,7 @@ onmessage = async (e) => {
       return;
     }
     CURJOB = id;
+    pyodide.globals.set("_EV_BIAS", e.data.ev || 0);
     const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
