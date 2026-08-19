@@ -447,6 +447,8 @@ async function startCamera(deviceId) {
    (13e, uncropped); 22–55 are elevens realized from the longest glass at or
    below them; LONG is the 66 (a 2.54× cut of the wide — the deepest crop
    that still fills the negative). Tap the badge: menu. */
+const tickBadge = el => el.insertAdjacentHTML("beforeend",
+  '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
 const LADDER = [
   { k: "WIDE", F: 13 }, { k: "22mm", F: 22 }, { k: "33mm", F: 33 },
   { k: "44mm", F: 44 }, { k: "55mm", F: 55 }, { k: "LONG", F: 66 }
@@ -469,6 +471,7 @@ function setGlass(F) {
   if (!sameDev && restarting) return;
   GLASS.mm = F; GLASS.id = r.id; GLASS.crop = r.crop;
   $("lens").textContent = labelOf(F);
+  tickBadge($("lens"));
   lensView();
   paintLensMenu();
   if (!sameDev) startCamera(r.id);    /* crops on the same glass are instant */
@@ -488,6 +491,7 @@ async function discoverLenses() {
   if (!r) return;
   GLASS.id = r.id; GLASS.crop = r.crop;
   $("lens").textContent = labelOf(GLASS.mm);
+  tickBadge($("lens"));
   $("lens").style.visibility = "visible";
   lensView();
   paintLensMenu();
