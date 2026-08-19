@@ -34,6 +34,11 @@ body.settle #camera,body.settle #print,body.settle #ring{
 .top{display:flex;align-items:center;justify-content:center;padding:16px 0 12px}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+#chips{animation:rise .5s var(--ease) both .08s}
+#shutterwrap{animation:rise .5s var(--ease) both .16s}
+#rightstack{animation:rise .5s var(--ease) both .24s}
+.ghost{opacity:0 !important;pointer-events:none}
 #glass{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;background:#000;
        animation:bootin .5s var(--ease) both}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
@@ -72,13 +77,17 @@ body.f-rf #rf{display:block}
 #chips{display:flex;gap:10px;align-items:center;justify-self:start}
 #rightstack{justify-self:end;display:flex;flex-direction:column;gap:10px;align-items:center}
 #shutterwrap{justify-self:center}
-#chip{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
+#chip{width:46px;height:46px;border-radius:5px;border:1px solid var(--hair);
       overflow:hidden;position:relative;display:grid;place-items:center;flex:0 0 auto}
 #chip img{width:100%;height:100%;object-fit:cover;display:block;
-          transition:opacity .2s var(--ease)}
+          transition:opacity .22s var(--ease)}
+#chip,#tray,#strip button,#traymenu button{transition:transform .22s var(--ease)}
+#chip:active,#tray:active,#strip button:active,#traymenu button:active{
+  transform:scale(.94);transition-duration:.07s}
+#back:active,#rering:active,#traybar:active{opacity:.55}
 @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
 @keyframes chipin{from{opacity:0;transform:scale(.9)}}
-#tray{width:46px;height:46px;border-radius:4px;border:1px solid var(--hair);
+#tray{width:46px;height:46px;border-radius:5px;border:1px solid var(--hair);
       display:grid;place-items:center;flex:0 0 auto;position:relative;overflow:hidden;
       animation:chipin .24s var(--ease)}
 #tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
@@ -87,10 +96,11 @@ body.f-rf #rf{display:block}
 #tray .dot{position:relative}
 #tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
 #traymenu{position:fixed;display:none;flex-direction:column;gap:6px;z-index:12;
-  background:rgba(10,10,10,.94);border:1px solid var(--hair);border-radius:14px;
+  background-color:var(--k);background-image:var(--grain);
+  border:1px solid var(--hair);border-radius:14px;
   padding:8px;left:24px;bottom:calc(env(safe-area-inset-bottom) + 106px);
   max-height:52vh;overflow-y:auto}
-#traymenu button{width:138px;height:138px;border-radius:10px;overflow:hidden;
+#traymenu button{width:138px;height:138px;border-radius:12px;overflow:hidden;
   border:1px solid var(--hair);display:grid;place-items:center;position:relative}
 @keyframes facein{from{opacity:0}}
 #traymenu img{animation:facein .45s var(--ease)}
@@ -109,11 +119,13 @@ body.f-rf #rf{display:block}
 #hap{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
      clip-path:circle(50%);-webkit-appearance:auto}
 .lensbtn{position:relative;width:46px;height:46px;flex:0 0 auto;border-radius:50%;
+  transition:opacity .3s var(--ease);
   border:1px solid var(--hair);color:var(--mute);
   font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
 #lensmenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
-  background:rgba(10,10,10,.94);border:1px solid var(--hair);border-radius:14px;
+  background-color:var(--k);background-image:var(--grain);
+  border:1px solid var(--hair);border-radius:14px;
   padding:8px 4px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 106px)}
 
 #lensmenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
@@ -176,7 +188,7 @@ body.f-rf #rf{display:block}
 #traybar.on{display:grid}
 #traybar .dot{width:7px;height:7px}
 #traybar .dot.brew{animation:breathe 1.6s ease-in-out infinite}
-#rering{width:34px;height:34px;position:relative;visibility:hidden}
+#rering{width:34px;height:34px;position:relative;transition:opacity .3s var(--ease)}
 #rering::before{content:"";position:absolute;left:8px;top:8px;width:15px;height:15px;
   border:1.5px solid var(--dot);border-radius:50%;opacity:.35}
 #rering:active::before{opacity:.8}
@@ -194,7 +206,7 @@ body.f-rf #rf{display:block}
              background:linear-gradient(transparent, rgba(10,10,10,.55))}
 #strip{display:flex;gap:6px;overflow-x:auto;max-width:100%;padding:0 22px;
        -webkit-overflow-scrolling:touch;pointer-events:auto}
-#strip button{flex:0 0 auto;width:44px;height:44px;border-radius:3px;overflow:hidden;
+#strip button{flex:0 0 auto;width:44px;height:44px;border-radius:5px;overflow:hidden;
               border:1px solid transparent}
 #strip button.sel{border-color:var(--w)}
 #strip img{width:100%;height:100%;object-fit:cover;display:block}
@@ -219,7 +231,7 @@ body.f-rf #rf{display:block}
 #ringfield{position:absolute;left:0;top:0;will-change:transform;
            opacity:0;transition:opacity .5s var(--ease)}
 #ring.live #ringfield{opacity:1}
-#ringfield canvas{position:absolute;border-radius:2px;transition:opacity .35s var(--ease)}
+#ringfield canvas{position:absolute;border-radius:3px;transition:opacity .35s var(--ease)}
 #ringfield canvas.chosen{transition:opacity .35s var(--ease), transform .46s var(--ease);z-index:2}
 #ringdot{position:absolute;width:7px;height:7px;border-radius:50%;
          background:var(--dot);opacity:.9;pointer-events:none}
@@ -231,11 +243,13 @@ body.f-rf #rf{display:block}
 @media(prefers-reduced-motion:reduce){
   #ringhero img.fresh{animation:none}
   #ringhero,#ringfield,#ringfield canvas,#reticle,
-  #print,#stage img,#lensmenu,#traymenu,#tray{transition:none;animation:none}
+  #print,#stage img,#lensmenu,#traymenu,#tray,#chips,#shutterwrap,#rightstack,
+  #chip,#strip button,#traymenu button,#traymenu img,#tray img{
+    transition:none;animation:none}
   body.rot #camera,body.rot #print,body.rot #ring{transform:none !important}
 }
-#reticle{position:absolute;border:1.5px solid rgba(224,145,58,.75);border-radius:4px;
-         pointer-events:none;transition:opacity .3s ease}
+#reticle{position:absolute;border:1.5px solid rgba(224,145,58,.75);border-radius:6px;
+         pointer-events:none;transition:opacity .3s var(--ease)}
 </style>
 </head>
 <body>
@@ -258,7 +272,7 @@ body.f-rf #rf{display:block}
       <button id="tray" aria-label="Developing" style="display:none"><span class="dot"></span></button>
     </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
-    <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn" aria-label="Lens" style="visibility:hidden">1×</button></span>
+    <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn ghost" aria-label="Lens">1×</button></span>
   </div>
 </div>
 
@@ -274,7 +288,7 @@ body.f-rf #rf{display:block}
 </div>
 
 <div id="print">
-  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"><button id="traybar" aria-label="Developing"><span class="dot"></span></button><button id="rering" aria-label="Adjust tint"></button></span></div>
+  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"><button id="traybar" aria-label="Developing"><span class="dot"></span></button><button id="rering" class="ghost" aria-label="Adjust tint"></button></span></div>
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
@@ -494,7 +508,7 @@ async function discoverLenses() {
   GLASS.id = r.id; GLASS.crop = r.crop;
   $("lens").textContent = labelOf(GLASS.mm);
   tickBadge($("lens"));
-  $("lens").style.visibility = "visible";
+  $("lens").classList.remove("ghost");
   lensView();
   paintLensMenu();
 }
@@ -778,23 +792,35 @@ async function paintTray() {
   if ($("traymenu").classList.contains("on")) buildTrayMenu();
 }
 async function buildTrayMenu() {
-  const m = $("traymenu"); m.innerHTML = "";
+  const m = $("traymenu");
   const items = [...new Set([...cooking, ...unchosen])].sort().reverse();
-  for (const id of items) {
-    const b = document.createElement("button");
-    if (cooking.has(id)) {                              /* still in the bath */
-      const u = cookThumbs.get(id);
-      if (u) { const img = document.createElement("img");
-               img.src = u; b.appendChild(img); }
-      b.insertAdjacentHTML("beforeend",
-        '<i class="scrim"></i><span class="dot brew"></span>');
+  const keep = new Set(items);
+  for (const b of [...m.children]) if (!keep.has(b.dataset.id)) b.remove();
+  for (let i = 0; i < items.length; i++) {
+    const id = items[i];
+    let b = m.querySelector('button[data-id="' + id + '"]');
+    if (!b) { b = document.createElement("button"); b.dataset.id = id; }
+    if (m.children[i] !== b) m.insertBefore(b, m.children[i] || null);
+    const cook = cooking.has(id);
+    const u = cook ? (cookThumbs.get(id) || null) : await thumbURL(id);
+    const img = b.querySelector("img");
+    if (u && (!img || img.src !== u)) {     /* only a new step fades in */
+      const ni = document.createElement("img"); ni.src = u;
+      b.insertBefore(ni, b.firstChild);
+      setTimeout(() => {
+        for (const o of b.querySelectorAll("img")) if (o !== ni) o.remove();
+      }, 500);
+    } else if (!u && img) img.remove();
+    let sc = b.querySelector(".scrim"), dd = b.querySelector(".dot");
+    if (cook) {
+      if (!sc) b.insertAdjacentHTML("beforeend", '<i class="scrim"></i>');
+      if (!dd) b.insertAdjacentHTML("beforeend", '<span class="dot brew"></span>');
+      b.onclick = null;
     } else {
-      const u = await thumbURL(id);
-      if (u) { const img = document.createElement("img");
-               img.src = u; b.appendChild(img); }
+      if (sc) sc.remove();
+      if (dd) dd.remove();
       b.onclick = () => { closeTrayMenu(); openPrint(id); };  /* continue it */
     }
-    m.appendChild(b);
   }
 }
 const closeTrayMenu = () => { $("traymenu").classList.remove("on");
@@ -987,7 +1013,7 @@ async function openRing(id, w0, t0, reveal) {
   const field = $("ringfield");
   field.innerHTML = "";
   const ret = $("reticle");
-  ret.style.transition = "opacity .3s ease"; ret.style.opacity = 1;
+  ret.style.transition = "opacity .3s cubic-bezier(.32,.72,0,1)"; ret.style.opacity = 1;
   ret.style.width  = (tw + 10) + "px"; ret.style.height = (th + 10) + "px";
   ret.style.left = ((vw - tw) / 2 - 5) + "px";
   ret.style.top  = ((vh - th) / 2 - 5) + "px";
@@ -1152,7 +1178,7 @@ async function openPrint(id) {
   SLIDE = 0;
   stage.appendChild(img);
   requestAnimationFrame(() => { img.classList.add("in"); img.style.transform = ""; });
-  $("rering").style.visibility = pure ? "visible" : "hidden";
+  $("rering").classList.toggle("ghost", !pure);
 
   const strip = $("strip"); strip.innerHTML = "";
   const ids = [...prints].reverse().filter(k => !unchosen.has(k)).slice(0, 40);
@@ -1224,7 +1250,7 @@ async function settlePrint(id) {        /* the neighbor became the print */
   for (const b of $("strip").children)
     b.classList.toggle("sel", b.dataset.pid === id);
   const pure = await get("prints", id + ":p");
-  $("rering").style.visibility = pure ? "visible" : "hidden";
+  $("rering").classList.toggle("ghost", !pure);
 }
 function resetGestures() {
   PTRS.clear(); SW = null; PAN = null; PINCH = null; clearSides();
