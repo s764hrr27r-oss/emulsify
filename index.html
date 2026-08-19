@@ -478,13 +478,13 @@ async function startCamera(deviceId) {
 }
 /* GLASS — the ladder, named at the ends. WIDE is the ultra's true eye
    (13e, uncropped); 22–55 are elevens realized from the longest glass at or
-   below them; LONG is the 66 (a 2.54× cut of the wide — the deepest crop
+   below them; the ladder tops at 44 — past it the crops thin (diminishing
    that still fills the negative). Tap the badge: menu. */
 const tickBadge = el => el.insertAdjacentHTML("beforeend",
   '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
 const LADDER = [
   { k: "WIDE", F: 13 }, { k: "22mm", F: 22 }, { k: "33mm", F: 33 },
-  { k: "44mm", F: 44 }, { k: "55mm", F: 55 }, { k: "LONG", F: 66 }
+  { k: "44mm", F: 44 }        /* the ladder tops at 44: past it, crops thin */
 ];
 const labelOf = F => (LADDER.find(l => l.F === F) || { k: F + "mm" }).k;
 let phys = [];                        /* [{id, e}] native 35mm-e per camera */
