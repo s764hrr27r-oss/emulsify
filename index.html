@@ -432,6 +432,7 @@ worker.onmessage = e => {
     const f = jobFrame.get(id);
     if (f && cooking.has(f) && e.data.stage === "neg") {
       cookThumbs.set(f, "data:image/jpeg;base64," + e.data.b64);
+      try { put("prints", f + ":neg", e.data.b64); } catch (err) {}
       paintTray();
     }
     return;
@@ -889,7 +890,7 @@ paintChip(); paintTray();
 $("chip").onclick = () => { const k = newestProcessed(); if (k) openPrint(k); };
 
 /* ---------- ring: the printer's easel ---------- */
-const RT = { tS: 8, tMax: 40, wS: 10, wMax: 50, gap: 10,
+const RT = { tS: 8, tMax: 64, wS: 10, wMax: 100, gap: 10,
              settleAt: 1500, settleMs: 500, breathAt: 250, lockAt: 3200 };
 const rows = []; for (let t = RT.tMax; t >= -RT.tMax; t -= RT.tS) rows.push(t);  // green top
 const cols = []; for (let w = -RT.wMax; w <= RT.wMax; w += RT.wS) cols.push(w);  // cool left
@@ -939,6 +940,7 @@ function applyXY(x, y) {
   RING.x = x; RING.y = y;
   $("ringfield").style.transform = "translate3d(" + x + "px," + y + "px,0)";
   fadeOpacities();
+  if (RING.ensureWindow) RING.ensureWindow();
 }
 /* neighbors are progressive: at rest only the first ring breathes in; the
    far field materializes once the hand moves. Writes are rAF-coalesced and
@@ -1027,7 +1029,7 @@ function breath() {                      /* one 6px exhale: "this moves" */
   RING.anim = requestAnimationFrame(step);
 }
 function autoLock() {
-  const c = RING.tiles.find(x => Number(x.dataset.w) === 0 && Number(x.dataset.t) === 0);
+  const c = RING.tiles.find(x => Number(x.dataset.w) === 0 && Number(x.dataset.t) === 0) || null;
   animateOut(c, 0, 0);
 }
 function animateOut(tileEl, w, t) {      /* the pick swells back to full frame */
@@ -1101,33 +1103,63 @@ async function openRing(id, w0, t0, reveal) {
     RING.awake = true;                   /* re-ring: the whole field, no timers */
   }
   ring.classList.add("on");
-  let idx = 0; const total = rows.length * cols.length, myId = id;
-  const buildSome = () => {
-    if (RING.id !== myId || !ring.classList.contains("on")) return;
-    for (let n = 0; n < 6 && idx < total; n++, idx++) {
-      const ri = Math.floor(idx / cols.length), ci = idx % cols.length;
-      const t = rows[ri], w = cols[ci];
-      const c = document.createElement("canvas");
-      c.width = baseData.width; c.height = baseData.height;
-      c.style.width = tw + "px"; c.style.height = th + "px";
-      c._x = ci * (tw + RT.gap); c._y = ri * (th + RT.gap);
-      c.style.left = c._x + "px"; c.style.top = c._y + "px";
-      c.dataset.w = w; c.dataset.t = t;
-      const d = new ImageData(new Uint8ClampedArray(baseData.data), baseData.width, baseData.height);
-      tintPixels(d.data, w, t);
-      c.getContext("2d").putImageData(d, 0, 0);
-      field.appendChild(c); RING.tiles.push(c);
-      if (w === 0 && t === 0) {
-        const dot = document.createElement("i"); dot.id = "ringdot";
-        dot.style.left = (c._x - 15) + "px";
-        dot.style.top  = (c._y + th / 2 - 3.5) + "px";
-        field.appendChild(dot);
-      }
-    }
-    fadeOpacities();
-    if (idx < total) requestAnimationFrame(buildSome);
+  const dot = document.createElement("i"); dot.id = "ringdot";
+  dot.style.left = (colOf(0) * (tw + RT.gap) - 15) + "px";
+  dot.style.top  = (rowOf(0) * (th + RT.gap) + th / 2 - 3.5) + "px";
+  field.appendChild(dot);
+  /* the field is a window: tiles materialize near the reticle and dissolve
+     behind it, so a 21x17 grid never holds more than ~90 canvases alive */
+  const live = new Map(), myId = id, WIN = 4;
+  RING.tiles = [];
+  const selIdx = () => {
+    const cx = (innerWidth - tw) / 2, cy = (innerHeight - th) / 2;
+    return [Math.max(0, Math.min(cols.length - 1,
+              Math.round((cx - RING.x) / (tw + RT.gap)))),
+            Math.max(0, Math.min(rows.length - 1,
+              Math.round((cy - RING.y) / (th + RT.gap))))];
   };
-  buildSome();
+  const makeTile = (ci, ri) => {
+    const t = rows[ri], w = cols[ci];
+    const c = document.createElement("canvas");
+    c.width = baseData.width; c.height = baseData.height;
+    c.style.width = tw + "px"; c.style.height = th + "px";
+    c._x = ci * (tw + RT.gap); c._y = ri * (th + RT.gap);
+    c.style.left = c._x + "px"; c.style.top = c._y + "px";
+    c.dataset.w = w; c.dataset.t = t;
+    const d = new ImageData(new Uint8ClampedArray(baseData.data),
+                            baseData.width, baseData.height);
+    tintPixels(d.data, w, t);
+    c.getContext("2d").putImageData(d, 0, 0);
+    field.appendChild(c);
+    live.set(ci + "," + ri, c); RING.tiles.push(c);
+  };
+  let winReq = 0;
+  RING.ensureWindow = () => {
+    if (winReq) return;
+    winReq = requestAnimationFrame(() => {
+      winReq = 0;
+      if (RING.id !== myId || !ring.classList.contains("on")) return;
+      const [sc, sr] = selIdx();
+      for (const [k, c] of live) {                       /* dissolve the far */
+        const [ci, ri] = k.split(",").map(Number);
+        if (Math.abs(ci - sc) > WIN + 1 || Math.abs(ri - sr) > WIN + 1) {
+          c.width = c.height = 0; c.remove(); live.delete(k);
+          RING.tiles.splice(RING.tiles.indexOf(c), 1);
+        }
+      }
+      const want = [];
+      for (let ri = Math.max(0, sr - WIN); ri <= Math.min(rows.length - 1, sr + WIN); ri++)
+        for (let ci = Math.max(0, sc - WIN); ci <= Math.min(cols.length - 1, sc + WIN); ci++)
+          if (!live.has(ci + "," + ri))
+            want.push([Math.hypot(ci - sc, ri - sr), ci, ri]);
+      want.sort((a, b) => a[0] - b[0]);
+      let n = 0;
+      for (const [, ci, ri] of want) { makeTile(ci, ri); if (++n >= 6) break; }
+      fadeOpacities();
+      if (want.length > n) RING.ensureWindow();
+    });
+  };
+  RING.ensureWindow();
 }
 
 async function lockRing(w, t) {
@@ -1232,10 +1264,30 @@ async function openPrint(id) {
       "EMULSIFY-222" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
       { type: "image/jpeg" });
   } catch (e) { armedFile = null; }
-  const img = document.createElement("img");
-  img.src = u;
-  stage.appendChild(img);
-  requestAnimationFrame(() => img.classList.add("in"));
+  let negD = null;
+  try { negD = await get("prints", id + ":neg"); } catch (e) {}
+  if (negD && !calmMotion) {           /* first open: the print develops in */
+    const nimg = document.createElement("img");
+    nimg.src = "data:image/jpeg;base64," + negD;
+    nimg.className = "in";
+    nimg.style.transform = "scale(.94)";
+    stage.appendChild(nimg);
+    const fimg = document.createElement("img");
+    fimg.src = u;
+    fimg.style.transition = "opacity 1.5s var(--ease), transform 1.5s var(--ease)";
+    fimg.style.transform = "scale(.94)";
+    stage.appendChild(fimg);
+    requestAnimationFrame(() => { nimg.style.transform = ""; });
+    setTimeout(() => { fimg.classList.add("in"); fimg.style.transform = ""; }, 700);
+    setTimeout(() => { nimg.remove(); }, 2400);
+    try { put("prints", id + ":neg", ""); } catch (e) {}
+  } else {
+    const img = document.createElement("img");
+    img.src = u;
+    stage.appendChild(img);
+    requestAnimationFrame(() => img.classList.add("in"));
+    if (negD) { try { put("prints", id + ":neg", ""); } catch (e) {} }
+  }
   $("rering").classList.toggle("ghost", !pure);
 
   const strip = $("strip"); strip.innerHTML = "";
