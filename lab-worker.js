@@ -1,4 +1,8 @@
-// lab-worker.js — v1.9. Verbatim canon; JPEG prints
+// lab-worker.js — v2.0. Verbatim canon; JPEG prints
+// v2.0: THE WHISPER. The sandwich retuned to the owner's spec — "a little
+// detail from the darks, that's it": one-third strength, reach tightened to
+// the truly deep, donor ceiling lowered so recovered tones stay dark, and
+// grain transplanted as a single luminance field (no chroma speckle).
 // v1.9: the bath narrates two moments only — the orange negative forming and
 // the finished print. The old fixer snapshot predated flash+sandwich and
 // rendered black on dark scenes; it's gone, and the tray never cuts to black.
@@ -315,8 +319,8 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
 _canon_dodge_v12 = _dodge
 _FLASH_A, _FLASH_T = 0.007, 0.04
 # SANDWICH constants (owner-picked 80%): weight space, donor mapping, gate
-_SW_ST, _SW_SW, _SW_TUP, _SW_GD, _SW_GATE = 0.60, 0.12, 0.16, 0.75, 0.10
-_SW_GG, _SW_GLO, _SW_GHI = 2.4, 0.28, 3.2   # grain-matched to the stock
+_SW_ST, _SW_SW, _SW_TUP, _SW_GD, _SW_GATE = 0.32, 0.07, 0.10, 0.75, 0.06
+_SW_GK, _SW_GLO, _SW_GHI = 1.7, 0.45, 2.3   # luminance-coupled grain
 def _dodge(pos, strength=0.25):
     out = _canon_dodge_v12(pos, strength)
     m = out < _FLASH_T
@@ -336,9 +340,11 @@ def _dodge(pos, strength=0.25):
         dY = _FLASH_A + (_SW_TUP - _FLASH_A) * np.power(np.clip(Yb / _SW_SW, 0, 1), _SW_GD)
         donor = (Lb / np.maximum(Yb, 1e-6)[..., None]) * dY[..., None]
         Psm = _gblur(out, (1.1, 1.1, 0))          # smooth tone of the print
-        grain = np.power(out / np.maximum(Psm, 3e-3), _SW_GG)  # full-amplitude stock
+        Ysm = _gblur(Yp, 1.1)
+        g = np.clip(np.power(np.clip(Yp, 1e-5, None) / np.maximum(Ysm, 3e-3),
+                             _SW_GK), _SW_GLO, _SW_GHI)
         tone = Psm * (1 - w[..., None]) + donor * w[..., None]
-        laced = tone * np.clip(grain, _SW_GLO, _SW_GHI)
+        laced = tone * g[..., None]
         out = np.where(w[..., None] > 1e-4, np.clip(laced, 0, 1), out)
         del Lb, donor, Psm, grain, tone
     except Exception:
