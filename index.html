@@ -156,7 +156,7 @@ body.settle #camera,body.settle #print,body.settle #ring{
 #rering::before{content:"";position:absolute;left:8px;top:8px;width:15px;height:15px;
   border:1.5px solid var(--dot);border-radius:50%;opacity:.35}
 #rering:active::before{opacity:.8}
-#stage{flex:1;position:relative;min-height:0;margin:0 16px}
+#stage{flex:1;position:relative;min-height:0;margin:0 16px;touch-action:none;overflow:hidden}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
            -webkit-touch-callout:default;user-select:auto;
            opacity:0;transition:opacity .22s var(--ease),transform .3s var(--ease)}
@@ -325,6 +325,22 @@ async function makeThumb(blob) {
   c.width = c.height = 0;
   return t;
 }
+const printURLs = new Map();          /* full prints, LRU of 8 object URLs */
+async function printURL(id) {
+  if (printURLs.has(id)) {
+    const u = printURLs.get(id); printURLs.delete(id); printURLs.set(id, u);
+    return u;
+  }
+  const b = await get("prints", id); if (!b) return null;
+  const u = URL.createObjectURL(b); printURLs.set(id, u);
+  if (printURLs.size > 8) {
+    const [k0, u0] = printURLs.entries().next().value;
+    URL.revokeObjectURL(u0); printURLs.delete(k0);
+  }
+  return u;
+}
+const dropPrintURL = id => { const u = printURLs.get(id);
+  if (u) { URL.revokeObjectURL(u); printURLs.delete(id); } };
 const thumbURLs = new Map();
 async function thumbURL(id) {
   if (thumbURLs.has(id)) return thumbURLs.get(id);
@@ -348,20 +364,30 @@ const chosenOf = async id => {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=11");
+const worker = new Worker("lab-worker.js?v=12");
 let msgId = 0; const waits = new Map();
+const jobFrame = new Map();
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
   if (ready !== undefined || e.data.progress) return;
+  if (e.data.stage) {                 /* the bath, live: negative -> fixer */
+    const f = jobFrame.get(id);
+    if (f && cooking.has(f)) {
+      cookThumbs.set(f, "data:image/jpeg;base64," + e.data.b64);
+      paintTray();
+    }
+    return;
+  }
   const w = waits.get(id); if (!w) return; waits.delete(id);
+  jobFrame.delete(id);
   ok ? w.res({ jpg: result, secs }) : w.rej(new Error(error));
 };
-const labDevelop = (buf, seed, size) => {
+const labDevelop = (buf, seed, fid) => {
   const id = ++msgId;
   return new Promise((res, rej) => {
     waits.set(id, { res, rej });
-    worker.postMessage({ id, neg: buf, profile: "honey",
-                         seed: seed, size: size || 1100 });
+    if (fid) jobFrame.set(id, fid);
+    worker.postMessage({ id, neg: buf, profile: "honey", seed: seed });
   });
 };
 const labBake = (buf, w, t, secs) => {
@@ -497,6 +523,7 @@ function onTurn() {
   if (a === 90 || a === 270) lastLand = a;
   document.documentElement.style.setProperty("--turnhint", hint + "deg");
   alignDeck();
+  zoomReset();
   const si = $("stage").querySelector("img");
   if (si) si.style.transform = "";
   document.body.classList.add("rot");
@@ -632,7 +659,7 @@ $("shutterwrap").onclick = async () => {
   c.width = c.height = 0;
   pending++; cooking.add(id); paintChip(); paintTray();
   try {
-    const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed);
+    const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed, id);
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
     const printBlob = new Blob([jpg], { type: "image/jpeg" });
     await put("prints", id, printBlob);          // as-developed until locked
@@ -977,7 +1004,7 @@ async function lockRing(w, t) {
       const finalBlob = new Blob([jpg], { type: "image/jpeg" });
       await put("prints", id, finalBlob);
       await put("thumbs", id, await makeThumb(finalBlob));
-      dropThumbURL(id);
+      dropThumbURL(id); dropPrintURL(id);
     }                                    /* center lock: pristine stays, byte-for-byte */
     try { await put("prints", id + ":wt", w + "," + t); } catch (e) {}
     try { localStorage["wt" + id] = w + "," + t; } catch (e) {}
@@ -1045,7 +1072,7 @@ addEventListener("resize", () => {
 });
 
 /* ---------- print view; long-press the print itself to save ---------- */
-let current = null, stageURL = null, SLIDE = 0;
+let current = null, SLIDE = 0;
 async function openPrint(id) {
   const pure = await get("prints", id + ":p");
   const wt = await chosenOf(id);
@@ -1056,12 +1083,12 @@ async function openPrint(id) {
     return;
   }
   current = id;
+  zoomReset();
   const stage = $("stage"); stage.innerHTML = "";
-  if (stageURL) { URL.revokeObjectURL(stageURL); urls.delete(stageURL); }
-  const blob = await get("prints", id);
-  if (!blob) return;
+  const u = await printURL(id);
+  if (!u) return;
   const img = document.createElement("img");
-  stageURL = mkURL(blob); img.src = stageURL;
+  img.src = u;
   if (SLIDE) img.style.transform = "translateX(" + (SLIDE * 34) + "px)";
   SLIDE = 0;
   stage.appendChild(img);
@@ -1074,6 +1101,7 @@ async function openPrint(id) {
   ids.forEach((k, i) => {
     if (!us[i]) return;
     const b = document.createElement("button");
+    b.dataset.pid = k;
     if (k === id) b.className = "sel";
     const ti = document.createElement("img"); ti.src = us[i];
     b.appendChild(ti); b.onclick = () => openPrint(k);
@@ -1083,6 +1111,7 @@ async function openPrint(id) {
   setPaged(true);
 }
 $("back").onclick = () => { $("print").classList.remove("on"); setPaged(false);
+  zoomReset();
   setTimeout(revokeAll, 220); paintChip(); };
 $("rering").onclick = async () => {
   if (!current) return;
@@ -1090,40 +1119,155 @@ $("rering").onclick = async () => {
   $("print").classList.remove("on"); revokeAll();
   openRing(current, Number(wt[0]) || 0, Number(wt[1]) || 0, false);
 };
-/* ---------- swipe between prints (both orientations) ---------- */
+/* ---------- stage gestures: conveyor paging + gallery zoom ---------- */
 const navList = () => [...prints].reverse().filter(k => !unchosen.has(k));
-let SW = null;
+const Z = { s: 1, tx: 0, ty: 0 };
+function zoomApply(img) {
+  (img || $("stage").querySelector("img")) &&
+  (($("stage").querySelector("img")).style.transform =
+    Z.s > 1.001 ? "translate(" + Z.tx + "px," + Z.ty + "px) scale(" + Z.s + ")" : "");
+}
+function zoomReset() { Z.s = 1; Z.tx = 0; Z.ty = 0; }
+function zoomClamp() {
+  const st = $("stage");
+  const mx = (Z.s - 1) * st.clientWidth / 2, my = (Z.s - 1) * st.clientHeight / 2;
+  Z.tx = Math.max(-mx, Math.min(mx, Z.tx));
+  Z.ty = Math.max(-my, Math.min(my, Z.ty));
+}
+function zoomTo(ns, px, py) {           /* keep the touched point fixed */
+  const st = $("stage").getBoundingClientRect();
+  const cx = st.left + st.width / 2, cy = st.top + st.height / 2;
+  Z.tx = (px - cx) - ((px - cx) - Z.tx) * (ns / Z.s);
+  Z.ty = (py - cy) - ((py - cy) - Z.ty) * (ns / Z.s);
+  Z.s = ns; zoomClamp();
+}
+const PTRS = new Map();
+let SW = null, PAN = null, PINCH = null, lastTapT = 0, lastTapX = 0, lastTapY = 0;
+const sideImgs = new Map();             /* -1 / +1 -> preloaded neighbor img */
+async function ensureSide(dir) {
+  if (sideImgs.has(dir)) return;
+  const list = navList(), i = list.indexOf(current);
+  const id = list[i + dir]; if (!id) return;
+  const u = await printURL(id); if (!u || sideImgs.has(dir)) return;
+  const img = document.createElement("img");
+  img.className = "in"; img.dataset.pid = id;
+  img.style.transition = "none";
+  img.style.transform = "translateX(" + (dir * $("stage").clientWidth) + "px)";
+  $("stage").appendChild(img); sideImgs.set(dir, img);
+}
+function clearSides() {
+  for (const img of sideImgs.values()) img.remove();
+  sideImgs.clear();
+}
+async function settlePrint(id) {        /* the neighbor became the print */
+  current = id;
+  for (const b of $("strip").children)
+    b.classList.toggle("sel", b.dataset.pid === id);
+  const pure = await get("prints", id + ":p");
+  $("rering").style.visibility = pure ? "visible" : "hidden";
+}
 $("stage").addEventListener("pointerdown", e => {
-  SW = { x: e.clientX, y: e.clientY, dx: 0, t: performance.now(),
-         v: 0, lx: e.clientX, drag: false };
+  PTRS.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (PTRS.size === 2) {                 /* pinch begins; paging stands down */
+    const [a, b] = [...PTRS.values()];
+    PINCH = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, s0: Z.s };
+    SW = null; PAN = null;
+    const img = $("stage").querySelector("img");
+    if (img) img.style.transition = "none";
+    return;
+  }
+  const n = performance.now();
+  if (n - lastTapT < 300 && Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 24) {
+    lastTapT = 0;                        /* double tap: zoom toggle */
+    const img = $("stage").querySelector("img");
+    if (img) img.style.transition = "";
+    if (Z.s > 1.4) zoomReset(); else zoomTo(2.4, e.clientX, e.clientY);
+    zoomApply();
+    return;
+  }
+  lastTapT = n; lastTapX = e.clientX; lastTapY = e.clientY;
+  if (Z.s > 1.02) {
+    PAN = { x: e.clientX, y: e.clientY, tx: Z.tx, ty: Z.ty };
+  } else {
+    SW = { x: e.clientX, y: e.clientY, dx: 0, t: performance.now(),
+           v: 0, lx: e.clientX, drag: false };
+  }
 });
 $("stage").addEventListener("pointermove", e => {
+  const pt = PTRS.get(e.pointerId);
+  if (pt) { pt.x = e.clientX; pt.y = e.clientY; }
+  if (PINCH && PTRS.size === 2) {
+    const [a, b] = [...PTRS.values()];
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const ns = Math.max(1, Math.min(4, PINCH.s0 * (Math.hypot(a.x - b.x, a.y - b.y) / PINCH.d0)));
+    zoomTo(ns, mid.x, mid.y); zoomApply();
+    return;
+  }
+  if (PAN) {
+    Z.tx = PAN.tx + (e.clientX - PAN.x);
+    Z.ty = PAN.ty + (e.clientY - PAN.y);
+    zoomClamp(); zoomApply();
+    return;
+  }
   if (!SW) return;
   const dx = e.clientX - SW.x, dy = e.clientY - SW.y;
-  if (!SW.drag && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2)
+  if (!SW.drag && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
     SW.drag = true;
+    ensureSide(dx < 0 ? 1 : -1);
+  }
   if (!SW.drag) return;
   const n = performance.now(), dt = Math.max(1, n - SW.t);
   SW.v = 0.75 * SW.v + 0.25 * ((e.clientX - SW.lx) / dt);
   SW.lx = e.clientX; SW.t = n; SW.dx = dx;
+  ensureSide(dx < 0 ? 1 : -1);
   const list = navList(), i = list.indexOf(current);
   const has = dx < 0 ? i < list.length - 1 : i > 0;
+  const off = has ? dx : dx * 0.35;
+  const W = $("stage").clientWidth;
   const img = $("stage").querySelector("img");
   if (img) { img.style.transition = "none";
-             img.style.transform = "translateX(" + (has ? dx : dx * 0.35) + "px)"; }
+             img.style.transform = "translateX(" + off + "px)"; }
+  for (const [d, si] of sideImgs)
+    si.style.transform = "translateX(" + (d * W + off) + "px)";
 });
-function swEnd() {
+function swEnd(e) {
+  PTRS.delete(e.pointerId);
+  if (PINCH) {
+    if (PTRS.size < 2) {
+      PINCH = null;
+      const img = $("stage").querySelector("img");
+      if (img) img.style.transition = "";
+      if (Z.s < 1.06) { zoomReset(); zoomApply(); }
+    }
+    return;
+  }
+  if (PAN) { if (PTRS.size === 0) PAN = null; return; }
   if (!SW) return;
   const { dx, v, drag } = SW; SW = null;
-  const img = $("stage").querySelector("img");
+  const stage = $("stage"), W = stage.clientWidth;
+  const img = stage.querySelector("img");
   if (img) img.style.transition = "";
-  if (!drag) return;
+  for (const si of sideImgs.values()) si.style.transition = "";
+  if (!drag) { clearSides(); return; }
   const list = navList(), i = list.indexOf(current);
   const commit = Math.abs(dx) > 72 || (Math.abs(v) > 0.45 && Math.abs(dx) > 24);
   const dir = dx < 0 ? 1 : -1;                 /* finger left -> older */
   const target = list[i + dir];
-  if (commit && target) { SLIDE = dir; openPrint(target); }
-  else if (img) img.style.transform = "";
+  const incoming = sideImgs.get(dir);
+  if (commit && target && incoming) {          /* the conveyor carries on */
+    if (img) img.style.transform = "translateX(" + (-dir * W) + "px)";
+    incoming.style.transform = "";
+    sideImgs.delete(dir);
+    clearSides();
+    const old = img;
+    setTimeout(() => { if (old && old !== incoming) old.remove(); }, 320);
+    settlePrint(target);
+  } else {                                     /* spring home together */
+    if (img) img.style.transform = "";
+    for (const [d, si] of sideImgs)
+      si.style.transform = "translateX(" + (d * W) + "px)";
+    setTimeout(clearSides, 320);
+  }
 }
 $("stage").addEventListener("pointerup", swEnd);
 $("stage").addEventListener("pointercancel", swEnd);

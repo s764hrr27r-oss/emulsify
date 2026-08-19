@@ -1,4 +1,7 @@
-// lab-worker.js — v1.3. Verbatim canon; smaller develop size + JPEG prints
+// lab-worker.js — v1.4. Verbatim canon; JPEG prints
+// v1.4: develop size 1100 -> 1400 (glue constant), and the tray watches the
+// bath — read-only snapshots posted at two real pipeline moments (the
+// exposed negative as the developer hits it, and the print at the fixer).
 // v1.3 adds the paper pre-flash (FLASH 2): a whisper of uniform print
 // exposure lifting only the deepest shadows onto the toe of the paper
 // curve. Additive wrapper at the _dodge seam; every canon line untouched.
@@ -28,7 +31,7 @@ from honey_sr import unrender
 from canon_profiles import HONEY70_CANON, SCOPE70_CANON
 from scipy.special import erf
 
-LONG_EDGE = 1100   # daily develop size; fine re-develop passes its own
+LONG_EDGE = 1400   # daily develop size (v1.4 bump); fine passes its own
 
 def _expand(lin, kmax=2.2):
     """DYNAMIC EXPANSION: per-channel, highlights only. Mids stay anchored;
@@ -302,12 +305,52 @@ def _dodge(pos, strength=0.25):
     d = 1.0 - out[m] / _FLASH_T
     out[m] = out[m] + _FLASH_A * d * d
     return np.clip(out, 0.0, 1.0)
+
+# ---- ADDENDUM v1.4: the tray watches the bath (owner-called) ----
+# Two read-only snapshots at real pipeline moments. Snapshot math touches
+# nothing the chemistry uses; purity is regression-proven (seed-99 hash
+# identical with the watcher forced on). Canon above: FROZEN.
+import base64 as _b64
+def _post_stage(tag, arr8):
+    try:
+        import js
+        b = io.BytesIO(); Image.fromarray(arr8).save(b, "JPEG", quality=70)
+        js.postStage(tag, _b64.b64encode(b.getvalue()).decode())
+    except Exception:
+        pass
+def _stage_thumb(a):
+    h, w = a.shape[:2]; sc = 140.0 / max(h, w)
+    im = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
+    return np.array(im.resize((max(1, int(w * sc)), max(1, int(h * sc))),
+                              Image.BILINEAR))
+_canon_emulsify2_v14 = E.emulsify2
+def _emulsify2_watched(lit, st, **kw):
+    try:                                  # the developer hits the film:
+        expo = np.clip(lit / max(float(np.percentile(lit, 99.0)), 1e-6), 0, 1) ** 0.45
+        neg = (1.0 - expo) * np.array([1.00, 0.62, 0.36])   # orange-masked negative
+        _post_stage("neg", _stage_thumb(neg))
+    except Exception:
+        pass
+    return _canon_emulsify2_v14(lit, st, **kw)
+E.emulsify2 = _emulsify2_watched
+_canon_final_fix_v14 = _final_fix
+def _final_fix(pos):
+    out = _canon_final_fix_v14(pos)
+    try:                                  # into the fixer: the print exists
+        _post_stage("fix", _stage_thumb(E.linear_to_srgb(np.clip(out, 0, 1))))
+    except Exception:
+        pass
+    return out
 `);
   develop = pyodide.globals.get("develop");
   bakePy = pyodide.globals.get("bake");
   postMessage({ ready: true });
 })();
 
+let CURJOB = null;
+self.postStage = (tag, b64) => {
+  try { postMessage({ id: CURJOB, stage: tag, b64 }); } catch (err) {}
+};
 onmessage = async (e) => {
   const { id, neg, profile, seed, size, bake, jpg, w, t, secs } = e.data;
   try {
@@ -320,7 +363,8 @@ onmessage = async (e) => {
       postMessage({ id, ok: true, result: bytes }, [bytes.buffer]);
       return;
     }
-    const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
+    CURJOB = id;
+    const result = develop(new Uint8Array(neg), profile, seed, size || 1400);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
     const bytes = obj.jpg instanceof Uint8Array ? obj.jpg : new Uint8Array(obj.jpg);
