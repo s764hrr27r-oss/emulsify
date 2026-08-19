@@ -1,4 +1,7 @@
-// lab-worker.js — v1.8. Verbatim canon; JPEG prints
+// lab-worker.js — v1.9. Verbatim canon; JPEG prints
+// v1.9: the bath narrates two moments only — the orange negative forming and
+// the finished print. The old fixer snapshot predated flash+sandwich and
+// rendered black on dark scenes; it's gone, and the tray never cuts to black.
 // v1.8: sandwich at 60%, and the transplanted grain now carries the stock's
 // full amplitude (exponent 1.7, wide clip) so donated shadows wear the same
 // rough cloth as the rest of the print.
@@ -384,14 +387,6 @@ def _emulsify2_watched(lit, st, **kw):
         pass
     return _canon_emulsify2_v14(lit, st, **kw)
 E.emulsify2 = _emulsify2_watched
-_canon_final_fix_v14 = _final_fix
-def _final_fix(pos):
-    out = _canon_final_fix_v14(pos)
-    try:                                  # into the fixer: the print exists
-        _post_stage("fix", _stage_thumb(E.linear_to_srgb(np.clip(out, 0, 1))))
-    except Exception:
-        pass
-    return out
 `);
   develop = pyodide.globals.get("develop");
   bakePy = pyodide.globals.get("bake");
