@@ -93,71 +93,24 @@ body.f-rf #rf{display:block}
 #shutterwrap{justify-self:center}
 #chip{width:46px;height:46px;border-radius:5px;border:1px solid var(--hair);
       overflow:hidden;position:relative;display:grid;place-items:center;flex:0 0 auto}
-#chip img{width:100%;height:100%;object-fit:cover;display:block;
+#chip img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;
           transition:opacity .22s var(--ease)}
-#chip,#tray,#strip button,#traymenu button{transition:transform .22s var(--ease)}
-#chip:active,#tray:active,#strip button:active,#traymenu button:active{
-  transform:scale(.94);transition-duration:.07s}
-#back:active,#traybar:active{opacity:.55}
+#chip img.step{animation:stepup 2.4s var(--ease) both}
+#chip .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
+#chip .dot{position:relative;display:none}
+#chip.cooking .dot{display:inline-block}
+#chip .dot.brew{animation:breathe 1.6s ease-in-out infinite}
+#chip,#strip button{transition:transform .22s var(--ease)}
+#chip:active,#strip button:active{transform:scale(.94);transition-duration:.07s}
+#back:active{opacity:.55}
 @keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
 @keyframes chipin{from{opacity:0;transform:scale(.9)}}
-#tray{width:46px;height:46px;border-radius:5px;border:1px solid var(--hair);
-      display:grid;place-items:center;flex:0 0 auto;position:relative;overflow:hidden;
-      animation:chipin .24s var(--ease)}
-#tray img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#tray img.step{animation:stepup 2.4s var(--ease) both}
-#tray .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
-#tray .dot{position:relative}
-#tray .dot.brew{animation:breathe 1.6s ease-in-out infinite}
-#traymenu{position:fixed;display:none;flex-direction:column;gap:6px;z-index:12;
-  background-color:var(--k);background-image:var(--grain);
-  border:1px solid var(--hair);border-radius:14px;
-  padding:8px;left:24px;bottom:calc(env(safe-area-inset-bottom) + 106px);
-  max-height:52vh;overflow-y:auto}
-#traymenu button{width:180px;height:180px;border-radius:12px;overflow:hidden;
-  border:1px solid var(--hair);display:grid;place-items:center;position:relative}
-@keyframes stepup{
-  from{opacity:0;filter:brightness(1.65) contrast(.55) saturate(.85)}
-  55%{opacity:1}
-  to{opacity:1;filter:none}}
-#traymenu img{animation:stepup 3.2s var(--ease) both}
-#traymenu img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-#traymenu .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
-#traymenu .dot{position:relative}
-#traymenu .dot.brew{animation:breathe 1.6s ease-in-out infinite}
-#shutterwrap{position:relative;flex:0 0 auto}
-#shutter{width:78px;height:78px;border-radius:50%;border:2.5px solid var(--w);
-         display:grid;place-items:center}
-#shutter i{width:64px;height:64px;border-radius:50%;background:var(--w);
-           display:block;transition:transform .22s var(--ease)}
-#shutter:active i, #shutter.pressed i{transform:scale(.88);transition-duration:.07s}
-/* a real, invisible native switch rides the shutter: the finger's own tap
-   toggles it, so iOS plays the Taptic tick — no script, nothing to patch */
-#hap{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
-     clip-path:circle(50%);-webkit-appearance:auto}
-.lensbtn{position:relative;width:46px;height:46px;flex:0 0 auto;border-radius:50%;
-  transition:opacity .3s var(--ease);
-  border:1px solid var(--hair);color:var(--mute);
-  font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
-.lensbtn:active{color:var(--w);border-color:var(--mute)}
-#lensmenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
-  background-color:var(--k);background-image:var(--grain);
-  border:1px solid var(--hair);border-radius:14px;
-  padding:8px 4px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 106px)}
-
-#lensmenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
-  letter-spacing:.05em;color:var(--mute);padding:8px 18px;border-radius:8px;
-  position:relative}
-.hapov{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
-       -webkit-appearance:auto}
-#lensmenu button.cur{color:var(--dot)}
-#lensmenu button:disabled{opacity:.25}
 #lensveil{position:fixed;inset:0;display:none;z-index:11}
 #lensveil.on{display:block}
-#lensmenu,#traymenu{display:flex;opacity:0;pointer-events:none;
+#lensmenu{display:flex;opacity:0;pointer-events:none;
   transform:translateY(8px) scale(.97);
   transition:opacity .22s var(--ease),transform .22s var(--ease)}
-#lensmenu.on,#traymenu.on{opacity:1;pointer-events:auto;transform:none}
+#lensmenu.on{opacity:1;pointer-events:auto;transform:none}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
@@ -180,9 +133,7 @@ body.f-rf #rf{display:block}
   .spacer{display:none}
   #lensmenu{right:calc(env(safe-area-inset-right) + 122px);bottom:auto;
             top:50%;translate:0 -50%}
-  #traymenu{left:auto;right:calc(env(safe-area-inset-right) + 122px);
-            bottom:auto;top:50%;translate:0 -50%}
-  body.flip #lensmenu,body.flip #traymenu{
+  body.flip #lensmenu{
             right:auto;left:calc(env(safe-area-inset-left) + 122px)}
 }
 
@@ -199,10 +150,6 @@ body.f-rf #rf{display:block}
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
   transform:rotate(45deg)}
 .barx{margin-left:auto;display:flex;gap:6px;align-items:center}
-#traybar{width:34px;height:34px;position:relative;display:none;place-items:center}
-#traybar.on{display:grid}
-#traybar .dot{width:7px;height:7px}
-#traybar .dot.brew{animation:breathe 1.6s ease-in-out infinite}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
            -webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto;
@@ -220,7 +167,13 @@ body.f-rf #rf{display:block}
 #strip button{flex:0 0 auto;width:44px;height:44px;border-radius:5px;overflow:hidden;
               border:1px solid transparent}
 #strip button.sel{border-color:var(--dot)}
-#strip img{width:100%;height:100%;object-fit:cover;display:block}
+#strip button{position:relative}
+#strip img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#strip img.step{animation:stepup 2.4s var(--ease) both}
+#strip .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
+#strip .dot{position:relative;width:6px;height:6px}
+#strip .dot.brew{animation:breathe 1.6s ease-in-out infinite}
+#strip button.cook{display:grid;place-items:center}
 @media (orientation: landscape){
   #print{padding-top:0}
   #print .bar{position:absolute;top:0;left:0;right:0;z-index:2;
@@ -228,9 +181,8 @@ body.f-rf #rf{display:block}
 }
 
 @media(prefers-reduced-motion:reduce){
-  #print,#stage img,#lensmenu,#traymenu,#tray,#chips,#shutterwrap,#rightstack,
-  #chip,#strip button,#traymenu button,#traymenu img,#tray img{
-    transition:none;animation:none}
+  #print,#stage img,#lensmenu,#chips,#shutterwrap,#rightstack,
+  #chip,#chip img,#strip button,#strip img{transition:none;animation:none}
   body.rot #camera,body.rot #print{transform:none !important}
 </style>
 </head>
@@ -251,8 +203,7 @@ body.f-rf #rf{display:block}
   </div>
   <div class="deck">
     <div id="chips">
-      <button id="chip" aria-label="Prints"></button>
-      <button id="tray" aria-label="Developing" style="display:none"><span class="dot"></span></button>
+      <button id="chip" aria-label="Prints"><span class="dot"></span></button>
     </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
     <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn" aria-label="Lens">33mm</button></span>
@@ -261,11 +212,10 @@ body.f-rf #rf{display:block}
 
 <div id="lensveil"></div>
 <div id="lensmenu"></div>
-<div id="traymenu"></div>
 
 
 <div id="print">
-  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"><button id="traybar" aria-label="Developing"><span class="dot"></span></button></span></div>
+  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"></span></div>
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
@@ -368,7 +318,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=23");
+const worker = new Worker("lab-worker.js?v=24");
 let msgId = 0; const waits = new Map();
 const jobFrame = new Map();
 worker.onmessage = e => {
@@ -379,7 +329,8 @@ worker.onmessage = e => {
     if (f && cooking.has(f) && e.data.stage === "neg") {
       cookThumbs.set(f, "data:image/jpeg;base64," + e.data.b64);
       try { put("prints", f + ":neg", e.data.b64); } catch (err) {}
-      paintTray();
+      paintChip();
+      if ($("print").classList.contains("on")) { buildStrip(watching || current); paintWatched(); }
     }
     return;
   }
@@ -494,11 +445,10 @@ const closeLensMenu = () => {
 };
 $("lens").onclick = () => {
   if (!phys.length) return;
-  closeTrayMenu();
   const on = $("lensmenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
-$("lensveil").onclick = () => { closeLensMenu(); closeTrayMenu(); };
+$("lensveil").onclick = () => { closeLensMenu(); };
 
 /* ---------- exposure compensation: a real dial into the chemistry ------ */
 const EV = { v: 0 };
@@ -715,14 +665,14 @@ $("shutterwrap").onclick = async () => {
     cookThumbs.set(id, tc.toDataURL("image/jpeg", 0.7));
     tc.width = tc.height = 0;
   } catch (e) {}
-  closeLensMenu(); closeTrayMenu();
+  closeLensMenu();
   $("flash").style.opacity = 1;
   setTimeout(() => $("flash").style.opacity = 0, 110);
   shutterVoice();
   try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
   c.width = c.height = 0;
-  pending++; cooking.add(id); paintChip(); paintTray();
+  pending++; cooking.add(id); paintChip();
   try {
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed, id);
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
@@ -731,8 +681,11 @@ $("shutterwrap").onclick = async () => {
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
   } catch (e) { console.error(e); flagError(); }
+  const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
-  pending--; paintChip(); paintTray();
+  pending--; paintChip();
+  if (wasWatched && $("print").classList.contains("on")) openPrint(id);
+  else if ($("print").classList.contains("on")) buildStrip(watching || current);
 };
 function flagError() {
   const chip = $("chip");
@@ -743,99 +696,43 @@ function flagError() {
 /* ---------- chip (finished gallery) + tray (the drying line) ---------- */
 const newestProcessed = () =>
   [...prints].reverse().find(k => !unchosen.has(k));
+const newestCooking = () => [...cooking].sort().pop() || null;
+/* the gallery, newest first: frames still in the bath come before prints */
+const galleryIds = () =>
+  [...cooking].sort().reverse().concat([...prints].reverse().filter(k => !unchosen.has(k)));
+/* one chip, one painter: it wears the bath for as long as there is a bath */
 async function paintChip() {
   const chip = $("chip");
-  const last = newestProcessed();
-  const u = last ? await thumbURL(last) : null;
-  let im = chip.querySelector("img");
-  if (!u) { chip.innerHTML = ""; return; }
-  if (!im) { im = document.createElement("img"); chip.appendChild(im); }
-  if (im.src !== u) { im.style.opacity = 0;
-    im.onload = () => { im.style.opacity = ""; }; im.src = u; }
-}
-async function paintTray() {
-  const busy = pending > 0, any = busy || unchosen.size > 0;
-  const t = $("tray");
-  t.style.display = any ? "" : "none";     /* nothing to process: one square */
-  t.querySelector(".dot").classList.toggle("brew", busy);
-  const tb = $("traybar");                 /* the line, reachable from gallery */
-  tb.classList.toggle("on", any);
-  tb.querySelector(".dot").classList.toggle("brew", busy);
-  if (!any) {
-    closeTrayMenu();
-    t.querySelector("img")?.remove(); t.querySelector(".scrim")?.remove();
-    return;
-  }
-  const items = [...new Set([...cooking, ...unchosen])].sort();
-  const newest = items[items.length - 1];
-  const u = cooking.has(newest) ? (cookThumbs.get(newest) || null)
-                                : await thumbURL(newest);
-  let sc = t.querySelector(".scrim");
-  const ims = t.querySelectorAll("img");
+  const cook = newestCooking();
+  const id = cook || newestProcessed();
+  chip.classList.toggle("cooking", !!cook);
+  const dot = chip.querySelector(".dot");
+  if (dot) dot.classList.toggle("brew", !!cook);
+  const u = cook ? (cookThumbs.get(cook) || null) : (id ? await thumbURL(id) : null);
+  let sc = chip.querySelector(".scrim");
+  if (cook && !sc) { sc = document.createElement("i"); sc.className = "scrim";
+                     chip.insertBefore(sc, dot); }
+  else if (!cook && sc) { sc.remove(); sc = null; }
+  const ims = chip.querySelectorAll("img");
   const top = ims[ims.length - 1];
-  if (u) {
-    if (!sc) { sc = document.createElement("i"); sc.className = "scrim";
-               t.insertBefore(sc, t.querySelector(".dot")); }
-    if (!top || top.src !== u) {     /* a new step comes up in the bath */
-      const im = document.createElement("img");
-      im.className = "step"; im.src = u;
-      t.insertBefore(im, sc);
-      setTimeout(() => {
-        for (const o of t.querySelectorAll("img")) if (o !== im) o.remove();
-      }, 2600);
-    }
-  } else { for (const o of ims) o.remove(); sc?.remove(); }
-  if ($("traymenu").classList.contains("on")) buildTrayMenu();
-}
-async function buildTrayMenu() {
-  const m = $("traymenu");
-  const items = [...new Set([...cooking, ...unchosen])].sort().reverse();
-  const keep = new Set(items);
-  for (const b of [...m.children]) if (!keep.has(b.dataset.id)) b.remove();
-  for (let i = 0; i < items.length; i++) {
-    const id = items[i];
-    let b = m.querySelector('button[data-id="' + id + '"]');
-    if (!b) { b = document.createElement("button"); b.dataset.id = id; }
-    if (m.children[i] !== b) m.insertBefore(b, m.children[i] || null);
-    const cook = cooking.has(id);
-    const u = cook ? (cookThumbs.get(id) || null) : await thumbURL(id);
-    const img = b.querySelector("img");
-    if (u && (!img || img.src !== u)) {     /* only a new step fades in */
-      const ni = document.createElement("img"); ni.src = u;
-      b.insertBefore(ni, b.firstChild);
-      setTimeout(() => {
-        for (const o of b.querySelectorAll("img")) if (o !== ni) o.remove();
-      }, 3400);
-    } else if (!u && img) img.remove();
-    let sc = b.querySelector(".scrim"), dd = b.querySelector(".dot");
-    if (cook) {
-      if (!sc) b.insertAdjacentHTML("beforeend", '<i class="scrim"></i>');
-      if (!dd) b.insertAdjacentHTML("beforeend", '<span class="dot brew"></span>');
-      b.onclick = null;
-    } else {
-      if (sc) sc.remove();
-      if (dd) dd.remove();
-      b.onclick = () => { closeTrayMenu(); openPrint(id); };  /* continue it */
-    }
+  if (!u) { for (const o of ims) o.remove(); return; }
+  if (!top || top.src !== u) {          /* a new step comes up in the bath */
+    const im = document.createElement("img");
+    if (cook) im.className = "step";
+    im.src = u;
+    chip.insertBefore(im, sc || dot);
+    setTimeout(() => {
+      for (const o of chip.querySelectorAll("img")) if (o !== im) o.remove();
+    }, cook ? 2600 : 400);
   }
 }
-const closeTrayMenu = () => { $("traymenu").classList.remove("on");
-  if (!$("lensmenu").classList.contains("on")) $("lensveil").classList.remove("on"); };
-function toggleTrayMenu() {
-  closeLensMenu();
-  const on = $("traymenu").classList.toggle("on");
-  $("lensveil").classList.toggle("on", on);
-  if (on) buildTrayMenu();
-}
-$("tray").onclick = toggleTrayMenu;
-$("traybar").onclick = toggleTrayMenu;
-paintChip(); paintTray();
-$("chip").onclick = () => { const k = newestProcessed(); if (k) openPrint(k); };
+paintChip();
+$("chip").onclick = () => { const k = galleryIds()[0]; if (k) openItem(k); };
 
 /* ---------- print view; long-press the print itself to save ---------- */
-let current = null, armedFile = null;
+let current = null, armedFile = null, watching = null;
 async function openPrint(id) {
-  current = id;
+  current = id; watching = null;
   const stage = $("stage"); stage.innerHTML = "";
   const u = await printURL(id);
   if (!u) return;
@@ -871,22 +768,80 @@ async function openPrint(id) {
     if (negD) { try { put("prints", id + ":neg", ""); } catch (e) {} }
   }
 
-  const strip = $("strip"); strip.innerHTML = "";
-  const ids = [...prints].reverse().filter(k => !unchosen.has(k)).slice(0, 40);
-  const us = await Promise.all(ids.map(thumbURL));
-  ids.forEach((k, i) => {
-    if (!us[i]) return;
-    const b = document.createElement("button");
-    b.dataset.pid = k;
-    if (k === id) b.className = "sel";
-    const ti = document.createElement("img"); ti.src = us[i];
-    b.appendChild(ti); b.onclick = () => openPrint(k);
-    strip.appendChild(b);
-  });
+  await buildStrip(id);
   $("print").classList.add("on");
   setPaged(true);
 }
+/* the strip IS the gallery: frames still in the bath sit at the front,
+   wearing their current stage, and step forward in place as it changes */
+async function buildStrip(selId) {
+  const strip = $("strip");
+  const ids = galleryIds().slice(0, 40);
+  const keep = new Set(ids);
+  for (const b of [...strip.children]) if (!keep.has(b.dataset.pid)) b.remove();
+  for (let i = 0; i < ids.length; i++) {
+    const k = ids[i];
+    const cook = cooking.has(k);
+    let b = strip.querySelector('button[data-pid="' + CSS.escape(k) + '"]');
+    if (!b) {
+      b = document.createElement("button"); b.dataset.pid = k;
+      b.onclick = () => openItem(k);
+    }
+    if (strip.children[i] !== b) strip.insertBefore(b, strip.children[i] || null);
+    b.classList.toggle("sel", k === selId);
+    b.classList.toggle("cook", cook);
+    const u = cook ? (cookThumbs.get(k) || null) : await thumbURL(k);
+    let sc = b.querySelector(".scrim"), dd = b.querySelector(".dot");
+    if (cook) {
+      if (!sc) { sc = document.createElement("i"); sc.className = "scrim"; b.appendChild(sc); }
+      if (!dd) { dd = document.createElement("span"); dd.className = "dot brew"; b.appendChild(dd); }
+    } else { if (sc) sc.remove(); if (dd) dd.remove(); sc = null; dd = null; }
+    const ims = b.querySelectorAll("img");
+    const top = ims[ims.length - 1];
+    if (!u) { for (const o of ims) o.remove(); continue; }
+    if (!top || top.src !== u) {
+      const im = document.createElement("img");
+      if (cook) im.className = "step";
+      im.src = u;
+      b.insertBefore(im, sc || dd || null);
+      setTimeout(() => {
+        for (const o of b.querySelectorAll("img")) if (o !== im) o.remove();
+      }, cook ? 2600 : 400);
+    }
+  }
+}
+/* one door for both: a print opens as a print, a frame in the bath opens
+   as itself and keeps developing on the full screen */
+function openItem(id) { return cooking.has(id) ? openCooking(id) : openPrint(id); }
+async function openCooking(id) {
+  watching = id; current = null; armedFile = null;
+  const stage = $("stage"); stage.innerHTML = "";
+  const u = cookThumbs.get(id);
+  if (u) {
+    const img = document.createElement("img");
+    img.className = "in step"; img.src = u;
+    stage.appendChild(img);
+  }
+  await buildStrip(id);
+  $("print").classList.add("on");
+  setPaged(true);
+}
+function paintWatched() {              /* a new stage landed while watching */
+  if (!watching || !cooking.has(watching)) return;
+  const u = cookThumbs.get(watching); if (!u) return;
+  const stage = $("stage");
+  const ims = stage.querySelectorAll("img");
+  const top = ims[ims.length - 1];
+  if (top && top.src === u) return;
+  const img = document.createElement("img");
+  img.className = "in step"; img.src = u;
+  stage.appendChild(img);
+  setTimeout(() => {
+    for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
+  }, 2600);
+}
 $("back").onclick = () => { $("print").classList.remove("on"); setPaged(false);
+  watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
 let HOLD = null;
