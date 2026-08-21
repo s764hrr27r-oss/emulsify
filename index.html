@@ -186,6 +186,8 @@ body.f-rf #rf{display:block}
            -webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto;
            opacity:0;transition:opacity .22s var(--ease),transform .3s var(--ease)}
 #stage img.in{opacity:1}
+#stage img.watch{-webkit-touch-callout:none;user-select:none;
+                 -webkit-user-select:none;pointer-events:none}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
@@ -349,7 +351,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=24");
+const worker = new Worker("lab-worker.js?v=25");
 let msgId = 0; const waits = new Map();
 const jobFrame = new Map();
 worker.onmessage = e => {
@@ -779,7 +781,7 @@ async function openPrint(id) {
   if (negD && !calmMotion) {           /* first open: the print develops in */
     const nimg = document.createElement("img");
     nimg.src = "data:image/jpeg;base64," + negD;
-    nimg.className = "in";
+    nimg.className = "in watch";
     nimg.style.transform = "scale(.94)";
     stage.appendChild(nimg);
     const fimg = document.createElement("img");
@@ -850,7 +852,7 @@ async function openCooking(id) {
   const u = cookThumbs.get(id);
   if (u) {
     const img = document.createElement("img");
-    img.className = "in step"; img.src = u;
+    img.className = "in step watch"; img.src = u;
     stage.appendChild(img);
   }
   await buildStrip(id);
@@ -865,7 +867,7 @@ function paintWatched() {              /* a new stage landed while watching */
   const top = ims[ims.length - 1];
   if (top && top.src === u) return;
   const img = document.createElement("img");
-  img.className = "in step"; img.src = u;
+  img.className = "in step watch"; img.src = u;
   stage.appendChild(img);
   setTimeout(() => {
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
@@ -886,7 +888,7 @@ $("stage").addEventListener("pointermove", e => {
 $("stage").addEventListener("pointercancel", () => { HOLD = null; });
 $("stage").addEventListener("pointerup", () => {
   const h = HOLD; HOLD = null;
-  if (!h || h.moved || performance.now() - h.t < 550) return;
+  if (!h || h.moved || watching || performance.now() - h.t < 550) return;
   if (armedFile && navigator.canShare &&
       navigator.canShare({ files: [armedFile] })) {
     navigator.share({ files: [armedFile] }).catch(() => {});
