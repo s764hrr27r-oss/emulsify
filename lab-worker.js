@@ -1,9 +1,11 @@
-// lab-worker.js — v2.4. Verbatim canon; JPEG prints
-// v2.4: the post-print balancer is OFF. It could not tell the film's own
-// character from an illuminant error, because the character is scene-
-// dependent and a single measured signature is a linearisation of something
-// nonlinear — so on an already-correct frame it "corrected" the honey.
-// The code stays, dormant, at _AWB_ON. Prints render as developed.
+// lab-worker.js — v2.5. Verbatim canon; JPEG prints
+// v2.5: DRIFT 100. The print's mean colour is measured against the phone's
+// own already-balanced capture and the whole of that drift is pulled back
+// out. No estimator, no neutral-pixel guessing, no attempt to separate
+// "character" from "error" — one measurement, one dial, owner set to full.
+// Self-cancelling on coloured scenes: an orange room's base is orange too,
+// so the ratio carries only what the film added. Tone, grain, shadow
+// structure and hue rendering are untouched; only the cast is removed.
 // v2.3: the INVISIBLE BALANCER. The easel is gone; the lab balances the
 // print itself. The scene light stashed at metering is overlaid on the
 // finished print, the drift is measured on pixels the scene says are
@@ -269,29 +271,22 @@ def _dodge(pos, strength=0.25):
 # SIG is what Honey 70 does to a pure neutral wedge: -4.1% red, +3.0% green,
 # -18.0% blue. That is the film, not an error, so it is divided out before
 # anything is corrected. What remains is the scene's own illuminant drift.
-_AWB_ON = False
-_AWB_SIG = np.array([0.9591, 1.0304, 0.8197])
 _AWB_WY = np.array([0.2126, 0.7152, 0.0722])
-_AWB_SAT, _AWB_LO, _AWB_HI = 0.16, 0.04, 0.65
-_AWB_MINPIX, _AWB_CLAMP = 0.03, 0.15
+_DRIFT_ON = True
+_DRIFT_S = 1.00                 # 100%: the whole measured drift comes out
+_DRIFT_CLAMP = 0.35             # safety rail only; normal frames never reach it
 def _awb_norm(g):
     d = float((np.asarray(g) * _AWB_WY).sum())
     return np.asarray(g) / (d if abs(d) > 1e-9 else 1.0)
-def _awb_gains(P, B):
-    mx = B.max(-1); mn = B.min(-1)
-    sat = np.where(mx > 1e-4, (mx - mn) / np.maximum(mx, 1e-4), 1.0)
-    Yb = (B * _AWB_WY).sum(-1)
-    m = (sat < _AWB_SAT) & (Yb > _AWB_LO) & (Yb < _AWB_HI)
-    frac = float(m.mean())
-    if frac < _AWB_MINPIX:              # too few neutrals: don't guess
-        return np.ones(3), frac
-    d = np.array([float(P[..., c][m].mean()) /
-                  max(float(B[..., c][m].mean()), 1e-6) for c in range(3)])
-    resid = _awb_norm(_awb_norm(d) / _AWB_SIG)
-    g = _awb_norm(1.0 / np.maximum(resid, 1e-6))
-    g = _awb_norm(np.exp(np.clip(np.log(np.maximum(g, 1e-6)),
-                                 -_AWB_CLAMP, _AWB_CLAMP)))
-    return g, frac
+def _drift_gains(P, B):
+    """P = the finished print, B = the phone's capture, both linear light.
+    The ratio of their means is exactly what the film did to this scene."""
+    p = np.array([float(P[..., c].mean()) for c in range(3)])
+    b = np.array([float(B[..., c].mean()) for c in range(3)])
+    d = _awb_norm(p / np.maximum(b, 1e-9))
+    g = _awb_norm(np.power(np.maximum(d, 1e-6), -_DRIFT_S))
+    return _awb_norm(np.exp(np.clip(np.log(np.maximum(g, 1e-6)),
+                                    -_DRIFT_CLAMP, _DRIFT_CLAMP)))
 
 
 def bake(jpg_bytes, w, t, secs):
@@ -517,14 +512,15 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
                 wf = (1.0 - u*u*(3.0 - 2.0*u)) * _DC_SHARE
                 Ls[..., c] = Lf[..., c]*wf + Ls[..., c]*(1.0 - wf)
             del Lf, m, mid
-        if _AWB_ON and scene is not None:        # the invisible balancer
+        if _DRIFT_ON and scene is not None:      # drift, pulled out invisibly
             try:
                 Ps = np.asarray(Ls[::2, ::2], dtype=np.float64)
                 Bs = np.asarray(scene, dtype=np.float64)
-                if Ps.shape == Bs.shape:
-                    g, frac = _awb_gains(Ps, Bs)
-                    if float(np.abs(np.log(np.maximum(g, 1e-6))).max()) > 1e-4:
-                        Ls = np.clip(Ls * g[None, None, :], 0.0, 1.0)
+                if Ps.shape[:2] != Bs.shape[:2]:
+                    n0 = min(Ps.shape[0], Bs.shape[0]); n1 = min(Ps.shape[1], Bs.shape[1])
+                    Ps = Ps[:n0, :n1]; Bs = Bs[:n0, :n1]
+                g = _drift_gains(Ps, Bs)
+                Ls = np.clip(Ls * g[None, None, :], 0.0, 1.0)
                 del Ps, Bs
             except Exception:
                 pass
