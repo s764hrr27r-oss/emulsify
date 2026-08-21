@@ -1,4 +1,10 @@
-// lab-worker.js — v2.1. Verbatim canon; JPEG prints
+// lab-worker.js — v2.2. Verbatim canon; JPEG prints
+// v2.2: DUAL-COAT. Real color film coats each record as two sublayers — a
+// fast, coarse-crystal one that carries the deep scale and a slow, fine one
+// that holds the upper scale. Emulsify now does the same: two develops per
+// frame (the slow pass IS the previous rendering; the fast pass runs at 0.56
+// scale = bigger crystals, +1.2 EV), gray-axis matched to kill crossover
+// error, recombined per record. Identity above the deep scale.
 // v2.1: the easel's horizontal axis becomes VIBRANCE (chroma-only, luminance
 // byte-preserved — the density law holds). Vertical stays green/magenta.
 // v2.0: THE WHISPER. The sandwich retuned to the owner's spec — "a little
@@ -365,6 +371,7 @@ def _dodge(pos, strength=0.25):
 # nothing the chemistry uses; purity is regression-proven (seed-99 hash
 # identical with the watcher forced on). Canon above: FROZEN.
 import base64 as _b64
+_DC_INNER = [False]
 from scipy.ndimage import gaussian_filter as _gblur
 _BASE = [None]                          # half-res float32 copy of the negative
 _canon_meter_v17 = _meter
@@ -375,6 +382,8 @@ def _meter(lin):
         _BASE[0] = None
     return _canon_meter_v17(lin)
 def _post_stage(tag, arr8):
+    if _DC_INNER[0]:
+        return
     try:
         import js
         b = io.BytesIO(); Image.fromarray(arr8).save(b, "JPEG", quality=70)
@@ -402,6 +411,86 @@ def _emulsify2_watched(lit, st, **kw):
         pass
     return _canon_emulsify2_v14(lit, st, **kw)
 E.emulsify2 = _emulsify2_watched
+
+
+# ---- ADDENDUM v2.2: DUAL-COAT (owner-called; fast + slow sublayers) ----
+# Per record: two contributions = six layers total. The fast sublayer is
+# matched onto the slow one's gray axis before blending, because unmatched
+# sublayers give shadows a color cast — the crossover error real film
+# manufacturers spend their lives avoiding. Falls back to the single-coat
+# print if anything at all goes wrong. Canon: FROZEN.
+_DC_ON = True
+_DC_EV, _DC_RATIO, _DC_SEED = 1.2, 0.56, 4242
+_DC_XO = (0.055, 0.050, 0.045)          # R sits lowest in the pack, crosses last
+_DC_SHARE = 0.55
+_canon_develop_v22 = develop
+def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
+    if not _DC_ON:
+        return _canon_develop_v22(neg_bytes, profile, seed, long_edge)
+    cap = {}
+    _d0 = globals()["_dodge"]                # keep the slow print in linear
+    def _cap(pos, strength=0.25):            # light: no extra JPEG generation
+        r = _d0(pos, strength)
+        cap["lin"] = np.asarray(r, dtype=np.float32)
+        return r
+    globals()["_dodge"] = _cap
+    try:
+        slow = _canon_develop_v22(neg_bytes, profile, seed, long_edge)
+    finally:
+        globals()["_dodge"] = _d0
+    ev0 = float(globals().get("_EV_BIAS", 0.0) or 0.0)
+    try:
+        globals()["_EV_BIAS"] = ev0 + _DC_EV
+        _DC_INNER[0] = True
+        fsize = max(200, int(round(int(long_edge) * _DC_RATIO)))
+        fseed = (int(seed) * 7 + _DC_SEED) % 9000 + 1
+        fast = _canon_develop_v22(neg_bytes, profile, fseed, fsize)
+    except Exception:
+        return slow
+    finally:
+        _DC_INNER[0] = False
+        globals()["_EV_BIAS"] = ev0
+    try:
+        Ls = cap.get("lin")
+        if Ls is None:
+            return slow
+        Ls = np.asarray(Ls, dtype=np.float64)
+        cap.clear()
+        fim = Image.open(io.BytesIO(fast["jpg"])).convert("RGB").resize(
+              (Ls.shape[1], Ls.shape[0]), Image.BICUBIC)
+        Lf = E.srgb_to_linear(np.array(fim))
+        fim.close()
+        m = Ls.mean(-1)
+        mid = (m > 0.05) & (m < 0.40)
+        if int(mid.sum()) > 256:                 # match the gray axis
+            for c in range(3):
+                d = float(Lf[..., c][mid].mean())
+                if d > 1e-6:
+                    Lf[..., c] *= float(Ls[..., c][mid].mean()) / d
+        for c in range(3):                       # the fast sublayer's share
+            u = np.clip(Ls[..., c] / _DC_XO[c], 0.0, 1.0)
+            wf = (1.0 - u*u*(3.0 - 2.0*u)) * _DC_SHARE
+            Ls[..., c] = Lf[..., c]*wf + Ls[..., c]*(1.0 - wf)
+        img = Image.fromarray((E.linear_to_srgb(np.clip(Ls, 0, 1))*255).astype(np.uint8))
+        del Lf, m, mid
+        secs = int(slow.get("secs", 1)) + int(fast.get("secs", 0)) or 1
+        buf = io.BytesIO()
+        try:
+            ex = Image.Exif()
+            ex[0x010F] = "EMULSIFY"
+            ex[0x0110] = "HONEY 70 - 222"
+            ex[0x0131] = "EMULSIFY LAB"
+            ex[0x8827] = 222
+            ex[0x829A] = (secs, 1)
+            img.save(buf, "JPEG", quality=93, exif=ex)
+        except Exception:
+            buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
+        del Ls, img
+        gc.collect()
+        return {"jpg": buf.getvalue(), "secs": secs}
+    except Exception:
+        gc.collect()
+        return slow
 `);
   develop = pyodide.globals.get("develop");
   bakePy = pyodide.globals.get("bake");
