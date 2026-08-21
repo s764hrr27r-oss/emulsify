@@ -1,4 +1,10 @@
-// lab-worker.js — v2.2. Verbatim canon; JPEG prints
+// lab-worker.js — v2.3. Verbatim canon; JPEG prints
+// v2.3: the INVISIBLE BALANCER. The easel is gone; the lab balances the
+// print itself. The scene light stashed at metering is overlaid on the
+// finished print, the drift is measured on pixels the scene says are
+// near-neutral, HONEY 70's own measured signature is divided out so the
+// film's character survives, and only the residual is corrected — clamped,
+// and skipped entirely when the scene offers too few neutrals to trust.
 // v2.2: DUAL-COAT. Real color film coats each record as two sublayers — a
 // fast, coarse-crystal one that carries the deep scale and a slow, fine one
 // that holds the upper scale. Emulsify now does the same: two develops per
@@ -254,6 +260,35 @@ def _dodge(pos, strength=0.25):
     lift = 1.0/(1.0 + strength*mask)
     return np.clip(pos**lift[..., None], 0, 1)
 
+# ---- ADDENDUM v2.3: the invisible balancer (owner-called) ----
+# SIG is what Honey 70 does to a pure neutral wedge: -4.1% red, +3.0% green,
+# -18.0% blue. That is the film, not an error, so it is divided out before
+# anything is corrected. What remains is the scene's own illuminant drift.
+_AWB_ON = True
+_AWB_SIG = np.array([0.9591, 1.0304, 0.8197])
+_AWB_WY = np.array([0.2126, 0.7152, 0.0722])
+_AWB_SAT, _AWB_LO, _AWB_HI = 0.16, 0.04, 0.65
+_AWB_MINPIX, _AWB_CLAMP = 0.03, 0.15
+def _awb_norm(g):
+    d = float((np.asarray(g) * _AWB_WY).sum())
+    return np.asarray(g) / (d if abs(d) > 1e-9 else 1.0)
+def _awb_gains(P, B):
+    mx = B.max(-1); mn = B.min(-1)
+    sat = np.where(mx > 1e-4, (mx - mn) / np.maximum(mx, 1e-4), 1.0)
+    Yb = (B * _AWB_WY).sum(-1)
+    m = (sat < _AWB_SAT) & (Yb > _AWB_LO) & (Yb < _AWB_HI)
+    frac = float(m.mean())
+    if frac < _AWB_MINPIX:              # too few neutrals: don't guess
+        return np.ones(3), frac
+    d = np.array([float(P[..., c][m].mean()) /
+                  max(float(B[..., c][m].mean()), 1e-6) for c in range(3)])
+    resid = _awb_norm(_awb_norm(d) / _AWB_SIG)
+    g = _awb_norm(1.0 / np.maximum(resid, 1e-6))
+    g = _awb_norm(np.exp(np.clip(np.log(np.maximum(g, 1e-6)),
+                                 -_AWB_CLAMP, _AWB_CLAMP)))
+    return g, frac
+
+
 def bake(jpg_bytes, w, t, secs):
     """PRINTER'S EASEL: density-neutral trim on a finished print.
     w = VIBRANCE fraction (+-0.50 app-side): chroma scaled around luminance,
@@ -425,8 +460,6 @@ _DC_XO = (0.055, 0.050, 0.045)          # R sits lowest in the pack, crosses las
 _DC_SHARE = 0.55
 _canon_develop_v22 = develop
 def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
-    if not _DC_ON:
-        return _canon_develop_v22(neg_bytes, profile, seed, long_edge)
     cap = {}
     _d0 = globals()["_dodge"]                # keep the slow print in linear
     def _cap(pos, strength=0.25):            # light: no extra JPEG generation
@@ -438,41 +471,59 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         slow = _canon_develop_v22(neg_bytes, profile, seed, long_edge)
     finally:
         globals()["_dodge"] = _d0
-    ev0 = float(globals().get("_EV_BIAS", 0.0) or 0.0)
-    try:
-        globals()["_EV_BIAS"] = ev0 + _DC_EV
-        _DC_INNER[0] = True
-        fsize = max(200, int(round(int(long_edge) * _DC_RATIO)))
-        fseed = (int(seed) * 7 + _DC_SEED) % 9000 + 1
-        fast = _canon_develop_v22(neg_bytes, profile, fseed, fsize)
-    except Exception:
-        return slow
-    finally:
-        _DC_INNER[0] = False
-        globals()["_EV_BIAS"] = ev0
+    scene = _BASE[0]                        # the negative, stashed at metering
+    fast = None
+    if _DC_ON:
+        ev0 = float(globals().get("_EV_BIAS", 0.0) or 0.0)
+        try:
+            globals()["_EV_BIAS"] = ev0 + _DC_EV
+            _DC_INNER[0] = True
+            fsize = max(200, int(round(int(long_edge) * _DC_RATIO)))
+            fseed = (int(seed) * 7 + _DC_SEED) % 9000 + 1
+            fast = _canon_develop_v22(neg_bytes, profile, fseed, fsize)
+        except Exception:
+            fast = None
+        finally:
+            _DC_INNER[0] = False
+            globals()["_EV_BIAS"] = ev0
     try:
         Ls = cap.get("lin")
         if Ls is None:
             return slow
         Ls = np.asarray(Ls, dtype=np.float64)
         cap.clear()
-        fim = Image.open(io.BytesIO(fast["jpg"])).convert("RGB").resize(
-              (Ls.shape[1], Ls.shape[0]), Image.BICUBIC)
-        Lf = E.srgb_to_linear(np.array(fim))
-        fim.close()
-        m = Ls.mean(-1)
-        mid = (m > 0.05) & (m < 0.40)
-        if int(mid.sum()) > 256:                 # match the gray axis
-            for c in range(3):
-                d = float(Lf[..., c][mid].mean())
-                if d > 1e-6:
-                    Lf[..., c] *= float(Ls[..., c][mid].mean()) / d
-        for c in range(3):                       # the fast sublayer's share
-            u = np.clip(Ls[..., c] / _DC_XO[c], 0.0, 1.0)
-            wf = (1.0 - u*u*(3.0 - 2.0*u)) * _DC_SHARE
-            Ls[..., c] = Lf[..., c]*wf + Ls[..., c]*(1.0 - wf)
+        if fast is None:
+            Lf = None
+        else:
+            fim = Image.open(io.BytesIO(fast["jpg"])).convert("RGB").resize(
+                  (Ls.shape[1], Ls.shape[0]), Image.BICUBIC)
+            Lf = E.srgb_to_linear(np.array(fim))
+            fim.close()
+        if Lf is not None:
+            m = Ls.mean(-1)
+            mid = (m > 0.05) & (m < 0.40)
+            if int(mid.sum()) > 256:             # match the gray axis
+                for c in range(3):
+                    d = float(Lf[..., c][mid].mean())
+                    if d > 1e-6:
+                        Lf[..., c] *= float(Ls[..., c][mid].mean()) / d
+            for c in range(3):                   # the fast sublayer's share
+                u = np.clip(Ls[..., c] / _DC_XO[c], 0.0, 1.0)
+                wf = (1.0 - u*u*(3.0 - 2.0*u)) * _DC_SHARE
+                Ls[..., c] = Lf[..., c]*wf + Ls[..., c]*(1.0 - wf)
+            del Lf, m, mid
+        if _AWB_ON and scene is not None:        # the invisible balancer
+            try:
+                Ps = np.asarray(Ls[::2, ::2], dtype=np.float64)
+                Bs = np.asarray(scene, dtype=np.float64)
+                if Ps.shape == Bs.shape:
+                    g, frac = _awb_gains(Ps, Bs)
+                    if float(np.abs(np.log(np.maximum(g, 1e-6))).max()) > 1e-4:
+                        Ls = np.clip(Ls * g[None, None, :], 0.0, 1.0)
+                del Ps, Bs
+            except Exception:
+                pass
         img = Image.fromarray((E.linear_to_srgb(np.clip(Ls, 0, 1))*255).astype(np.uint8))
-        del Lf, m, mid
         secs = int(slow.get("secs", 1)) + int(fast.get("secs", 0)) or 1
         buf = io.BytesIO()
         try:
