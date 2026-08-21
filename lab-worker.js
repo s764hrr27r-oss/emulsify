@@ -1,4 +1,9 @@
-// lab-worker.js — v2.3. Verbatim canon; JPEG prints
+// lab-worker.js — v2.4. Verbatim canon; JPEG prints
+// v2.4: the post-print balancer is OFF. It could not tell the film's own
+// character from an illuminant error, because the character is scene-
+// dependent and a single measured signature is a linearisation of something
+// nonlinear — so on an already-correct frame it "corrected" the honey.
+// The code stays, dormant, at _AWB_ON. Prints render as developed.
 // v2.3: the INVISIBLE BALANCER. The easel is gone; the lab balances the
 // print itself. The scene light stashed at metering is overlaid on the
 // finished print, the drift is measured on pixels the scene says are
@@ -264,7 +269,7 @@ def _dodge(pos, strength=0.25):
 # SIG is what Honey 70 does to a pure neutral wedge: -4.1% red, +3.0% green,
 # -18.0% blue. That is the film, not an error, so it is divided out before
 # anything is corrected. What remains is the scene's own illuminant drift.
-_AWB_ON = True
+_AWB_ON = False
 _AWB_SIG = np.array([0.9591, 1.0304, 0.8197])
 _AWB_WY = np.array([0.2126, 0.7152, 0.0722])
 _AWB_SAT, _AWB_LO, _AWB_HI = 0.16, 0.04, 0.65
