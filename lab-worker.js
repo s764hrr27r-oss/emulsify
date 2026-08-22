@@ -1,4 +1,9 @@
-// lab-worker.js — v2.5. Verbatim canon; JPEG prints
+// lab-worker.js — v2.6. Verbatim canon; JPEG prints
+// v2.6: the lab measures the phone it woke up on. A sub-second probe at boot
+// predicts this device's develop cost (calibrated: develop_seconds at
+// 1100px ~= 0.37 x probe_ms), so an older or throttled phone starts at a
+// size it can actually finish instead of discovering that in forty seconds.
+// Develop size and dual-coat are now per-job, chosen by the main thread.
 // v2.5: DRIFT 100. The print's mean colour is measured against the phone's
 // own already-balanced capture and the whole of that drift is pulled back
 // out. No estimator, no neutral-pixel guessing, no attempt to separate
@@ -71,7 +76,19 @@ from honey_sr import unrender
 from canon_profiles import HONEY70_CANON, SCOPE70_CANON
 from scipy.special import erf
 
-LONG_EDGE = 1100   # daily develop size; the phone's memory ceiling is law
+LONG_EDGE = 1100   # the ceiling; the main thread may ask for less
+# cost of a develop, measured on this project's own machine, as a multiple of
+# the probe below: {1100: 0.371, 950: 0.249, 800: 0.158, 700: 0.117, 600: 0.091}
+def probe_ms():
+    """A cheap stand-in for a develop: the same mix of blur, elementwise
+    arithmetic and powers, on a small array. Sub-second everywhere."""
+    import time as _t
+    t0 = _t.perf_counter()
+    a = np.random.default_rng(7).random((320, 320, 3))
+    for _ in range(6):
+        b = gaussian_filter(a, (1.1, 1.1, 0))
+        a = np.clip(a * 1.01 + b * 0.01, 0, 1) ** 1.02
+    return (_t.perf_counter() - t0) * 1000.0
 
 def _expand(lin, kmax=2.2):
     """DYNAMIC EXPANSION: per-channel, highlights only. Mids stay anchored;
@@ -546,7 +563,9 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
 `);
   develop = pyodide.globals.get("develop");
   bakePy = pyodide.globals.get("bake");
-  postMessage({ ready: true });
+  let ms = 0;
+  try { ms = pyodide.runPython("probe_ms()"); } catch (e) { ms = 0; }
+  postMessage({ ready: true, probe: ms });
 })();
 
 let CURJOB = null;
@@ -567,6 +586,7 @@ onmessage = async (e) => {
     }
     CURJOB = id;
     pyodide.globals.set("_EV_BIAS", e.data.ev || 0);
+    if (e.data.dc !== undefined) pyodide.globals.set("_DC_ON", !!e.data.dc);
     const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
