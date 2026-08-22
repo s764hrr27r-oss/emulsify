@@ -203,6 +203,12 @@ body.f-rf #rf{display:block}
 .bath img.m{filter:url(#dyeM);animation:dyein 1.25s var(--ease) .62s forwards}
 .bath img.c{filter:url(#dyeC);animation:dyein 1.40s var(--ease) 1.05s forwards}
 @keyframes dyein{to{opacity:1}}
+/* a print already seen doesn't need the whole bath again — same three dyes,
+   same order, a third of the time: a nod to how it got here */
+.bath.quick{transition:opacity .20s var(--ease),transform .70s var(--ease)}
+.bath.quick img.y{animation-duration:.40s;animation-delay:.06s}
+.bath.quick img.m{animation-duration:.44s;animation-delay:.20s}
+.bath.quick img.c{animation-duration:.48s;animation-delay:.34s}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.2s ease-out both}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
@@ -377,7 +383,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=26");
+const worker = new Worker("lab-worker.js?v=27");
 let msgId = 0; const waits = new Map();
 const jobFrame = new Map();
 worker.onmessage = e => {
@@ -789,12 +795,13 @@ paintChip();
 $("chip").onclick = () => { const k = galleryIds()[0]; if (k) openItem(k); };
 
 /* ---------- print view; long-press the print itself to save ---------- */
-let current = null, armedFile = null, watching = null;
+let current = null, armedFile = null, watching = null, openTok = 0;
 async function openPrint(id) {
   current = id; watching = null;
+  const tok = ++openTok;              /* a faster tap wins; stale opens bail */
   const stage = $("stage"); stage.innerHTML = "";
   const u = await printURL(id);
-  if (!u) return;
+  if (!u || tok !== openTok) return;
   try {                                   /* arm the print for hold-to-save */
     const blob = await get("prints", id);
     const secs = localStorage["t" + id] || "";
@@ -804,38 +811,42 @@ async function openPrint(id) {
   } catch (e) { armedFile = null; }
   let negD = null;
   try { negD = await get("prints", id + ":neg"); } catch (e) {}
-  if (negD && !calmMotion) {           /* first open: the print develops in */
-    const nimg = document.createElement("img");
-    nimg.src = "data:image/jpeg;base64," + negD;
-    nimg.className = "in watch";
-    nimg.style.transform = "scale(.94)";
-    stage.appendChild(nimg);
+  if (tok !== openTok) return;
+  if (calmMotion) {                    /* stillness asked for: just the print */
+    const img = document.createElement("img");
+    img.src = u;
+    stage.appendChild(img);
+    requestAnimationFrame(() => img.classList.add("in"));
+  } else {
+    const first = !!negD;              /* the maiden view gets the whole bath */
+    let nimg = null;
+    if (first) {
+      nimg = document.createElement("img");
+      nimg.src = "data:image/jpeg;base64," + negD;
+      nimg.className = "in watch";
+      nimg.style.transform = "scale(.94)";
+      stage.appendChild(nimg);
+    }
     const bath = document.createElement("div");     /* paper, then the dyes */
-    bath.className = "bath";
+    bath.className = first ? "bath" : "bath quick";
     for (const k of ["paper", "y", "m", "c"]) {
       const li = document.createElement("img");
       li.className = k; li.src = u; bath.appendChild(li);
     }
     stage.appendChild(bath);
     requestAnimationFrame(() => {
-      nimg.style.transform = "";
       bath.classList.add("on");
-      nimg.style.opacity = 0;                       /* the negative recedes */
+      if (nimg) { nimg.style.transform = ""; nimg.style.opacity = 0; }
     });
     setTimeout(() => {                              /* dyes are in: hand over */
+      if (tok !== openTok) return;
       const fimg = document.createElement("img");
       fimg.className = "in"; fimg.src = u;
       stage.appendChild(fimg);
-      bath.remove(); nimg.remove();
-    }, 2600);
-    try { put("prints", id + ":neg", ""); } catch (e) {}
-  } else {
-    const img = document.createElement("img");
-    img.src = u;
-    stage.appendChild(img);
-    requestAnimationFrame(() => img.classList.add("in"));
-    if (negD) { try { put("prints", id + ":neg", ""); } catch (e) {} }
+      bath.remove(); if (nimg) nimg.remove();
+    }, first ? 2600 : 900);
   }
+  if (negD) { try { put("prints", id + ":neg", ""); } catch (e) {} }
 
   await buildStrip(id);
   $("print").classList.add("on");
