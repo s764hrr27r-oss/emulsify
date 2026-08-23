@@ -25,7 +25,7 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
         padding-top:env(safe-area-inset-top);
         transition:transform .26s var(--ease), opacity .24s var(--ease)}
 body.paged #camera{transform:scale(.97)}
-.top{display:flex;align-items:center;justify-content:center;padding:16px 0 12px}
+.top{height:36px;flex:0 0 auto}   /* spacer above the gate; was the status dot */
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}}
@@ -139,8 +139,7 @@ body.f-rf #rf{display:block}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
-  .top{position:absolute;top:calc(4px + env(safe-area-inset-top));left:0;right:0;
-       z-index:3;padding:8px 0}
+
   #frame{padding:0 calc(189px + env(safe-area-inset-right))
                  0 calc(43px + env(safe-area-inset-left))}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
@@ -151,8 +150,6 @@ body.f-rf #rf{display:block}
   #chips,#shutterwrap,#rightstack{justify-self:center}
   #rightstack{flex-direction:row;align-self:start}
   #chips{align-self:end}
-  .top{position:relative;padding:0;overflow:visible}
-  .top .dot{position:absolute;left:75px;top:193px}
   .deck::before{inset:16px 6px}
   body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
   #shutterwrap{order:1}
@@ -239,7 +236,7 @@ body.f-rf #rf{display:block}
 <body>
 
 <div id="camera">
-  <div class="top"><span class="dot"></span></div>
+  <div class="top"></div>
   <div id="frame">
     <div id="glass">
       <video id="video" autoplay playsinline muted></video>
@@ -378,7 +375,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=38");
+const worker = new Worker("lab-worker.js?v=39");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
