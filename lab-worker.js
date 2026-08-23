@@ -1,4 +1,8 @@
-// lab-worker.js — v2.8. Verbatim canon; JPEG prints
+// lab-worker.js — v2.9. Verbatim canon; JPEG prints
+// v2.9: develop time is recorded to hundredths. It was rounded to whole
+// seconds, which is coarser than the savings being measured - a 1.2 s
+// improvement on a 9 s develop vanished into the rounding. EXIF
+// ExposureTime is a rational, so it now carries (secs*100, 100).
 // v2.8: the dodging mask is blurred at 1/6 scale. Its sigma is width/9
 // (122 px at 1100), which made it the single most expensive operation in a
 // develop - 1110 ms, a tenth of the whole thing - to produce a mask with no
@@ -376,7 +380,7 @@ def bake(jpg_bytes, w, t, secs):
         ex[0x0110] = "HONEY 70 - 222"
         ex[0x0131] = "EMULSIFY LAB"
         ex[0x8827] = 222
-        ex[0x829A] = (int(secs) or 1, 1)
+        ex[0x829A] = (int(round(float(secs)*100)) or 1, 100)
         img.save(buf, "JPEG", quality=93, exif=ex)
     except Exception:
         buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
@@ -407,7 +411,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     out = _final_fix(out)
     out = _dodge(out, 0.25)
     img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
-    secs = int(round(_t.time() - _t0)) or 1
+    secs = max(_t.time() - _t0, 0.01)          # seconds, to hundredths
     buf = io.BytesIO()
     try:
         ex = Image.Exif()
@@ -415,7 +419,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         ex[0x0110] = "HONEY 70 - 222"           # Model
         ex[0x0131] = "EMULSIFY LAB"             # Software
         ex[0x8827] = 222                        # ISO (film speed)
-        ex[0x829A] = (secs, 1)                  # ExposureTime = develop time
+        ex[0x829A] = (int(round(secs*100)), 100)   # ExposureTime = develop seconds
         img.save(buf, "JPEG", quality=93, exif=ex)
     except Exception:
         buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
@@ -587,7 +591,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
             except Exception:
                 pass
         img = Image.fromarray((E.linear_to_srgb(np.clip(Ls, 0, 1))*255).astype(np.uint8))
-        secs = int(slow.get("secs", 1)) + int(fast.get("secs", 0)) or 1
+        secs = float(slow.get("secs", 0)) + float(fast.get("secs", 0)) or 0.01
         buf = io.BytesIO()
         try:
             ex = Image.Exif()
@@ -595,7 +599,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
             ex[0x0110] = "HONEY 70 - 222"
             ex[0x0131] = "EMULSIFY LAB"
             ex[0x8827] = 222
-            ex[0x829A] = (secs, 1)
+            ex[0x829A] = (int(round(secs*100)), 100)
             img.save(buf, "JPEG", quality=93, exif=ex)
         except Exception:
             buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
