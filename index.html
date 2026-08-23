@@ -139,6 +139,7 @@ body.f-rf #rf{display:block}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
+  .top{height:0}          /* portrait-only spacer; the gate needs the height */
 
   #frame{padding:0 calc(189px + env(safe-area-inset-right))
                  0 calc(43px + env(safe-area-inset-left))}
@@ -375,7 +376,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=40");
+const worker = new Worker("lab-worker.js?v=41");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
