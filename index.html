@@ -148,7 +148,7 @@ body.f-rf #rf{display:block}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
   .deck{position:absolute;top:0;bottom:0;
         right:calc(env(safe-area-inset-right));width:112px;
-        display:grid;grid-template-rows:1fr auto 1fr;
+        display:grid;grid-template-columns:1fr;grid-template-rows:1fr auto 1fr;
         align-items:center;justify-items:center;padding:34px 0;gap:0}
   .deck::before{inset:16px 6px}
   body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
@@ -375,7 +375,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=32");
+const worker = new Worker("lab-worker.js?v=33");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
