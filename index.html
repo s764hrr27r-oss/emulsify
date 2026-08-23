@@ -383,7 +383,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=28");
+const worker = new Worker("lab-worker.js?v=30");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
@@ -415,6 +415,27 @@ function adaptRung(secs) {            /* and the truth, after every frame */
   if (secs > BUDGET * 1.6) setRung(rung + 1);
   else if (secs < BUDGET * 0.45 && rung > 0) setRung(rung - 1);
 }
+/* iOS suspends the page when the screen sleeps, which freezes a develop
+   mid-chemistry. Hold a screen wake lock while the lab is busy and release
+   it the moment the tray is empty. Present from iOS 16.4, but broken in
+   home-screen apps before 18.4, so this is a fix for newer phones only and
+   silently does nothing on older ones. Backgrounding still suspends us:
+   no web API can prevent that. */
+let wakeLock = null;
+async function labAwake(on) {
+  try {
+    if (on) {
+      if (wakeLock || !navigator.wakeLock) return;
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (wakeLock) {
+      const w = wakeLock; wakeLock = null; await w.release();
+    }
+  } catch (e) { wakeLock = null; }
+}
+addEventListener("visibilitychange", () => {   /* iOS drops it on return */
+  if (document.visibilityState === "visible" && pending > 0) labAwake(true);
+});
 const jobFrame = new Map();
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
@@ -771,6 +792,7 @@ $("shutterwrap").onclick = async () => {
   c.width = c.height = 0;
   pending++; cooking.add(id); paintChip();
   try {
+    labAwake(true);
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed, id);
     adaptRung(secs);
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
@@ -781,7 +803,8 @@ $("shutterwrap").onclick = async () => {
   } catch (e) { console.error(e); flagError(); }
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
-  pending--; paintChip();
+  pending--; if (pending <= 0) labAwake(false);
+  paintChip();
   if (wasWatched && $("print").classList.contains("on")) openPrint(id);
   else if ($("print").classList.contains("on")) buildStrip(watching || current);
 };
