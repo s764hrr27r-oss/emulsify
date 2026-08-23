@@ -252,6 +252,10 @@ body.f-rf #rf{display:block}
   <div class="deck">
     <div id="chips">
       <button id="chip" aria-label="Prints"><span class="dot"></span></button>
+      <button id="hdr" class="lensbtn" aria-label="HDR capture">HDR</button>
+      <input id="hdrfile" type="file" accept="image/*" capture="environment"
+             tabindex="-1" aria-hidden="true"
+             style="position:absolute;width:0;height:0;opacity:0;pointer-events:none">
     </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
     <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn" aria-label="Lens">33mm</button></span>
@@ -742,6 +746,11 @@ $("shutterwrap").onclick = async () => {
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  await cook(c, true);
+};
+/* Everything after a negative exists: latent thumb, develop, file it away.
+   Shared so an HDR handoff lands in the lab by exactly the same road. */
+async function cook(c, voice) {
   const id = String(Date.now());
   const seed = (Number(id) % 9000) + 1;
   try {                       /* latent image: the tray's face while it cooks */
@@ -753,10 +762,12 @@ $("shutterwrap").onclick = async () => {
     tc.width = tc.height = 0;
   } catch (e) {}
   closeLensMenu();
-  $("flash").style.opacity = 1;
-  setTimeout(() => $("flash").style.opacity = 0, 110);
-  shutterVoice();
-  try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
+  if (voice) {
+    $("flash").style.opacity = 1;
+    setTimeout(() => $("flash").style.opacity = 0, 110);
+    shutterVoice();
+    try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
+  }
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
   c.width = c.height = 0;
   pending++; cooking.add(id); paintChip();
@@ -776,7 +787,45 @@ $("shutterwrap").onclick = async () => {
   paintChip();
   if (wasWatched && $("print").classList.contains("on")) openPrint(id);
   else if ($("print").classList.contains("on")) buildStrip(watching || current);
-};
+}
+
+/* ---------- HDR: hand the exposure bracket to the system camera ----------
+   Safari exposes no exposure control, so a bracket cannot be taken here. The
+   iPhone camera app already takes one for every still and fuses it, so this
+   asks for that file instead: a multi-frame HDR fusion at full sensor size,
+   with far more highlight headroom than a single video frame. It is centre
+   cropped to the film gate and scaled to MAX_NEG before the lab sees it, so
+   a 12 MP file never lands in the worker's memory. The lens ladder does not
+   apply - the system camera chose its own field of view - but the EV dial
+   still does, because that bias rides into the chemistry. */
+async function fileToGate(file, maxEdge) {
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch (e) { bmp = await createImageBitmap(file); }
+  const A = aspect();
+  let cw = bmp.width, ch = bmp.height;
+  if (cw / ch > A) cw = Math.round(ch * A); else ch = Math.round(cw / A);
+  const sx = Math.round((bmp.width - cw) / 2), sy = Math.round((bmp.height - ch) / 2);
+  const s = Math.min(1, maxEdge / Math.max(cw, ch));
+  const c = document.createElement("canvas");
+  c.width = Math.round(cw * s); c.height = Math.round(ch * s);
+  c.getContext("2d").drawImage(bmp, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  if (bmp.close) bmp.close();
+  return c;
+}
+tickBadge($("hdr"));
+$("hdr").addEventListener("click", () => {
+  if (pending > 2) return;
+  $("hdrfile").click();
+});
+$("hdrfile").addEventListener("change", async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";                       /* so the same shot can repeat */
+  if (!file) return;
+  try { await cook(await fileToGate(file, MAX_NEG), false); }
+  catch (err) { console.error(err); flagError(); }
+});
+
 function flagError() {
   const chip = $("chip");
   chip.style.borderColor = "#7c2d12";
