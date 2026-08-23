@@ -380,7 +380,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=46");
+const worker = new Worker("lab-worker.js?v=47");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
@@ -452,13 +452,14 @@ worker.onmessage = e => {
   jobFrame.delete(id);
   ok ? w.res({ jpg: result, secs }) : w.rej(new Error(error));
 };
-const labDevelop = (buf, seed, fid) => {
+const labDevelop = (buf, seed, fid, full) => {
   const id = ++msgId;
   return new Promise((res, rej) => {
     waits.set(id, { res, rej });
     if (fid) jobFrame.set(id, fid);
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
-                         size: RUNGS[rung].px, dc: RUNGS[rung].dc });
+                         size: full ? RUNGS[0].px : RUNGS[rung].px,
+                         dc:   full ? RUNGS[0].dc : RUNGS[rung].dc });
   });
 };
 const _labBake_unused = (buf, w, t, secs) => {
@@ -746,11 +747,11 @@ $("shutterwrap").onclick = async () => {
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
-  await cook(c, true);
+  await cook(c, true, false);
 };
 /* Everything after a negative exists: latent thumb, develop, file it away.
    Shared so an HDR handoff lands in the lab by exactly the same road. */
-async function cook(c, voice) {
+async function cook(c, voice, full) {
   const id = String(Date.now());
   const seed = (Number(id) % 9000) + 1;
   try {                       /* latent image: the tray's face while it cooks */
@@ -773,8 +774,8 @@ async function cook(c, voice) {
   pending++; cooking.add(id); paintChip();
   try {
     labAwake(true);
-    const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed, id);
-    adaptRung(secs);
+    const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed, id, full);
+    if (!full) adaptRung(secs);        /* a full-size shot must not demote the rung */
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
     const printBlob = new Blob([jpg], { type: "image/jpeg" });
     await put("prints", id, printBlob);          // balanced in the lab: final
@@ -798,6 +799,11 @@ async function cook(c, voice) {
    a 12 MP file never lands in the worker's memory. The lens ladder does not
    apply - the system camera chose its own field of view - but the EV dial
    still does, because that bias rides into the chemistry. */
+/* Gamma 1.27 is the mean of two measured scenes (1.315 and 1.232). The fits
+   also wanted a 1.03 scale, which is dropped on purpose: any scale above one
+   pushes values past 255 and clips the very highlights this capture path
+   exists to keep. Pure gamma darkens and preserves the top of the range. */
+const HDR_GAMMA = 1.27, HDR_SCALE = 1.0;
 async function fileToGate(file, maxEdge) {
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
@@ -808,9 +814,21 @@ async function fileToGate(file, maxEdge) {
   const sx = Math.round((bmp.width - cw) / 2), sy = Math.round((bmp.height - ch) / 2);
   const s = Math.min(1, maxEdge / Math.max(cw, ch));
   const c = document.createElement("canvas");
+  const g2 = c.getContext("2d", { willReadFrequently: true });
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
-  c.getContext("2d").drawImage(bmp, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  g2.drawImage(bmp, sx, sy, cw, ch, 0, 0, c.width, c.height);
   if (bmp.close) bmp.close();
+  try {                                    /* undo the fusion's flattening */
+    const L = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++)
+      L[v] = Math.round(Math.pow(v / 255, HDR_GAMMA) * HDR_SCALE * 255);
+    const d = g2.getImageData(0, 0, c.width, c.height);
+    const px = d.data;
+    for (let i = 0; i < px.length; i += 4) {
+      px[i] = L[px[i]]; px[i + 1] = L[px[i + 1]]; px[i + 2] = L[px[i + 2]];
+    }
+    g2.putImageData(d, 0, 0);
+  } catch (e) {}
   return c;
 }
 tickBadge($("hdr"));
@@ -822,7 +840,7 @@ $("hdrfile").addEventListener("change", async e => {
   const file = e.target.files && e.target.files[0];
   e.target.value = "";                       /* so the same shot can repeat */
   if (!file) return;
-  try { await cook(await fileToGate(file, MAX_NEG), false); }
+  try { await cook(await fileToGate(file, MAX_NEG), false, true); }
   catch (err) { console.error(err); flagError(); }
 });
 
