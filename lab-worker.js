@@ -1,4 +1,7 @@
-// lab-worker.js — v2.9. Verbatim canon; JPEG prints
+// lab-worker.js — v3.0. Verbatim canon; JPEG prints
+// v3.0: every print records which build made it. The interface sends its
+// build number with each job and it lands in the EXIF Software tag, so any
+// print answers "is the new code live" without inferring it from tone.
 // v2.9: develop time is recorded to hundredths. It was rounded to whole
 // seconds, which is coarser than the savings being measured - a 1.2 s
 // improvement on a 9 s develop vanished into the rounding. EXIF
@@ -378,7 +381,7 @@ def bake(jpg_bytes, w, t, secs):
         ex = Image.Exif()
         ex[0x010F] = "EMULSIFY"
         ex[0x0110] = "HONEY 70 - 222"
-        ex[0x0131] = "EMULSIFY LAB"
+        ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)
         ex[0x8827] = 222
         ex[0x829A] = (int(round(float(secs)*100)) or 1, 100)
         img.save(buf, "JPEG", quality=93, exif=ex)
@@ -417,7 +420,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         ex = Image.Exif()
         ex[0x010F] = "EMULSIFY"                 # Make
         ex[0x0110] = "HONEY 70 - 222"           # Model
-        ex[0x0131] = "EMULSIFY LAB"             # Software
+        ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)             # Software
         ex[0x8827] = 222                        # ISO (film speed)
         ex[0x829A] = (int(round(secs*100)), 100)   # ExposureTime = develop seconds
         img.save(buf, "JPEG", quality=93, exif=ex)
@@ -497,6 +500,7 @@ def _stage_thumb(a):
     return np.array(im.resize((max(1, int(w * sc)), max(1, int(h * sc))),
                               Image.BILINEAR))
 _EV_BIAS = 0.0
+_BUILD = 0                                  # set per job by the interface
 _canon_emulsify2_v14 = E.emulsify2
 def _emulsify2_watched(lit, st, **kw):
     try:
@@ -597,7 +601,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
             ex = Image.Exif()
             ex[0x010F] = "EMULSIFY"
             ex[0x0110] = "HONEY 70 - 222"
-            ex[0x0131] = "EMULSIFY LAB"
+            ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)
             ex[0x8827] = 222
             ex[0x829A] = (int(round(secs*100)), 100)
             img.save(buf, "JPEG", quality=93, exif=ex)
@@ -635,6 +639,7 @@ onmessage = async (e) => {
     }
     CURJOB = id;
     pyodide.globals.set("_EV_BIAS", e.data.ev || 0);
+    pyodide.globals.set("_BUILD", e.data.build || 0);
     if (e.data.dc !== undefined) pyodide.globals.set("_DC_ON", !!e.data.dc);
     const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
