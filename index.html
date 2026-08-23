@@ -139,15 +139,24 @@ body.f-rf #rf{display:block}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
-  /* The layout does not change. The deck stays a horizontal bar across the
-     bottom with the chip left, the shutter centred and the badges right,
-     exactly as in portrait; only the film gate turns from 4:5 to 5:4 and the
-     vertical padding tightens, because there is far less height to spend. */
-  .top{padding:6px 0 4px}
-  #frame{padding:0 0 4px}
+  .top{position:absolute;top:calc(4px + env(safe-area-inset-top));left:0;right:0;
+       z-index:3;padding:8px 0}
+  #frame{padding:2px calc(104px + env(safe-area-inset-right))
+                 2px calc(104px + env(safe-area-inset-left))}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
-  .deck{padding:8px 34px calc(10px + env(safe-area-inset-bottom))}
-  .deck::before{inset:2px 16px calc(env(safe-area-inset-bottom) + 4px)}
+  .deck{position:absolute;top:0;bottom:0;
+        right:calc(env(safe-area-inset-right));width:104px;
+        display:grid;grid-template-columns:1fr;grid-template-rows:1fr auto 1fr;
+        align-items:center;justify-items:center;padding:22px 0;gap:0}
+  .deck::before{inset:16px 6px}
+  body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
+  #shutterwrap{order:1}
+  #chips{order:2;flex-direction:column}
+  .spacer{display:none}
+  #lensmenu{right:calc(env(safe-area-inset-right) + 122px);bottom:auto;
+            top:50%;translate:0 -50%}
+  body.flip #lensmenu{
+            right:auto;left:calc(env(safe-area-inset-left) + 122px)}
 }
 
 /* ---------- print ---------- */
@@ -364,7 +373,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=34");
+const worker = new Worker("lab-worker.js?v=35");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
