@@ -377,7 +377,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=42");
+const worker = new Worker("lab-worker.js?v=43");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
@@ -638,50 +638,54 @@ alignDeck();
    this used to draw only added up to 1.6s of black on top of a transition
    that was already covered. All that is needed on a turn is to re-read which
    edge the grip is on and clear any stale stage transform. */
-/* Nothing is torn down on a turn - the camera keeps streaming and no element
-   is recreated - but the layout swaps in one frame, so the eye reads it as a
-   replacement. FLIP fixes that: measure every piece before the turn, let the
-   layout change, then transform each piece back to where it was and animate
-   to zero. The panel and the gate carry a scale because they genuinely change
-   shape; the controls translate only, so the shutter never goes oval. */
-const flipParts = () => [$("glass"), $("panel")].filter(Boolean);
-const flipSlide = () => [$("chips"), $("shutterwrap"), $("rightstack")].filter(Boolean);
-let flipFirst = null;
-function flipCapture() {
-  if (calmMotion) return;
-  flipFirst = new Map();
-  for (const el of flipParts().concat(flipSlide()))
-    flipFirst.set(el, el.getBoundingClientRect());
+/* Carry the layout across a turn instead of cutting to it.
+   The "before" measurement cannot rely on orientationchange firing ahead of
+   the reflow - on iOS it may fire after, in which case we would measure the
+   new layout as the old one and animate nothing. So a warm cache of the
+   rects is kept on a slow tick; whichever event announces the turn, the
+   cache already holds the previous layout. Gate and panel carry a scale
+   because they change shape; the controls translate only. */
+const FLIP_MS = 900;                 /* long on purpose: see it, then tune */
+const flipEls = () => [$("glass"), $("panel"), $("chips"),
+                       $("shutterwrap"), $("rightstack")].filter(Boolean);
+let flipCache = null, flipBusy = false;
+function flipSnap() {
+  if (calmMotion || flipBusy) return;
+  try { flipCache = new Map(flipEls().map(el => [el, el.getBoundingClientRect()])); }
+  catch (e) { flipCache = null; }
 }
 function flipPlay() {
-  const first = flipFirst; flipFirst = null;
-  if (!first) return;
-  const scalers = new Set(flipParts());
+  if (calmMotion) return;
+  const first = flipCache;
+  if (!first) { flipSnap(); return; }
+  flipBusy = true;
+  const scal = new Set([$("glass"), $("panel")]);
   requestAnimationFrame(() => {
     for (const [el, a] of first) {
       const b = el.getBoundingClientRect();
       if (!a.width || !b.width) continue;
       const dx = a.left - b.left, dy = a.top - b.top;
       const sx = a.width / b.width, sy = a.height / b.height;
-      const moved = Math.abs(dx) > 1 || Math.abs(dy) > 1 ||
-                    (scalers.has(el) && (Math.abs(sx - 1) > 0.01 || Math.abs(sy - 1) > 0.01));
-      if (!moved) continue;
+      const grow = scal.has(el) && (Math.abs(sx - 1) > 0.01 || Math.abs(sy - 1) > 0.01);
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && !grow) continue;
       el.style.transition = "none";
       el.style.transformOrigin = "top left";
-      el.style.transform = scalers.has(el)
+      el.style.transform = grow
         ? "translate(" + dx + "px," + dy + "px) scale(" + sx + "," + sy + ")"
         : "translate(" + dx + "px," + dy + "px)";
-      requestAnimationFrame(() => {
-        el.style.transition = "transform .46s var(--ease)";
-        el.style.transform = "";
-        setTimeout(() => {
-          el.style.transition = ""; el.style.transformOrigin = "";
-        }, 520);
-      });
+      void el.offsetWidth;                       /* commit the inverted state */
+      el.style.transition = "transform " + FLIP_MS + "ms var(--ease)";
+      el.style.transform = "";
     }
+    setTimeout(() => {
+      for (const el of flipEls()) { el.style.transition = ""; el.style.transformOrigin = ""; }
+      flipBusy = false; flipSnap();
+    }, FLIP_MS + 60);
   });
 }
-addEventListener("orientationchange", flipCapture);
+addEventListener("orientationchange", () => { alignDeck(); flipPlay(); });
+setInterval(() => { if (document.visibilityState === "visible") flipSnap(); }, 400);
+flipSnap();
 addEventListener("resize", () => { alignDeck(); flipPlay(); });
 function onTurn() {
   alignDeck();
