@@ -1,4 +1,9 @@
-// lab-worker.js — v2.7. Verbatim canon; JPEG prints
+// lab-worker.js — v2.8. Verbatim canon; JPEG prints
+// v2.8: the dodging mask is blurred at 1/6 scale. Its sigma is width/9
+// (122 px at 1100), which made it the single most expensive operation in a
+// develop - 1110 ms, a tenth of the whole thing - to produce a mask with no
+// detail finer than a ninth of the frame. Area-average down, blur, cubic up:
+// 10x cheaper, and the exponent it feeds shifts by at most 2.6e-4.
 // v2.7 - THREE EFFICIENCY CHANGES, no new looks:
 //   1. _make_fields built at 1/8 scale. The biome fields are blurred with
 //      sigma 92-314 px on an 1100 px frame, so they carry nothing above
@@ -305,11 +310,23 @@ def _final_fix(out):
     g = g/g.mean()
     return np.clip(out*g[None, None, :], 0, 1)
 
+def _bigblur(a, sigma, k=6):
+    """A blur whose sigma is a large fraction of the frame cannot express
+    anything fine, so do it small. Area-average down (no aliasing), blur with
+    the scaled sigma, cubic back up."""
+    if sigma < 24 or min(a.shape[:2]) < 8*k:
+        return gaussian_filter(a, sigma)
+    from scipy.ndimage import uniform_filter as _uf, zoom as _zm
+    sm = _uf(a, k)[::k, ::k]
+    sm = gaussian_filter(sm, sigma/k)
+    return _zm(sm, (a.shape[0]/sm.shape[0], a.shape[1]/sm.shape[1]),
+               order=3)[:a.shape[0], :a.shape[1]]
+
 def _dodge(pos, strength=0.25):
     if strength <= 0: return pos
     lum = pos.mean(-1)
     mask = np.clip(1.0 - lum*3.0, 0, 1)**1.5
-    mask = gaussian_filter(mask, pos.shape[1]/9.0)
+    mask = _bigblur(mask, pos.shape[1]/9.0)
     lift = 1.0/(1.0 + strength*mask)
     return np.clip(pos**lift[..., None], 0, 1)
 

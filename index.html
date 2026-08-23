@@ -376,7 +376,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=44");
+const worker = new Worker("lab-worker.js?v=45");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
