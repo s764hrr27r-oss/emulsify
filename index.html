@@ -141,19 +141,18 @@ body.f-rf #rf{display:block}
 @media (orientation: landscape){
   .top{position:absolute;top:calc(4px + env(safe-area-inset-top));left:0;right:0;
        z-index:3;padding:8px 0}
-  #frame{padding:calc(12px + env(safe-area-inset-top)) 104px 8px
-                 calc(6px + env(safe-area-inset-left))}
-  body.flip #frame{padding:calc(12px + env(safe-area-inset-top))
-                   calc(6px + env(safe-area-inset-right)) 8px 104px}
+  #frame{padding:calc(6px + env(safe-area-inset-top))
+                 calc(112px + env(safe-area-inset-right))
+                 calc(6px + env(safe-area-inset-bottom))
+                 calc(112px + env(safe-area-inset-left))}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
-  .deck{position:absolute;top:0;bottom:0;display:flex;
-        right:calc(env(safe-area-inset-right));width:100px;
-        flex-direction:column;justify-content:center;gap:20px;padding:0}
-  .deck::before{inset:auto 6px auto 6px;top:50%;translate:0 -50%;height:372px}
+  .deck{position:absolute;top:0;bottom:0;
+        right:calc(env(safe-area-inset-right));width:112px;
+        display:grid;grid-template-rows:1fr auto 1fr;
+        align-items:center;justify-items:center;padding:34px 0;gap:0}
+  .deck::before{inset:16px 6px}
   body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
   #shutterwrap{order:1}
-  #shutter{width:70px;height:70px}
-  #shutter i{width:57px;height:57px}
   #chips{order:2;flex-direction:column}
   .spacer{display:none}
   #lensmenu{right:calc(env(safe-area-inset-right) + 122px);bottom:auto;
@@ -376,7 +375,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=31");
+const worker = new Worker("lab-worker.js?v=32");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
