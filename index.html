@@ -79,7 +79,7 @@ body.f-rf #rf{display:block}
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
 .deck{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
       padding:18px 34px calc(22px + env(safe-area-inset-bottom));position:relative}
-#panel{position:absolute;pointer-events:none;
+.deck::before{content:"";position:absolute;pointer-events:none;
       inset:6px 16px calc(env(safe-area-inset-bottom) + 10px);
       border:1px solid var(--hair);border-radius:16px}
 #chips{display:flex;gap:10px;align-items:center;justify-self:start}
@@ -151,7 +151,7 @@ body.f-rf #rf{display:block}
   #chips,#shutterwrap,#rightstack{justify-self:center}
   #rightstack{flex-direction:row;align-self:start}
   #chips{align-self:end}
-  #panel{inset:16px 6px}
+  .deck::before{inset:16px 6px}
   body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
   #shutterwrap{order:1}
   #chips{order:2;flex-direction:column}
@@ -250,7 +250,6 @@ body.f-rf #rf{display:block}
     </div>
   </div>
   <div class="deck">
-    <i id="panel"></i>
     <div id="chips">
       <button id="chip" aria-label="Prints"><span class="dot"></span></button>
     </div>
@@ -377,7 +376,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=43");
+const worker = new Worker("lab-worker.js?v=44");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
@@ -638,55 +637,7 @@ alignDeck();
    this used to draw only added up to 1.6s of black on top of a transition
    that was already covered. All that is needed on a turn is to re-read which
    edge the grip is on and clear any stale stage transform. */
-/* Carry the layout across a turn instead of cutting to it.
-   The "before" measurement cannot rely on orientationchange firing ahead of
-   the reflow - on iOS it may fire after, in which case we would measure the
-   new layout as the old one and animate nothing. So a warm cache of the
-   rects is kept on a slow tick; whichever event announces the turn, the
-   cache already holds the previous layout. Gate and panel carry a scale
-   because they change shape; the controls translate only. */
-const FLIP_MS = 900;                 /* long on purpose: see it, then tune */
-const flipEls = () => [$("glass"), $("panel"), $("chips"),
-                       $("shutterwrap"), $("rightstack")].filter(Boolean);
-let flipCache = null, flipBusy = false;
-function flipSnap() {
-  if (calmMotion || flipBusy) return;
-  try { flipCache = new Map(flipEls().map(el => [el, el.getBoundingClientRect()])); }
-  catch (e) { flipCache = null; }
-}
-function flipPlay() {
-  if (calmMotion) return;
-  const first = flipCache;
-  if (!first) { flipSnap(); return; }
-  flipBusy = true;
-  const scal = new Set([$("glass"), $("panel")]);
-  requestAnimationFrame(() => {
-    for (const [el, a] of first) {
-      const b = el.getBoundingClientRect();
-      if (!a.width || !b.width) continue;
-      const dx = a.left - b.left, dy = a.top - b.top;
-      const sx = a.width / b.width, sy = a.height / b.height;
-      const grow = scal.has(el) && (Math.abs(sx - 1) > 0.01 || Math.abs(sy - 1) > 0.01);
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && !grow) continue;
-      el.style.transition = "none";
-      el.style.transformOrigin = "top left";
-      el.style.transform = grow
-        ? "translate(" + dx + "px," + dy + "px) scale(" + sx + "," + sy + ")"
-        : "translate(" + dx + "px," + dy + "px)";
-      void el.offsetWidth;                       /* commit the inverted state */
-      el.style.transition = "transform " + FLIP_MS + "ms var(--ease)";
-      el.style.transform = "";
-    }
-    setTimeout(() => {
-      for (const el of flipEls()) { el.style.transition = ""; el.style.transformOrigin = ""; }
-      flipBusy = false; flipSnap();
-    }, FLIP_MS + 60);
-  });
-}
-addEventListener("orientationchange", () => { alignDeck(); flipPlay(); });
-setInterval(() => { if (document.visibilityState === "visible") flipSnap(); }, 400);
-flipSnap();
-addEventListener("resize", () => { alignDeck(); flipPlay(); });
+addEventListener("resize", alignDeck);
 function onTurn() {
   alignDeck();
   const si = $("stage").querySelector("img");
