@@ -25,12 +25,6 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
         padding-top:env(safe-area-inset-top);
         transition:transform .26s var(--ease), opacity .24s var(--ease)}
 body.paged #camera{transform:scale(.97)}
-body.rot #camera,body.rot #print,body.rot #ring{
-  opacity:0 !important;
-  transform:scale(.94) rotate(var(--turnhint,0deg)) !important;
-  transition:opacity .16s ease,transform .16s ease !important}
-body.settle #camera,body.settle #print,body.settle #ring{
-  transition:opacity .5s var(--ease),transform .5s var(--ease)}
 .top{display:flex;align-items:center;justify-content:center;padding:16px 0 12px}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
@@ -238,7 +232,6 @@ body.f-rf #rf{display:block}
   #print,#stage img,#lensmenu,#chips,#shutterwrap,#rightstack,
   #chip,#chip img,#strip button,#strip img,
   .bath,.bath img{transition:none;animation:none}
-  body.rot #camera,body.rot #print{transform:none !important}
 </style>
 </head>
 <body>
@@ -383,7 +376,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const worker = new Worker("lab-worker.js?v=30");
+const worker = new Worker("lab-worker.js?v=31");
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
@@ -639,40 +632,16 @@ function alignDeck() {
   document.body.classList.toggle("flip", Rr > L + 1);
 }
 alignDeck();
-let rotT = 0, rotS = 0, lastLand = 90, rotResized = false;
-addEventListener("resize", () => {
-  if (document.body.classList.contains("rot")) { rotResized = true; alignDeck(); }
-});
+/* No curtain. iOS already holds a snapshot of the page over its own window
+   turn, so the reflow happens behind it and was never visible; the blackout
+   this used to draw only added up to 1.6s of black on top of a transition
+   that was already covered. All that is needed on a turn is to re-read which
+   edge the grip is on and clear any stale stage transform. */
+addEventListener("resize", alignDeck);
 function onTurn() {
-  /* the curtain is a move now: content tips a few degrees toward the turn
-     as it fades (.16s), holds through iOS's own choreography (~700ms with
-     the feed re-orient), then blooms back over half a second. */
-  let a = 0;
-  try {
-    if (screen.orientation && typeof screen.orientation.angle === "number")
-      a = screen.orientation.angle;
-    else if (typeof window.orientation === "number")
-      a = window.orientation === -90 ? 270 : window.orientation === 90 ? 90 : 0;
-  } catch (e) {}
-  const hint = a === 90 ? 5 : a === 270 ? -5 : (lastLand === 90 ? -5 : 5);
-  if (a === 90 || a === 270) lastLand = a;
-  document.documentElement.style.setProperty("--turnhint", hint + "deg");
   alignDeck();
   const si = $("stage").querySelector("img");
   if (si) si.style.transform = "";
-  document.body.classList.add("rot");
-  document.body.classList.remove("settle");
-  rotResized = false;
-  clearTimeout(rotT); clearTimeout(rotS);
-  const release = () => {
-    document.body.classList.remove("rot");
-    document.body.classList.add("settle");
-    rotS = setTimeout(() => document.body.classList.remove("settle"), 540);
-  };
-  rotT = setTimeout(() => {           /* wait for the layout to have swapped */
-    if (rotResized) release();
-    else rotT = setTimeout(release, 320);
-  }, 600);
 }
 matchMedia("(orientation: landscape)").addEventListener("change", onTurn);
 addEventListener("orientationchange", onTurn);
