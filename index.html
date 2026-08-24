@@ -417,7 +417,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 61;                     /* bump with every ship; lands in EXIF */
+const BUILD = 62;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
