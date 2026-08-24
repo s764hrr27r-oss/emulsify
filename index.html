@@ -51,6 +51,13 @@ body.f-cross #cross{display:block}
 #cross::before,#cross::after{content:"";position:absolute;background:rgba(244,242,237,.8)}
 #cross::before{left:0;right:0;top:50%;height:1px}
 #cross::after{top:0;bottom:0;left:50%;width:1px}
+#anawarn{position:absolute;inset:0;z-index:4;display:none;pointer-events:none;
+   background:#000;place-items:center;align-content:center;gap:18px;
+   color:var(--mute);animation:bootin .4s var(--ease) both}
+#anawarn.on{display:grid}
+#anawarn svg{animation:breathe 2.4s ease-in-out infinite}
+#anawarn span{font-family:ui-monospace,Menlo,monospace;font-size:11px;
+   letter-spacing:.14em;text-align:center;padding:0 24px;opacity:.85}
 #evrow{position:absolute;left:10px;top:50%;translate:0 -50%;height:min(58%,300px);
   width:34px;display:grid;justify-items:center;touch-action:none;z-index:2}
 #evrow .track{position:relative;width:1px;height:100%;background:var(--hair)}
@@ -243,6 +250,17 @@ body.f-rf #rf{display:block}
     <div id="glass">
       <video id="video" autoplay playsinline muted></video>
       <div id="grid"></div>
+      <div id="anawarn">
+        <svg viewBox="0 0 64 40" width="54" height="34" fill="none"
+             stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <rect x="5" y="5" width="18" height="30" rx="3"/>
+          <rect x="35" y="12" width="26" height="16" rx="3" opacity=".4"/>
+          <path d="M26.5 13.5 q5.5 -6.5 12 -3.5"/>
+          <path d="M38.5 5.5 l0.5 4.8 l-4.7 0.2"/>
+        </svg>
+        <span>ANAMORPHIC ONLY IN LANDSCAPE</span>
+      </div>
       <div id="rf"><i></i><i></i><i></i><i></i><b></b></div>
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
@@ -379,7 +397,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 50;                     /* bump with every ship; lands in EXIF */
+const BUILD = 51;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -647,7 +665,7 @@ alignDeck();
    edge the grip is on and clear any stale stage transform. */
 addEventListener("resize", alignDeck);
 function onTurn() {
-  alignDeck();
+  alignDeck(); anaGuard();
   const si = $("stage").querySelector("img");
   if (si) si.style.transform = "";
 }
@@ -735,6 +753,10 @@ hapEl.addEventListener("pointercancel", unpress);
 $("shutterwrap").onclick = async () => {
   const v = $("video");
   if (!v.videoWidth || restarting || pending > 2) return;
+  if (anaBlocked()) {                 /* the squeeze needs the wide gate */
+    try { navigator.vibrate && navigator.vibrate([12, 60, 12]); } catch (e) {}
+    return;
+  }
   const vw = v.videoWidth, vh = v.videoHeight, A = aspect();
   let cw, ch;
   if (vw / vh > A) { ch = vh; cw = Math.round(vh * A); }
@@ -818,6 +840,13 @@ function paintAnaMenu() {
     m.appendChild(b);
   }
 }
+const anaBlocked = () =>
+  (typeof ANA === "object" ? ANA.s : 1) > 1.001 &&
+  !matchMedia("(orientation: landscape)").matches;
+function anaGuard() {
+  const w = $("anawarn");
+  if (w) w.classList.toggle("on", anaBlocked());
+}
 function setSqueeze(v) {
   ANA.s = v;
   try { localStorage["ana"] = v; } catch (e) {}
@@ -826,6 +855,7 @@ function setSqueeze(v) {
   tickBadge($("ana"));
   lensView();
   paintAnaMenu();
+  anaGuard();
 }
 function closeAnaMenu() {
   $("anamenu").classList.remove("on"); $("lensveil").classList.remove("on");
@@ -836,6 +866,8 @@ $("ana").onclick = () => {
   $("lensveil").classList.toggle("on", on);
 };
 setSqueeze(ANA.s);
+addEventListener("resize", anaGuard);
+addEventListener("orientationchange", anaGuard);
 
 function flagError() {
   const chip = $("chip");
