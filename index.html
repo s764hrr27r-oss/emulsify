@@ -457,7 +457,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 75;                     /* bump with every ship; lands in EXIF */
+const BUILD = 76;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -489,8 +489,44 @@ const BUDGET = 26;                    /* seconds we are willing to wait */
 let rung = (() => { try { const v = parseInt(localStorage["rung"], 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
 } catch (e) { return 0; } })();
-const setRung = r => { rung = Math.max(0, Math.min(RUNGS.length - 1, r));
+/* ---- the memory wall, made survivable ----
+   iOS gives a page no memory warning it can act on: the first sign of
+   pressure is the kill, and the second kill in a row is Safari's "problem
+   repeatedly occurred" screen. Worse, adaptRung climbs after every fast
+   develop, so a phone that just died at 1100 relaunches, measures itself
+   fast, and sprints straight back into the wall. The flag below is the
+   whole diagnosis: written before the worker starts a frame, cleared when
+   the worker answers. Found at boot, it means the last session ended
+   mid-develop - and the only thing that kills a page mid-develop without
+   leaving an error is the OS. The cap it sets is a floor on the rung
+   index; eight clean frames at the cap earn one step of trust back, so a
+   one-off pressure spike does not demote the phone forever. */
+let capIdx = (() => { try { const v = parseInt(localStorage["memcap"], 10);
+  return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
+} catch (e) { return 0; } })();
+let capOk = 0;
+const saveCap = () => { try { localStorage["memcap"] = capIdx; } catch (e) {} };
+(() => {                                   /* did the last session die cooking? */
+  let died = null;
+  try { died = localStorage["cooking"] ? parseInt(localStorage["cooking"], 10) : null;
+        localStorage.removeItem("cooking"); } catch (e) {}
+  if (died === null) return;
+  const i = RUNGS.findIndex(r => r.px === died);
+  capIdx = Math.max(capIdx, Math.min(RUNGS.length - 1, (i < 0 ? 0 : i) + 1));
+  saveCap();
+  console.warn("EMULSIFY: last session died developing at " + died +
+               "px - capped at " + RUNGS[capIdx].px + "px until trust is earned");
+})();
+const noteCookStart = px => { try { localStorage["cooking"] = String(px); } catch (e) {} };
+const noteCookEnd = ok => {
+  try { localStorage.removeItem("cooking"); } catch (e) {}
+  if (!ok || capIdx === 0) { capOk = 0; return; }
+  capOk += 1;
+  if (capOk >= 8) { capIdx -= 1; capOk = 0; saveCap(); }
+};
+const setRung = r => { rung = Math.max(capIdx, Math.min(RUNGS.length - 1, r));
   try { localStorage["rung"] = rung; } catch (e) {} };
+setRung(rung);                             /* the restored rung obeys the cap too */
 let probed = false;
 function sizeFromProbe(ms) {          /* one measurement, before frame one */
   if (!ms || probed) return; probed = true;
@@ -542,21 +578,26 @@ worker.onmessage = e => {
   }
   const w = waits.get(id); if (!w) return; waits.delete(id);
   jobFrame.delete(id);
+  if (w.cook) noteCookEnd(!!ok);           /* bakes never set the flag */
   ok ? w.res({ jpg: result, secs }) : w.rej(new Error(error));
 };
 const labDevelop = (buf, seed, fid, full) => {
   const id = ++msgId;
+  /* a "full" redevelop asked for 1100 unconditionally - under a memory cap
+     that is a request to die again, so full now means "best the cap allows" */
+  const r = full ? capIdx : rung;
   return new Promise((res, rej) => {
-    waits.set(id, { res, rej });
+    waits.set(id, { res, rej, cook: true });
     if (fid) jobFrame.set(id, fid);
+    noteCookStart(RUNGS[r].px);
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
                          build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
                          mm: GLASS.mm,
                          optic: ANA.id === "none" ? "" : ANA.label,
                          tint:  ANA.tint ? ANA.tint.join(",") : "",
                          tintS: ANA.tint ? (ANA.tintS || 0) : 0,
-                         size: full ? RUNGS[0].px : RUNGS[rung].px,
-                         dc:   full ? RUNGS[0].dc : RUNGS[rung].dc });
+                         size: RUNGS[r].px,
+                         dc:   RUNGS[r].dc });
   });
 };
 const _labBake_unused = (buf, w, t, secs) => {
