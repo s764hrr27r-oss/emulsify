@@ -404,7 +404,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 53;                     /* bump with every ship; lands in EXIF */
+const BUILD = 54;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -658,21 +658,50 @@ const inpr = document.createElement("div");
 inpr.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;" +
   "padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)";
 document.body.appendChild(inpr);
+/* Which physical edge of the phone is at the bottom of the screen?
+   The safe-area insets answer it - the island side gets the big one - but
+   they do not settle until after the resize event, so reading them once on
+   resize gets the pre-turn values and the deck never moves. Two defences:
+   the screen angle, which is correct immediately, and a re-read once the
+   insets have caught up. The probe wins when it has something to say,
+   because it is physically grounded; the angle covers the gap. */
+function turnAngle() {
+  try {
+    if (screen.orientation && typeof screen.orientation.angle === "number")
+      return screen.orientation.angle;
+  } catch (e) {}
+  if (typeof window.orientation === "number")
+    return window.orientation < 0 ? 360 + window.orientation : window.orientation;
+  return -1;
+}
 function alignDeck() {
   const cs = getComputedStyle(inpr);
   const L = parseFloat(cs.paddingLeft) || 0, Rr = parseFloat(cs.paddingRight) || 0;
-  /* island on the right = clockwise turn = grip left: the deck flips */
-  document.body.classList.toggle("flip", Rr > L + 1);
+  let flip;
+  if (Math.abs(Rr - L) > 1) flip = Rr > L;   /* island on the right = grip left */
+  else flip = turnAngle() === 270;           /* clockwise turn */
+  document.body.classList.toggle("flip", flip);
+}
+function alignSoon() {                        /* insets land late; look again */
+  alignDeck();
+  setTimeout(alignDeck, 120);
+  setTimeout(alignDeck, 400);
+  setTimeout(alignDeck, 900);
 }
 alignDeck();
+try {
+  if (screen.orientation && screen.orientation.addEventListener)
+    screen.orientation.addEventListener("change", alignSoon);
+} catch (e) {}
+addEventListener("orientationchange", alignSoon);
 /* No curtain. iOS already holds a snapshot of the page over its own window
    turn, so the reflow happens behind it and was never visible; the blackout
    this used to draw only added up to 1.6s of black on top of a transition
    that was already covered. All that is needed on a turn is to re-read which
    edge the grip is on and clear any stale stage transform. */
-addEventListener("resize", alignDeck);
+addEventListener("resize", alignSoon);
 function onTurn() {
-  alignDeck(); anaGuard();
+  alignSoon(); anaGuard();
   const si = $("stage").querySelector("img");
   if (si) si.style.transform = "";
 }
