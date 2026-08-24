@@ -153,7 +153,11 @@ body.f-rf #rf{display:block}
   #frame{padding:0 calc(189px + env(safe-area-inset-right))
                  0 calc(43px + env(safe-area-inset-left))}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
-  body.ana #glass{width:auto;height:auto;max-width:100%;max-height:100%;
+  /* one dimension must be real: aspect-ratio alone cannot size a box whose
+     only child is absolutely positioned, and it collapsed to nothing. The
+     frame is width-limited at every squeeze on a phone, so take the width
+     and let the ratio give the height. */
+  body.ana #glass{width:100%;height:auto;max-height:100%;
                   aspect-ratio:calc(1.25 * var(--sq, 1))}
   body.ana #frame{padding:0 calc(184px + env(safe-area-inset-right))
                     0 calc(6px + env(safe-area-inset-left))}
@@ -413,7 +417,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 59;                     /* bump with every ship; lands in EXIF */
+const BUILD = 60;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
