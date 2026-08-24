@@ -457,7 +457,21 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 73;                     /* bump with every ship; lands in EXIF */
+const BUILD = 74;                     /* bump with every ship; lands in EXIF */
+/* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
+   sw.js caches those and ONLY those - it never intercepts same-origin, so
+   index.html, lab-worker.js and the canon trio the worker fetches at boot all
+   still arrive from the network and the upload ritual is untouched. Register
+   without a query string: a versioned URL would mint a new registration every
+   build and orphan the last. The browser byte-compares sw.js itself on each
+   navigation, and updateViaCache "none" keeps the HTTP cache out of that. */
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(r => r.update())
+      .catch(() => {});           /* a failed registration must cost nothing */
+  });
+}
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
