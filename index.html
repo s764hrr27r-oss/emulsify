@@ -420,7 +420,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 68;                     /* bump with every ship; lands in EXIF */
+const BUILD = 69;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -962,24 +962,20 @@ const OPTICS = [
     tint: [1.1631, 1.0282, 0.8087], tintS: 0.50 },
   /* NOT MEASURED. Gold-coated, so its tint will not resemble the Andoer's -
      and the cast may be wanted rather than corrected, which is a decision and
-     not a measurement. Sits ahead of gen133 so an old saved 1.33 migrates to
-     the lens actually owned. crop 1.30 is borrowed from the Andoer as the
-     cautious default: too much crop loses frame, too little shows vignette. */
+     not a measurement. crop 1.30 is borrowed from the Andoer as the cautious
+     default: too much crop loses frame, too little shows vignette. */
   { id: "freewell133", label: "Freewell Gold ANA 1.33\u00d7", kind: "ANA",
     s: 1.33, m: 1, crop: 1.30, minE: 20, icon: IC.freewell, tint: null, tintS: 0 },
   /* NOT MEASURED. m and crop are the box's claim and a guess; the ratio test
      replaces them. Do not trust the badge number until it does. */
   { id: "neewer85", label: "NEEWER Tele 2.5\u00d7", kind: "TELE",
-    s: 1, m: 2.5, crop: 1, minE: 20, icon: IC.neewer, tint: null, tintS: 0 },
-  { id: "gen133", label: "Generic ANA 1.33\u00d7", kind: "ANA",
-    s: 1.33, m: 1, crop: 1.30, minE: 20, icon: null, tint: null, tintS: 0 },
-  { id: "gen200", label: "Generic ANA 2.00\u00d7", kind: "ANA",
-    s: 2, m: 1, crop: 1.30, minE: 20, icon: null, tint: null, tintS: 0 }
+    s: 1, m: 2.5, crop: 1, minE: 20, icon: IC.neewer, tint: null, tintS: 0 }
 ];
 /* Off by default: most people have no adapter, and a squeeze applied without
    one stretches every frame. Remembered once set. b64 and earlier stored a
-   bare squeeze number, so an old save migrates to the first record matching
-   it rather than silently reading back as OFF. */
+   bare squeeze number, so an old save migrates to the first record whose
+   squeeze matches. This list is owned glass only, no placeholders, so a
+   squeeze nothing in it provides falls back to OFF - which is the truth. */
 let ANA = (() => {
   let v = null; try { v = localStorage["ana"]; } catch (e) {}
   let o = OPTICS.find(x => x.id === v);
