@@ -153,6 +153,14 @@ body.f-rf #rf{display:block}
   #frame{padding:0 calc(189px + env(safe-area-inset-right))
                  0 calc(43px + env(safe-area-inset-left))}
   #glass{width:auto;height:100%;aspect-ratio:5/4}
+  body.ana #glass{width:auto;height:auto;max-width:100%;max-height:100%;
+                  aspect-ratio:calc(1.25 * var(--sq, 1))}
+  body.ana #frame{padding:0 calc(184px + env(safe-area-inset-right))
+                    0 calc(6px + env(safe-area-inset-left))}
+  body.flip.ana #frame{padding:0 calc(6px + env(safe-area-inset-right))
+                         0 calc(184px + env(safe-area-inset-left))}
+  body.ana #glass video{right:auto;left:50%;translate:-50% 0;
+                        width:calc(100% / var(--sq, 1))}
   .deck{position:absolute;top:0;bottom:0;
         right:calc(38px + env(safe-area-inset-right));width:138px;
         display:grid;grid-template-columns:1fr;grid-template-rows:1fr auto 1fr;
@@ -405,7 +413,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 58;                     /* bump with every ship; lands in EXIF */
+const BUILD = 59;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -569,8 +577,13 @@ function realize(F) {
 }
 function lensView() {        /* WYSIWYG: the glass shows the crop and squeeze */
   const c = GLASS.crop || 1, q = (typeof ANA === "object" && ANA.s) || 1;
+  const wide = q > 1.001;
+  document.documentElement.style.setProperty("--sq", q);
+  document.body.classList.toggle("ana", wide);
+  /* the video box is already 5:4 inside a desqueezed glass, so the stretch
+     is scaleX; the lens crop is a uniform zoom on top of it */
   $("video").style.transform =
-    (c > 1.001 || q > 1.001) ? "scale(" + c + "," + (c / q) + ")" : "none";
+    (c > 1.001 || wide) ? "scale(" + (c * q) + "," + c + ")" : "none";
 }
 function setGlass(F) {
   if (!lensAllowed(F)) return;        /* the squeeze forbids the wide rungs */
