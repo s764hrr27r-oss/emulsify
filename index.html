@@ -55,7 +55,7 @@ body.f-cross #cross{display:block}
    background:#000;place-items:center;align-content:center;gap:18px;
    color:var(--mute);animation:bootin .4s var(--ease) both}
 #anawarn.on{display:grid}
-#anawarn svg{animation:breathe 2.4s ease-in-out infinite}
+#anawarn svg{animation:breathe 2.4s ease-in-out infinite;transform:scaleX(-1)}
 #anawarn span{font-family:ui-monospace,Menlo,monospace;font-size:11px;
    letter-spacing:.14em;text-align:center;padding:0 24px;opacity:.85}
 #evrow{position:absolute;left:10px;top:50%;translate:0 -50%;height:min(58%,300px);
@@ -159,15 +159,22 @@ body.f-rf #rf{display:block}
   #chips,#shutterwrap,#rightstack{justify-self:center}
   #rightstack{flex-direction:row;align-self:start}
   #chips{align-self:end}
+  /* clockwise turn: the phone's bottom edge is now on the LEFT, so the deck
+     goes with it, the gate padding mirrors, and the control order reverses -
+     the chip still sits nearest the edge that was the phone's left. */
+  body.flip .deck{right:auto;left:calc(38px + env(safe-area-inset-left))}
+  body.flip #frame{padding:0 calc(43px + env(safe-area-inset-right))
+                     0 calc(189px + env(safe-area-inset-left))}
+  body.flip #rightstack{align-self:end}
+  body.flip #chips{align-self:start}
   .deck::before{inset:16px 6px}
-  body.flip .deck{right:auto;left:calc(env(safe-area-inset-left))}
   #shutterwrap{order:1}
   #chips{order:2;flex-direction:column}
   .spacer{display:none}
-  #lensmenu{right:calc(env(safe-area-inset-right) + 122px);bottom:auto;
-            top:50%;translate:0 -50%}
-  body.flip #lensmenu{
-            right:auto;left:calc(env(safe-area-inset-left) + 122px)}
+  #lensmenu,#anamenu{right:calc(env(safe-area-inset-right) + 190px);left:auto;
+            bottom:auto;top:50%;translate:0 -50%}
+  body.flip #lensmenu,body.flip #anamenu{
+            right:auto;left:calc(env(safe-area-inset-left) + 190px)}
 }
 
 /* ---------- print ---------- */
@@ -397,7 +404,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 51;                     /* bump with every ship; lands in EXIF */
+const BUILD = 53;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
