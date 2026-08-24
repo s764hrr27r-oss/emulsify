@@ -118,24 +118,25 @@ body.f-rf #rf{display:block}
   border:1px solid var(--hair);color:var(--mute);
   font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
-#lensmenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
+#anamenu{left:24px;right:auto}
+#lensmenu,#anamenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
   background-color:var(--k);background-image:var(--grain);
   border:1px solid var(--hair);border-radius:14px;
   padding:8px 4px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 106px)}
 
-#lensmenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+#lensmenu button,#anamenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
   letter-spacing:.05em;color:var(--mute);padding:8px 18px;border-radius:8px;
   position:relative}
 .hapov{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
        -webkit-appearance:auto}
-#lensmenu button.cur{color:var(--dot)}
-#lensmenu button:disabled{opacity:.25}
+#lensmenu button.cur,#anamenu button.cur{color:var(--dot)}
+#lensmenu button:disabled,#anamenu button:disabled{opacity:.25}
 #lensveil{position:fixed;inset:0;display:none;z-index:11}
 #lensveil.on{display:block}
-#lensmenu{display:flex;opacity:0;pointer-events:none;
+#lensmenu,#anamenu{display:flex;opacity:0;pointer-events:none;
   transform:translateY(8px) scale(.97);
   transition:opacity .22s var(--ease),transform .22s var(--ease)}
-#lensmenu.on{opacity:1;pointer-events:auto;transform:none}
+#lensmenu.on,#anamenu.on{opacity:1;pointer-events:auto;transform:none}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
@@ -252,10 +253,7 @@ body.f-rf #rf{display:block}
   <div class="deck">
     <div id="chips">
       <button id="chip" aria-label="Prints"><span class="dot"></span></button>
-      <button id="hdr" class="lensbtn" aria-label="HDR capture">HDR</button>
-      <input id="hdrfile" type="file" accept="image/*" capture="environment"
-             tabindex="-1" aria-hidden="true"
-             style="position:absolute;width:0;height:0;opacity:0;pointer-events:none">
+      <button id="ana" class="lensbtn" aria-label="Anamorphic">1.55</button>
     </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
     <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn" aria-label="Lens">33mm</button></span>
@@ -264,6 +262,7 @@ body.f-rf #rf{display:block}
 
 <div id="lensveil"></div>
 <div id="lensmenu"></div>
+<div id="anamenu"></div>
 
 
 <svg id="dyefx" width="0" height="0" aria-hidden="true"
@@ -380,7 +379,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 48;                     /* bump with every ship; lands in EXIF */
+const BUILD = 49;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -459,7 +458,7 @@ const labDevelop = (buf, seed, fid, full) => {
     waits.set(id, { res, rej });
     if (fid) jobFrame.set(id, fid);
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
-                         build: BUILD,
+                         build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
                          size: full ? RUNGS[0].px : RUNGS[rung].px,
                          dc:   full ? RUNGS[0].dc : RUNGS[rung].dc });
   });
@@ -511,8 +510,10 @@ function realize(F) {
   for (const p of phys) if (p.e <= F) c = p;
   return c ? { id: c.id, crop: F / c.e } : null;
 }
-function lensView() {                 /* WYSIWYG: the glass shows the crop */
-  $("video").style.transform = GLASS.crop > 1.001 ? "scale(" + GLASS.crop + ")" : "none";
+function lensView() {        /* WYSIWYG: the glass shows the crop and squeeze */
+  const c = GLASS.crop || 1, q = (typeof ANA === "object" && ANA.s) || 1;
+  $("video").style.transform =
+    (c > 1.001 || q > 1.001) ? "scale(" + c + "," + (c / q) + ")" : "none";
 }
 function setGlass(F) {
   const r = realize(F);
@@ -566,7 +567,7 @@ $("lens").onclick = () => {
   const on = $("lensmenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
-$("lensveil").onclick = () => { closeLensMenu(); };
+$("lensveil").onclick = () => { closeLensMenu(); closeAnaMenu(); };
 
 /* ---------- exposure compensation: a real dial into the chemistry ------ */
 const EV = { v: 0 };
@@ -792,59 +793,47 @@ async function cook(c, voice, full) {
   else if ($("print").classList.contains("on")) buildStrip(watching || current);
 }
 
-/* ---------- HDR: hand the exposure bracket to the system camera ----------
-   Safari exposes no exposure control, so a bracket cannot be taken here. The
-   iPhone camera app already takes one for every still and fuses it, so this
-   asks for that file instead: a multi-frame HDR fusion at full sensor size,
-   with far more highlight headroom than a single video frame. It is centre
-   cropped to the film gate and scaled to MAX_NEG before the lab sees it, so
-   a 12 MP file never lands in the worker's memory. The lens ladder does not
-   apply - the system camera chose its own field of view - but the EV dial
-   still does, because that bias rides into the chemistry. */
-/* Gamma 1.27 is the mean of two measured scenes (1.315 and 1.232). The fits
-   also wanted a 1.03 scale, which is dropped on purpose: any scale above one
-   pushes values past 255 and clips the very highlights this capture path
-   exists to keep. Pure gamma darkens and preserves the top of the range. */
-const HDR_GAMMA = 1.27, HDR_SCALE = 1.0;
-async function fileToGate(file, maxEdge) {
-  let bmp;
-  try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
-  catch (e) { bmp = await createImageBitmap(file); }
-  const A = aspect();
-  let cw = bmp.width, ch = bmp.height;
-  if (cw / ch > A) cw = Math.round(ch * A); else ch = Math.round(cw / A);
-  const sx = Math.round((bmp.width - cw) / 2), sy = Math.round((bmp.height - ch) / 2);
-  const s = Math.min(1, maxEdge / Math.max(cw, ch));
-  const c = document.createElement("canvas");
-  const g2 = c.getContext("2d", { willReadFrequently: true });
-  c.width = Math.round(cw * s); c.height = Math.round(ch * s);
-  g2.drawImage(bmp, sx, sy, cw, ch, 0, 0, c.width, c.height);
-  if (bmp.close) bmp.close();
-  try {                                    /* undo the fusion's flattening */
-    const L = new Uint8ClampedArray(256);
-    for (let v = 0; v < 256; v++)
-      L[v] = Math.round(Math.pow(v / 255, HDR_GAMMA) * HDR_SCALE * 255);
-    const d = g2.getImageData(0, 0, c.width, c.height);
-    const px = d.data;
-    for (let i = 0; i < px.length; i += 4) {
-      px[i] = L[px[i]]; px[i + 1] = L[px[i + 1]]; px[i + 2] = L[px[i + 2]];
-    }
-    g2.putImageData(d, 0, 0);
-  } catch (e) {}
-  return c;
+/* ---------- anamorphic: the adapter squeezes, the lab unsqueezes ----------
+   An adapter compresses the horizontal axis optically, so the sensor records
+   a squeezed frame. That squeezed frame IS the negative: the chemistry runs
+   on it exactly as shot, which is why the grain comes out oval once the
+   print is stretched back - the same thing that happens on real anamorphic
+   film. The viewfinder shows the desqueezed framing by shrinking the preview
+   vertically, so what you compose is what you get. */
+const SQUEEZE = [{ k: "OFF", s: 1 }, { k: "1.33\u00d7", s: 1.33 },
+                 { k: "1.55\u00d7", s: 1.55 }, { k: "2.00\u00d7", s: 2 }];
+const ANA = { s: (() => { try { const v = parseFloat(localStorage["ana"]);
+  return SQUEEZE.some(q => q.s === v) ? v : 1.55; } catch (e) { return 1.55; } })() };
+function paintAnaMenu() {
+  const m = $("anamenu"); m.innerHTML = "";
+  for (const { k, s: v } of SQUEEZE) {
+    const b = document.createElement("button");
+    b.textContent = k;
+    b.insertAdjacentHTML("beforeend",
+      '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
+    if (v === ANA.s) b.className = "cur";
+    b.onclick = () => { closeAnaMenu(); setSqueeze(v); };
+    m.appendChild(b);
+  }
 }
-tickBadge($("hdr"));
-$("hdr").addEventListener("click", () => {
-  if (pending > 2) return;
-  $("hdrfile").click();
-});
-$("hdrfile").addEventListener("change", async e => {
-  const file = e.target.files && e.target.files[0];
-  e.target.value = "";                       /* so the same shot can repeat */
-  if (!file) return;
-  try { await cook(await fileToGate(file, MAX_NEG), false, true); }
-  catch (err) { console.error(err); flagError(); }
-});
+function setSqueeze(v) {
+  ANA.s = v;
+  try { localStorage["ana"] = v; } catch (e) {}
+  const q = SQUEEZE.find(x => x.s === v);
+  $("ana").textContent = q ? q.k : "OFF";
+  tickBadge($("ana"));
+  lensView();
+  paintAnaMenu();
+}
+function closeAnaMenu() {
+  $("anamenu").classList.remove("on"); $("lensveil").classList.remove("on");
+}
+$("ana").onclick = () => {
+  closeLensMenu();
+  const on = $("anamenu").classList.toggle("on");
+  $("lensveil").classList.toggle("on", on);
+};
+setSqueeze(ANA.s);
 
 function flagError() {
   const chip = $("chip");

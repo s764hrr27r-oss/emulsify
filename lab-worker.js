@@ -1,4 +1,10 @@
-// lab-worker.js — v3.0. Verbatim canon; JPEG prints
+// lab-worker.js — v3.1. Verbatim canon; JPEG prints
+// v3.1: anamorphic desqueeze, applied LAST. The adapter squeezes the frame
+// optically, so the whole pipeline - metering, emulsion, grain, print - runs
+// on the squeezed negative exactly as shot. Only at the encode does the
+// width get stretched back by the factor, which is what makes the grain
+// come out oval, as it does on real anamorphic film. Factor 1 is a no-op,
+// so the golden is untouched.
 // v3.0: every print records which build made it. The interface sends its
 // build number with each job and it lands in the EXIF Software tag, so any
 // print answers "is the new code live" without inferring it from tone.
@@ -376,6 +382,7 @@ def bake(jpg_bytes, w, t, secs):
         k = 1.0 + w*(1.0 - sat)
         out = np.clip(Y + (out - Y)*k, 0.0, 1.0)
     img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
+    img = _desqueeze(img)
     buf = io.BytesIO()
     try:
         ex = Image.Exif()
@@ -414,6 +421,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     out = _final_fix(out)
     out = _dodge(out, 0.25)
     img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
+    img = _desqueeze(img)
     secs = max(_t.time() - _t0, 0.01)          # seconds, to hundredths
     buf = io.BytesIO()
     try:
@@ -501,6 +509,18 @@ def _stage_thumb(a):
                               Image.BILINEAR))
 _EV_BIAS = 0.0
 _BUILD = 0                                  # set per job by the interface
+_ANA = 1.0                                  # anamorphic squeeze factor
+def _desqueeze(img):
+    """Stretch the finished print back out. Last thing before encoding, so
+    every earlier stage saw the negative in the state the lens recorded."""
+    try:
+        f = float(_ANA or 1.0)
+        if f <= 1.001:
+            return img
+        w, h = img.size
+        return img.resize((max(1, int(round(w * f))), h), Image.LANCZOS)
+    except Exception:
+        return img
 _canon_emulsify2_v14 = E.emulsify2
 def _emulsify2_watched(lit, st, **kw):
     try:
@@ -595,6 +615,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
             except Exception:
                 pass
         img = Image.fromarray((E.linear_to_srgb(np.clip(Ls, 0, 1))*255).astype(np.uint8))
+        img = _desqueeze(img)
         secs = float(slow.get("secs", 0)) + float(fast.get("secs", 0)) or 0.01
         buf = io.BytesIO()
         try:
@@ -640,6 +661,7 @@ onmessage = async (e) => {
     CURJOB = id;
     pyodide.globals.set("_EV_BIAS", e.data.ev || 0);
     pyodide.globals.set("_BUILD", e.data.build || 0);
+    pyodide.globals.set("_ANA", e.data.ana || 1);
     if (e.data.dc !== undefined) pyodide.globals.set("_DC_ON", !!e.data.dc);
     const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
