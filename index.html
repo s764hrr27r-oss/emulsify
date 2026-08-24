@@ -379,7 +379,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 49;                     /* bump with every ship; lands in EXIF */
+const BUILD = 50;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -802,8 +802,10 @@ async function cook(c, voice, full) {
    vertically, so what you compose is what you get. */
 const SQUEEZE = [{ k: "OFF", s: 1 }, { k: "1.33\u00d7", s: 1.33 },
                  { k: "1.55\u00d7", s: 1.55 }, { k: "2.00\u00d7", s: 2 }];
+/* Off by default: most people have no adapter, and a squeeze applied without
+   one stretches every frame. Remembered once set. */
 const ANA = { s: (() => { try { const v = parseFloat(localStorage["ana"]);
-  return SQUEEZE.some(q => q.s === v) ? v : 1.55; } catch (e) { return 1.55; } })() };
+  return SQUEEZE.some(q => q.s === v) ? v : 1; } catch (e) { return 1; } })() };
 function paintAnaMenu() {
   const m = $("anamenu"); m.innerHTML = "";
   for (const { k, s: v } of SQUEEZE) {
