@@ -1,4 +1,6 @@
-// lab-worker.js — v3.6. Verbatim canon; JPEG prints
+// lab-worker.js — v3.7. Verbatim canon; JPEG prints
+// v3.7: _expand computes its highlight power only where it can act.
+// Bit-identical; the seed-99 golden holds at 5ea19a4ea48e310f.
 // v3.6: per-lens tint. _TINT/_TINT_S arrive per job; the gate is strength,
 // not the squeeze. Absent = no tint, so spherical output is untouched.
 // v3.5: the adapter tint is corrected at HALF strength. The glass measures
@@ -145,12 +147,29 @@ def _expand(lin, kmax=2.2):
     the JPEG's crushed top end stretches back into real light ratios, so
     flames, windows and sky feed the emulsion's shoulder and halation with
     the energy the scene actually had. Colored light expands in its own
-    color."""
+    color.
+
+    v3.7: the fractional power used to run on every pixel. Only pixels above t
+    can produce a non-zero over-value; below it the expression collapses to
+    lin * 1.0, exact in IEEE754, then clips into a range the value is already
+    inside. Restricting the power to the pixels it can affect is therefore
+    bit-identical rather than an approximation - the seed-99 golden does not
+    move, and that is checked rather than assumed. A normal scene puts about
+    8% of its pixels above t, so the power runs on roughly a twelfth of the
+    array and this stage close to halves.
+
+    No backticks anywhere in this harness. It lives inside a JS template
+    literal and one backtick ends the string; node --check catches it, but
+    only if you run it."""
     import numpy as np
     t = 0.75
-    over = np.clip((lin - t)/(1 - t), 0, 1)
-    gain = 1.0 + (kmax - 1.0)*over**1.8
-    return np.clip(lin*gain, 0, kmax + 0.3)
+    m = lin > t
+    if not m.any():
+        return np.clip(lin, 0, kmax + 0.3)
+    out = lin.copy()
+    over = np.clip((lin[m] - t)/(1 - t), 0, 1)
+    out[m] = lin[m]*(1.0 + (kmax - 1.0)*over**1.8)
+    return np.clip(out, 0, kmax + 0.3)
 
 # ---- KINETIC STABILIZER (documented addendum to the frozen canon) ----
 # The negative meters its own development: each layer's rate leans gently
