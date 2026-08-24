@@ -173,13 +173,14 @@ body.f-rf #rf{display:block}
   #rightstack{flex-direction:row;align-self:start}
   #chips{align-self:end}
   /* clockwise turn: the phone's bottom edge is now on the LEFT, so the deck
-     goes with it, the gate padding mirrors, and the control order reverses -
-     the chip still sits nearest the edge that was the phone's left. */
+     goes with it and the gate padding mirrors. The deck's INTERNAL layout does
+     not mirror - b65: flipping align-self here without also flipping `order`
+     only dragged both groups to the inner edge of their row, collapsing the
+     232px gap above the lens pair. The deck now reads identically in both
+     landscapes: lens pair pinned to the top, chip + ana pinned to the bottom. */
   body.flip .deck{right:auto;left:calc(38px + env(safe-area-inset-left))}
   body.flip #frame{padding:0 calc(43px + env(safe-area-inset-right))
                      0 calc(189px + env(safe-area-inset-left))}
-  body.flip #rightstack{align-self:end}
-  body.flip #chips{align-self:start}
   .deck::before{inset:16px 6px}
   #shutterwrap{order:1}
   #chips{order:2;flex-direction:column}
@@ -417,7 +418,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 64;                     /* bump with every ship; lands in EXIF */
+const BUILD = 65;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
