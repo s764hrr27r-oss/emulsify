@@ -404,7 +404,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 54;                     /* bump with every ship; lands in EXIF */
+const BUILD = 55;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -527,6 +527,9 @@ const LADDER = [
   { k: "44mm", F: 44 }        /* the ladder tops at 44: past it, crops thin */
 ];
 const labelOf = F => (LADDER.find(l => l.F === F) || { k: F + "mm" }).k;
+const ANA_MIN_MM = 33;                /* the adapter only covers 33 and 44 */
+const anaOn = () => (typeof ANA === "object" ? ANA.s : 1) > 1.001;
+const lensAllowed = F => !anaOn() || F >= ANA_MIN_MM;
 let phys = [];                        /* [{id, e}] native 35mm-e per camera */
 const GLASS = { mm: 33, id: null, crop: 1 };
 tickBadge($("lens"));                 /* visible from frame one, live on discovery */
@@ -541,6 +544,7 @@ function lensView() {        /* WYSIWYG: the glass shows the crop and squeeze */
     (c > 1.001 || q > 1.001) ? "scale(" + c + "," + (c / q) + ")" : "none";
 }
 function setGlass(F) {
+  if (!lensAllowed(F)) return;        /* the squeeze forbids the wide rungs */
   const r = realize(F);
   if (!r) return;
   const sameDev = r.id === GLASS.id;
@@ -576,7 +580,7 @@ function paintLensMenu() {
   for (const { k, F } of LADDER) {
     const b = document.createElement("button");
     b.textContent = k;
-    if (!realize(F)) b.disabled = true;
+    if (!realize(F) || !lensAllowed(F)) b.disabled = true;
     else b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
     if (F === GLASS.mm) b.className = "cur";
@@ -886,11 +890,13 @@ function anaGuard() {
 function setSqueeze(v) {
   ANA.s = v;
   try { localStorage["ana"] = v; } catch (e) {}
+  if (v > 1.001 && GLASS.mm < ANA_MIN_MM) setGlass(ANA_MIN_MM);
   const q = SQUEEZE.find(x => x.s === v);
   $("ana").textContent = q ? q.k : "OFF";
   tickBadge($("ana"));
   lensView();
   paintAnaMenu();
+  paintLensMenu();                    /* the greyed-out rungs change with it */
   anaGuard();
 }
 function closeAnaMenu() {
