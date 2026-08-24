@@ -417,7 +417,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 60;                     /* bump with every ship; lands in EXIF */
+const BUILD = 61;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -549,6 +549,11 @@ const lensAllowed = F => !anaOn();    /* the ladder is frozen under a squeeze */
 /* Not the ultra-wide: an adapter's image circle cannot cover that field and
    the corners vignette hard. The main camera at its native frame is the
    widest glass the adapter actually covers. */
+/* The adapter's image circle does not reach the main camera's corners, so
+   the frame steps in until the vignette clears. Chosen off a crop grid shot
+   through the actual adapter: 1.15 still carried the dark edge, 1.50 gave
+   away frame for nothing. One constant - change it here. */
+const ANA_CROP = 1.30;
 const anaPhys = () => {
   if (!phys.length) return null;
   return phys.find(p => p.e >= 20) || phys[phys.length - 1];
@@ -559,14 +564,14 @@ const anaPhys = () => {
 function anaLabel() {
   const w = anaPhys();
   const q = (typeof ANA === "object" ? ANA.s : 1);
-  return w ? "ANA " + Math.round(w.e / q) : "ANA";
+  return w ? "ANA " + Math.round(w.e * ANA_CROP / q) : "ANA";
 }
 function applyAnaGlass() {
   const w = anaPhys();
   if (!w) return;
   const sameDev = w.id === GLASS.id;
   if (!sameDev && restarting) return;
-  GLASS.mm = w.e; GLASS.id = w.id; GLASS.crop = 1;
+  GLASS.mm = w.e * ANA_CROP; GLASS.id = w.id; GLASS.crop = ANA_CROP;
   $("lens").textContent = anaLabel();
   lensView();
   if (!sameDev) startCamera(w.id);
