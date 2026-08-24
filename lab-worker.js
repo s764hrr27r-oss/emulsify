@@ -1,13 +1,11 @@
-// lab-worker.js — v3.4. Verbatim canon; JPEG prints
-// v3.4: the adapter tint compensation added in v3.3 is REMOVED. The glass
-// really does pass R1.1631 G1.0282 B0.8087 - measured against three targets
-// over a 2.7x brightness range, consistent to 1% - but that measurement was
-// taken with white balance LOCKED, which is the only way to see it and also
-// the condition that never holds in use. Shooting normally, the phone's own
-// AWB removes the adapter's warmth before the lab receives the frame, so
-// correcting for it again pushed everything blue: on a matched pair the
-// whole-frame B-R went from -13.5 spherical to +10.5 anamorphic, and the
-// shadow gap roughly doubled versus not correcting at all.
+// lab-worker.js — v3.5. Verbatim canon; JPEG prints
+// v3.5: the adapter tint is corrected at HALF strength. The glass measures
+// R1.1631 G1.0282 B0.8087 with white balance locked. v3.3 applied all of it
+// and overshot 24 levels blue; v3.4 applied none and undershot 26 levels
+// warm - a matched bathroom pair on b63 put the anamorphic white tub at
+// B-R -20.7 against the spherical -7.8. Half strength lands the tub at
+// -5.5, and it is the only target genuinely comparable between the two
+// framings. Third attempt at this; treat _ANA_TINT_S as provisional.
 // v3.2: the print records what it was shot on. FocalLength is the taking
 // lens; FocalLengthIn35mmFilm is the horizontal 35mm equivalent, native
 // DIVIDED by the squeeze, because an adapter compresses the horizontal axis
@@ -385,7 +383,7 @@ def bake(jpg_bytes, w, t, secs):
     t = tint (G vs R+B, +-0.40): per-channel gains, mean exactly 1.0."""
     im = Image.open(io.BytesIO(bytes(jpg_bytes))).convert("RGB")
     arr = np.array(im); im.close()
-    lin = _s2l(arr)
+    lin = _ana_debias(_s2l(arr))
     g = np.array([1.0 - t/3.0, 1.0 + 2.0*t/3.0, 1.0 - t/3.0])
     out = np.clip(lin*g[None, None, :], 0.0, 1.0)
     if abs(w) > 1e-6:
@@ -429,7 +427,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         _TAUS[:] = _meter(np.clip(light, 0, 1)); _CALL[0] = 0
         out = SCOPE70_CANON(light, seed=int(seed))
     else:
-        lin = _s2l(arr)
+        lin = _ana_debias(_s2l(arr))
         _TAUS[:] = _meter(lin); _CALL[0] = 0
         out = HONEY70_CANON(_expand(lin), seed=int(seed))
     out = _final_fix(out)
@@ -526,6 +524,17 @@ _EV_BIAS = 0.0
 _BUILD = 0                                  # set per job by the interface
 _ANA = 1.0                                  # anamorphic squeeze factor
 _LENS_MM = 0                                # taking lens, 35mm equivalent
+_ANA_TINT = (1.1631, 1.0282, 0.8087)        # measured with white balance locked
+_ANA_TINT_S = 0.50                          # provisional: see the header note
+def _ana_debias(lin):
+    try:
+        if float(_ANA or 1.0) <= 1.001 or _ANA_TINT_S <= 0:
+            return lin
+        g = 1.0 / (np.asarray(_ANA_TINT, dtype=lin.dtype) ** float(_ANA_TINT_S))
+        g = g / g.mean()
+        return lin * g[None, None, :]
+    except Exception:
+        return lin
 def _lens_tags(ex):
     """Record what took the picture. Horizontal equivalent = native / squeeze."""
     try:
