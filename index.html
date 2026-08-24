@@ -33,24 +33,51 @@ body.paged #camera{transform:scale(.97)}
 #shutterwrap{animation:rise .5s var(--ease) both .16s}
 #rightstack{animation:rise .5s var(--ease) both .24s}
 .ghost{opacity:0 !important;pointer-events:none}
-#glass{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;background:#000;
+#glass{position:relative;width:100%;aspect-ratio:4/5;--ga:.8;overflow:hidden;background:#000;
        animation:bootin .5s var(--ease) both}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
              opacity:0;transition:opacity .4s var(--ease)}
 #glass video.live{opacity:1}
-#grid{position:absolute;inset:0;pointer-events:none;opacity:.5;
-  background:
-   linear-gradient(to right, transparent calc(33.33% - .5px), rgba(244,242,237,.45) 33.33%, transparent calc(33.33% + .5px)),
-   linear-gradient(to right, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px)),
-   linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(244,242,237,.45) 33.33%, transparent calc(33.33% + .5px)),
-   linear-gradient(to bottom, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px))}
-body.f-off #grid,body.f-rf #grid,body.f-cross #grid{display:none}
-#cross{position:absolute;left:50%;top:50%;width:16px;height:16px;
-       translate:-50% -50%;display:none;pointer-events:none}
+/* ---------- finder overlays ----------
+   Every mark carries a dark drop-shadow under a light stroke. A pure light
+   hairline disappears against a white wall or a blown window, which is
+   precisely where the framing is hardest to judge - the old grid was doing
+   that on a bathroom wall. One filter on the container fixes every mark, and
+   costs nothing that a hand-drawn double stroke would not.
+   Modes are now explicit: each draws only under its own body class, so no
+   mode is "the absence of the others". --ga is the glass aspect, published by
+   #glass so SCOPE can size its mask without asking JS. */
+#grid,#rf,#scope{position:absolute;inset:0;pointer-events:none;display:none}
+#grid,#rf{filter:drop-shadow(0 0 1.4px rgba(0,0,0,.8))}
+body.f-grid #grid,body.f-rf #rf,body.f-scope #scope{display:block}
+#grid i{position:absolute;background:rgba(244,242,237,.44)}
+#grid i:nth-child(-n+2){top:6%;bottom:6%;width:1px}
+#grid i:nth-child(1){left:33.333%}
+#grid i:nth-child(2){left:66.666%}
+#grid i:nth-child(n+3){left:6%;right:6%;height:1px}
+#grid i:nth-child(3){top:33.333%}
+#grid i:nth-child(4){top:66.666%}
+/* the four intersections get a short tick rather than a full crossing, which
+   is what a ground glass actually looks like and keeps the centre readable */
+#grid b{position:absolute;width:9px;height:9px;translate:-50% -50%;
+        border-left:1px solid rgba(244,242,237,.8);
+        border-top:1px solid rgba(244,242,237,.8)}
+#grid b:nth-of-type(1){left:33.333%;top:33.333%}
+#grid b:nth-of-type(2){left:66.666%;top:33.333%;rotate:90deg}
+#grid b:nth-of-type(3){left:33.333%;top:66.666%;rotate:270deg}
+#grid b:nth-of-type(4){left:66.666%;top:66.666%;rotate:180deg}
+#cross{position:absolute;left:50%;top:50%;width:22px;height:22px;
+       translate:-50% -50%;display:none;pointer-events:none;
+       filter:drop-shadow(0 0 1.4px rgba(0,0,0,.8))}
 body.f-cross #cross{display:block}
-#cross::before,#cross::after{content:"";position:absolute;background:rgba(244,242,237,.8)}
-#cross::before{left:0;right:0;top:50%;height:1px}
-#cross::after{top:0;bottom:0;left:50%;width:1px}
+#cross::before,#cross::after{content:"";position:absolute;background:rgba(244,242,237,.85)}
+/* a gap at dead centre: a solid cross hides the very thing it points at */
+#cross::before{left:0;right:0;top:50%;height:1px;
+  -webkit-mask:linear-gradient(to right,#000 0 38%,transparent 38% 62%,#000 62% 100%);
+          mask:linear-gradient(to right,#000 0 38%,transparent 38% 62%,#000 62% 100%)}
+#cross::after{top:0;bottom:0;left:50%;width:1px;
+  -webkit-mask:linear-gradient(to bottom,#000 0 38%,transparent 38% 62%,#000 62% 100%);
+          mask:linear-gradient(to bottom,#000 0 38%,transparent 38% 62%,#000 62% 100%)}
 #anawarn{position:absolute;inset:0;z-index:4;display:none;pointer-events:none;
    background:#000;place-items:center;align-content:center;gap:18px;
    color:var(--mute);animation:bootin .4s var(--ease) both}
@@ -72,15 +99,33 @@ body.f-cross #cross{display:block}
   color:var(--dot);opacity:0;transition:opacity .22s var(--ease)}
 #evrow.live .val{opacity:1}
 @media(prefers-reduced-motion:reduce){#evrow .thumb,#evrow .val{transition:none}}
-#rf{position:absolute;inset:0;pointer-events:none;display:none}
-body.f-rf #rf{display:block}
-#rf i{position:absolute;width:18px;height:18px;border:0 solid rgba(244,242,237,.8)}
-#rf i:nth-child(1){left:7%;top:7%;border-left-width:2px;border-top-width:2px}
-#rf i:nth-child(2){right:7%;top:7%;border-right-width:2px;border-top-width:2px}
-#rf i:nth-child(3){left:7%;bottom:7%;border-left-width:2px;border-bottom-width:2px}
-#rf i:nth-child(4){right:7%;bottom:7%;border-right-width:2px;border-bottom-width:2px}
-#rf b{position:absolute;left:50%;top:50%;width:17%;aspect-ratio:5/3;
-      translate:-50% -50%;border:1px solid rgba(59,130,246,.75)}
+/* RANGEFINDER. A real bright-line finder is a continuous thin frame with
+   heavier corners, not four floating brackets - the eye reads the rectangle,
+   the corners just anchor it. The patch is the split-image spot: faintly
+   lifted, with a hairline through it. Light, not blue: blue reads as
+   interface, a warm-white line reads as optics. */
+#rf u{position:absolute;inset:6.5%;border:1px solid rgba(244,242,237,.34)}
+#rf i{position:absolute;width:15px;height:15px;border:0 solid rgba(244,242,237,.9)}
+#rf i:nth-child(2){left:6.5%;top:6.5%;border-left-width:1.5px;border-top-width:1.5px}
+#rf i:nth-child(3){right:6.5%;top:6.5%;border-right-width:1.5px;border-top-width:1.5px}
+#rf i:nth-child(4){left:6.5%;bottom:6.5%;border-left-width:1.5px;border-bottom-width:1.5px}
+#rf i:nth-child(5){right:6.5%;bottom:6.5%;border-right-width:1.5px;border-bottom-width:1.5px}
+#rf b{position:absolute;left:50%;top:50%;width:19%;aspect-ratio:4/3;
+      translate:-50% -50%;border:1px solid rgba(244,242,237,.62);
+      background:rgba(244,242,237,.05)}
+#rf b s{position:absolute;left:0;right:0;top:50%;height:1px;
+        background:rgba(244,242,237,.62)}
+/* SCOPE. The 2.39 mask sizes itself from --ga, so it is correct in portrait,
+   in landscape, and under every squeeze without a line of script. Bands and
+   bars are the same sum: whichever axis has to give, gives. A frame already
+   wider than 2.39 - the 2.00x squeeze reaches 2.50 - clamps both to zero. */
+#scope i,#scope u{position:absolute;background:rgba(0,0,0,.55)}
+#scope i{left:0;right:0;height:max(0px, calc((1 - var(--ga,.8) / 2.39) / 2 * 100%))}
+#scope i:nth-child(1){top:0;border-bottom:1px solid rgba(244,242,237,.45)}
+#scope i:nth-child(2){bottom:0;border-top:1px solid rgba(244,242,237,.45)}
+#scope u{top:0;bottom:0;width:max(0px, calc((1 - 2.39 / var(--ga,.8)) / 2 * 100%))}
+#scope u:nth-child(3){left:0;border-right:1px solid rgba(244,242,237,.45)}
+#scope u:nth-child(4){right:0;border-left:1px solid rgba(244,242,237,.45)}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 #denied{position:absolute;inset:0;display:none;place-items:center;
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
@@ -129,24 +174,24 @@ body.f-rf #rf{display:block}
   object-fit:contain;pointer-events:none;display:block}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
 #anamenu{left:24px;right:auto}
-#lensmenu,#anamenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
+#lensmenu,#anamenu,#findermenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
   background-color:var(--k);background-image:var(--grain);
   border:1px solid var(--hair);border-radius:14px;
   padding:8px 4px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 106px)}
 
-#lensmenu button,#anamenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+#lensmenu button,#anamenu button,#findermenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
   letter-spacing:.05em;color:var(--mute);padding:8px 18px;border-radius:8px;
   position:relative}
 .hapov{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
        -webkit-appearance:auto}
-#lensmenu button.cur,#anamenu button.cur{color:var(--dot)}
-#lensmenu button:disabled,#anamenu button:disabled{opacity:.25}
+#lensmenu button.cur,#anamenu button.cur,#findermenu button.cur{color:var(--dot)}
+#lensmenu button:disabled,#anamenu button:disabled,#findermenu button:disabled{opacity:.25}
 #lensveil{position:fixed;inset:0;display:none;z-index:11}
 #lensveil.on{display:block}
-#lensmenu,#anamenu{display:flex;opacity:0;pointer-events:none;
+#lensmenu,#anamenu,#findermenu{display:flex;opacity:0;pointer-events:none;
   transform:translateY(8px) scale(.97);
   transition:opacity .22s var(--ease),transform .22s var(--ease)}
-#lensmenu.on,#anamenu.on{opacity:1;pointer-events:auto;transform:none}
+#lensmenu.on,#anamenu.on,#findermenu.on{opacity:1;pointer-events:auto;transform:none}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
@@ -154,13 +199,14 @@ body.f-rf #rf{display:block}
 
   #frame{padding:0 calc(189px + env(safe-area-inset-right))
                  0 calc(43px + env(safe-area-inset-left))}
-  #glass{width:auto;height:100%;aspect-ratio:5/4}
+  #glass{width:auto;height:100%;aspect-ratio:5/4;--ga:1.25}
   /* one dimension must be real: aspect-ratio alone cannot size a box whose
      only child is absolutely positioned, and it collapsed to nothing. The
      frame is width-limited at every squeeze on a phone, so take the width
      and let the ratio give the height. */
   body.ana #glass{width:100%;height:auto;max-height:100%;
-                  aspect-ratio:calc(1.25 * var(--sq, 1))}
+                  aspect-ratio:calc(1.25 * var(--sq, 1));
+                  --ga:calc(1.25 * var(--sq, 1))}
   body.ana #frame{padding:0 calc(184px + env(safe-area-inset-right))
                     0 calc(6px + env(safe-area-inset-left))}
   body.flip.ana #frame{padding:0 calc(6px + env(safe-area-inset-right))
@@ -187,9 +233,9 @@ body.f-rf #rf{display:block}
   #shutterwrap{order:1}
   #chips{order:2;flex-direction:column}
   .spacer{display:none}
-  #lensmenu,#anamenu{right:calc(env(safe-area-inset-right) + 190px);left:auto;
+  #lensmenu,#anamenu,#findermenu{right:calc(env(safe-area-inset-right) + 190px);left:auto;
             bottom:auto;top:50%;translate:0 -50%}
-  body.flip #lensmenu,body.flip #anamenu{
+  body.flip #lensmenu,body.flip #anamenu,body.flip #findermenu{
             right:auto;left:calc(env(safe-area-inset-left) + 190px)}
 }
 
@@ -272,7 +318,6 @@ body.f-rf #rf{display:block}
   <div id="frame">
     <div id="glass">
       <video id="video" autoplay playsinline muted></video>
-      <div id="grid"></div>
       <div id="anawarn">
         <svg viewBox="0 0 64 40" width="54" height="34" fill="none"
              stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
@@ -284,7 +329,9 @@ body.f-rf #rf{display:block}
         </svg>
         <span>ANAMORPHIC ONLY IN LANDSCAPE</span>
       </div>
-      <div id="rf"><i></i><i></i><i></i><i></i><b></b></div>
+      <div id="grid"><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b></div>
+      <div id="rf"><u></u><i></i><i></i><i></i><i></i><b><s></s></b></div>
+      <div id="scope"><i></i><i></i><u></u><u></u></div>
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
       <div id="flash"></div>
@@ -304,6 +351,7 @@ body.f-rf #rf{display:block}
 <div id="lensveil"></div>
 <div id="lensmenu"></div>
 <div id="anamenu"></div>
+<div id="findermenu"></div>
 
 
 <svg id="dyefx" width="0" height="0" aria-hidden="true"
@@ -420,7 +468,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 69;                     /* bump with every ship; lands in EXIF */
+const BUILD = 70;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -666,11 +714,12 @@ const closeLensMenu = () => {
   $("lensmenu").classList.remove("on"); $("lensveil").classList.remove("on");
 };
 $("lens").onclick = () => {
-  if (!phys.length || anaOn()) return;   /* frozen while the adapter is on */
+  if (!phys.length || optOn()) return;   /* frozen while any glass is on */
+  closeAnaMenu(); closeFinderMenu();
   const on = $("lensmenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
-$("lensveil").onclick = () => { closeLensMenu(); closeAnaMenu(); };
+$("lensveil").onclick = () => { closeLensMenu(); closeAnaMenu(); closeFinderMenu(); };
 
 /* ---------- exposure compensation: a real dial into the chemistry ------ */
 const EV = { v: 0 };
@@ -709,25 +758,52 @@ const evEnd = () => { EVD = null; };
 $("evrow").addEventListener("pointerup", evEnd);
 $("evrow").addEventListener("pointercancel", evEnd);
 
-/* ---------- the finder: GRID -> RF -> OFF (remembered) ---------- */
-const FINDERS = ["grid", "rf", "cross", "off"];
+/* ---------- the finder ----------
+   A list, not a cycle. Five modes is two too many to hunt for by tapping, and
+   the badge already had nowhere to say what the next tap would give you. Same
+   menu furniture as the lens ladder and the optics list. */
+const FINDERS = [
+  { k: "grid",  badge: "GRID",  label: "THIRDS" },
+  { k: "rf",    badge: "RF",    label: "RANGEFINDER" },
+  { k: "scope", badge: "SCOPE", label: "SCOPE 2.39" },
+  { k: "cross", badge: "CROSS", label: "CROSS" },
+  { k: "off",   badge: "OFF",   label: "OFF" }
+];
+let FINDER = (() => { try {
+  const v = localStorage["finder"];
+  return FINDERS.some(f => f.k === v) ? v : "grid";
+} catch (e) { return "grid"; } })();
 function setFinder(m) {
-  document.body.classList.remove("f-rf", "f-cross", "f-off");
-  if (m === "rf") document.body.classList.add("f-rf");
-  if (m === "cross") document.body.classList.add("f-cross");
-  if (m === "off") document.body.classList.add("f-off");
-  $("finder").textContent =
-    m === "grid" ? "GRID" : m === "rf" ? "RF" : m === "cross" ? "CROSS" : "OFF";
+  const f = FINDERS.find(x => x.k === m) || FINDERS[0];
+  FINDER = f.k;
+  document.body.classList.remove(...FINDERS.map(x => "f-" + x.k));
+  document.body.classList.add("f-" + f.k);
+  $("finder").textContent = f.badge;
   $("finder").insertAdjacentHTML("beforeend",
     '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
-  try { localStorage["finder"] = m; } catch (e) {}
+  try { localStorage["finder"] = f.k; } catch (e) {}
+  paintFinderMenu();
 }
-setFinder((() => { try { return FINDERS.includes(localStorage["finder"])
-  ? localStorage["finder"] : "grid"; } catch (e) { return "grid"; } })());
+function paintFinderMenu() {
+  const m = $("findermenu"); m.innerHTML = "";
+  for (const f of FINDERS) {
+    const b = document.createElement("button");
+    b.textContent = f.label;
+    b.insertAdjacentHTML("beforeend",
+      '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
+    if (f.k === FINDER) b.className = "cur";
+    b.onclick = () => { closeFinderMenu(); setFinder(f.k); };
+    m.appendChild(b);
+  }
+}
+function closeFinderMenu() {
+  $("findermenu").classList.remove("on"); $("lensveil").classList.remove("on");
+}
+setFinder(FINDER);
 $("finder").addEventListener("click", () => {
-  const cur = (() => { try { return localStorage["finder"] || "grid"; }
-                       catch (e) { return "grid"; } })();
-  setFinder(FINDERS[(FINDERS.indexOf(cur) + 1) % FINDERS.length]);
+  closeLensMenu(); closeAnaMenu();
+  const on = $("findermenu").classList.toggle("on");
+  $("lensveil").classList.toggle("on", on);
 });
 startCamera();
 $("video").addEventListener("loadeddata", () => $("video").classList.add("live"));
@@ -1031,7 +1107,7 @@ function closeAnaMenu() {
   $("anamenu").classList.remove("on"); $("lensveil").classList.remove("on");
 }
 $("ana").onclick = () => {
-  closeLensMenu();
+  closeLensMenu(); closeFinderMenu();
   const on = $("anamenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
