@@ -138,6 +138,12 @@ body.f-rf #rf{display:block}
        -webkit-appearance:auto}
 #lensmenu button.cur,#anamenu button.cur{color:var(--dot)}
 #lensmenu button:disabled,#anamenu button:disabled{opacity:.25}
+/* TEMPORARY diagnostic readout - remove once the grip signal is identified */
+#diag{position:fixed;z-index:40;top:calc(env(safe-area-inset-top) + 4px);
+  left:calc(env(safe-area-inset-left) + 6px);pointer-events:none;
+  font-family:ui-monospace,Menlo,monospace;font-size:9px;line-height:1.35;
+  color:#7ee787;background:rgba(0,0,0,.72);padding:4px 6px;border-radius:4px;
+  white-space:pre}
 #lensveil{position:fixed;inset:0;display:none;z-index:11}
 #lensveil.on{display:block}
 #lensmenu,#anamenu{display:flex;opacity:0;pointer-events:none;
@@ -285,6 +291,7 @@ body.f-rf #rf{display:block}
   </div>
 </div>
 
+<div id="diag"></div>
 <div id="lensveil"></div>
 <div id="lensmenu"></div>
 <div id="anamenu"></div>
@@ -404,7 +411,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 55;                     /* bump with every ship; lands in EXIF */
+const BUILD = 56;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -681,10 +688,23 @@ function turnAngle() {
 function alignDeck() {
   const cs = getComputedStyle(inpr);
   const L = parseFloat(cs.paddingLeft) || 0, Rr = parseFloat(cs.paddingRight) || 0;
-  let flip;
-  if (Math.abs(Rr - L) > 1) flip = Rr > L;   /* island on the right = grip left */
-  else flip = turnAngle() === 270;           /* clockwise turn */
+  let flip, why;
+  if (Math.abs(Rr - L) > 1) { flip = Rr > L; why = "inset"; }
+  else { flip = turnAngle() === 270; why = "angle"; }
   document.body.classList.toggle("flip", flip);
+  const d = $("diag");
+  if (d) {
+    let so = "none", sot = "-";
+    try { if (screen.orientation) { so = screen.orientation.angle; sot = screen.orientation.type; } }
+    catch (e) {}
+    d.textContent =
+      "b" + BUILD + "  " + innerWidth + "x" + innerHeight +
+      "\ninset L" + L.toFixed(0) + " R" + Rr.toFixed(0) +
+      "\nscreen.angle " + so +
+      "\ntype " + sot +
+      "\nwin.orient " + (typeof window.orientation === "number" ? window.orientation : "none") +
+      "\ndecided by " + why + " -> flip " + flip;
+  }
 }
 function alignSoon() {                        /* insets land late; look again */
   alignDeck();
