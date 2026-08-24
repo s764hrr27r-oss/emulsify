@@ -124,6 +124,7 @@ body.f-rf #rf{display:block}
   transition:opacity .3s var(--ease);
   border:1px solid var(--hair);color:var(--mute);
   font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
+.lensbtn.locked{opacity:.45}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
 #anamenu{left:24px;right:auto}
 #lensmenu,#anamenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
@@ -138,12 +139,6 @@ body.f-rf #rf{display:block}
        -webkit-appearance:auto}
 #lensmenu button.cur,#anamenu button.cur{color:var(--dot)}
 #lensmenu button:disabled,#anamenu button:disabled{opacity:.25}
-/* TEMPORARY diagnostic readout - remove once the grip signal is identified */
-#diag{position:fixed;z-index:40;top:calc(env(safe-area-inset-top) + 4px);
-  left:calc(env(safe-area-inset-left) + 6px);pointer-events:none;
-  font-family:ui-monospace,Menlo,monospace;font-size:9px;line-height:1.35;
-  color:#7ee787;background:rgba(0,0,0,.72);padding:4px 6px;border-radius:4px;
-  white-space:pre}
 #lensveil{position:fixed;inset:0;display:none;z-index:11}
 #lensveil.on{display:block}
 #lensmenu,#anamenu{display:flex;opacity:0;pointer-events:none;
@@ -291,7 +286,6 @@ body.f-rf #rf{display:block}
   </div>
 </div>
 
-<div id="diag"></div>
 <div id="lensveil"></div>
 <div id="lensmenu"></div>
 <div id="anamenu"></div>
@@ -411,7 +405,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 56;                     /* bump with every ship; lands in EXIF */
+const BUILD = 57;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -534,9 +528,27 @@ const LADDER = [
   { k: "44mm", F: 44 }        /* the ladder tops at 44: past it, crops thin */
 ];
 const labelOf = F => (LADDER.find(l => l.F === F) || { k: F + "mm" }).k;
-const ANA_MIN_MM = 33;                /* the adapter only covers 33 and 44 */
 const anaOn = () => (typeof ANA === "object" ? ANA.s : 1) > 1.001;
-const lensAllowed = F => !anaOn() || F >= ANA_MIN_MM;
+const lensAllowed = F => !anaOn();    /* the ladder is frozen under a squeeze */
+/* Under an adapter the frame wants every pixel the glass can give, so no
+   digital crop at all: the widest physical camera at its native field. The
+   badge reports the resulting equivalent and cannot be changed. */
+const widestPhys = () => phys.length ? phys[0] : null;   /* sorted by e */
+function anaLabel() {
+  const w = widestPhys();
+  const q = (typeof ANA === "object" ? ANA.s : 1);
+  return w ? "ANA " + Math.round(w.e * q) : "ANA";
+}
+function applyAnaGlass() {
+  const w = widestPhys();
+  if (!w) return;
+  const sameDev = w.id === GLASS.id;
+  if (!sameDev && restarting) return;
+  GLASS.mm = w.e; GLASS.id = w.id; GLASS.crop = 1;
+  $("lens").textContent = anaLabel();
+  lensView();
+  if (!sameDev) startCamera(w.id);
+}
 let phys = [];                        /* [{id, e}] native 35mm-e per camera */
 const GLASS = { mm: 33, id: null, crop: 1 };
 tickBadge($("lens"));                 /* visible from frame one, live on discovery */
@@ -557,7 +569,7 @@ function setGlass(F) {
   const sameDev = r.id === GLASS.id;
   if (!sameDev && restarting) return;
   GLASS.mm = F; GLASS.id = r.id; GLASS.crop = r.crop;
-  $("lens").textContent = labelOf(F);
+  $("lens").textContent = anaOn() ? anaLabel() : labelOf(F);
   tickBadge($("lens"));
   lensView();
   paintLensMenu();
@@ -578,6 +590,7 @@ async function discoverLenses() {
   if (!r) return;
   GLASS.id = r.id; GLASS.crop = r.crop;
   $("lens").textContent = labelOf(GLASS.mm);
+  if (anaOn()) applyAnaGlass();
   tickBadge($("lens"));
   lensView();
   paintLensMenu();
@@ -599,7 +612,7 @@ const closeLensMenu = () => {
   $("lensmenu").classList.remove("on"); $("lensveil").classList.remove("on");
 };
 $("lens").onclick = () => {
-  if (!phys.length) return;
+  if (!phys.length || anaOn()) return;   /* frozen while the adapter is on */
   const on = $("lensmenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
@@ -688,23 +701,10 @@ function turnAngle() {
 function alignDeck() {
   const cs = getComputedStyle(inpr);
   const L = parseFloat(cs.paddingLeft) || 0, Rr = parseFloat(cs.paddingRight) || 0;
-  let flip, why;
-  if (Math.abs(Rr - L) > 1) { flip = Rr > L; why = "inset"; }
-  else { flip = turnAngle() === 270; why = "angle"; }
+  let flip;
+  if (Math.abs(Rr - L) > 1) flip = Rr > L;
+  else flip = turnAngle() === 270;
   document.body.classList.toggle("flip", flip);
-  const d = $("diag");
-  if (d) {
-    let so = "none", sot = "-";
-    try { if (screen.orientation) { so = screen.orientation.angle; sot = screen.orientation.type; } }
-    catch (e) {}
-    d.textContent =
-      "b" + BUILD + "  " + innerWidth + "x" + innerHeight +
-      "\ninset L" + L.toFixed(0) + " R" + Rr.toFixed(0) +
-      "\nscreen.angle " + so +
-      "\ntype " + sot +
-      "\nwin.orient " + (typeof window.orientation === "number" ? window.orientation : "none") +
-      "\ndecided by " + why + " -> flip " + flip;
-  }
 }
 function alignSoon() {                        /* insets land late; look again */
   alignDeck();
@@ -907,16 +907,20 @@ function anaGuard() {
   const w = $("anawarn");
   if (w) w.classList.toggle("on", anaBlocked());
 }
+let anaPrev = null;                   /* the rung to return to when it is off */
 function setSqueeze(v) {
   ANA.s = v;
   try { localStorage["ana"] = v; } catch (e) {}
-  if (v > 1.001 && GLASS.mm < ANA_MIN_MM) setGlass(ANA_MIN_MM);
+  if (v > 1.001) { anaPrev = anaPrev === null ? GLASS.mm : anaPrev; applyAnaGlass(); }
+  else if (anaPrev !== null) { const back = anaPrev; anaPrev = null; setGlass(back); }
   const q = SQUEEZE.find(x => x.s === v);
   $("ana").textContent = q ? q.k : "OFF";
   tickBadge($("ana"));
   lensView();
   paintAnaMenu();
-  paintLensMenu();                    /* the greyed-out rungs change with it */
+  paintLensMenu();                    /* the whole ladder greys under a squeeze */
+  $("lens").classList.toggle("locked", anaOn());
+  if (anaOn()) $("lens").textContent = anaLabel();
   anaGuard();
 }
 function closeAnaMenu() {
