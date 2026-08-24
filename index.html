@@ -33,39 +33,23 @@ body.paged #camera{transform:scale(.97)}
 #shutterwrap{animation:rise .5s var(--ease) both .16s}
 #rightstack{animation:rise .5s var(--ease) both .24s}
 .ghost{opacity:0 !important;pointer-events:none}
-#glass{position:relative;width:100%;aspect-ratio:4/5;--ga:.8;overflow:hidden;background:#000;
+#glass{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;background:#000;
        animation:bootin .5s var(--ease) both}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
              opacity:0;transition:opacity .4s var(--ease)}
 #glass video.live{opacity:1}
 /* ---------- finder overlays ----------
-   Every mark carries a dark drop-shadow under a light stroke. A pure light
-   hairline disappears against a white wall or a blown window, which is
-   precisely where the framing is hardest to judge - the old grid was doing
-   that on a bathroom wall. One filter on the container fixes every mark, and
-   costs nothing that a hand-drawn double stroke would not.
-   Modes are now explicit: each draws only under its own body class, so no
-   mode is "the absence of the others". --ga is the glass aspect, published by
-   #glass so SCOPE can size its mask without asking JS. */
-#grid,#rf,#scope{position:absolute;inset:0;pointer-events:none;display:none}
-#grid,#rf{filter:drop-shadow(0 0 1.4px rgba(0,0,0,.8))}
-body.f-grid #grid,body.f-rf #rf,body.f-scope #scope{display:block}
-#grid i{position:absolute;background:rgba(244,242,237,.44)}
-#grid i:nth-child(-n+2){top:6%;bottom:6%;width:1px}
-#grid i:nth-child(1){left:33.333%}
-#grid i:nth-child(2){left:66.666%}
-#grid i:nth-child(n+3){left:6%;right:6%;height:1px}
-#grid i:nth-child(3){top:33.333%}
-#grid i:nth-child(4){top:66.666%}
-/* the four intersections get a short tick rather than a full crossing, which
-   is what a ground glass actually looks like and keeps the centre readable */
-#grid b{position:absolute;width:9px;height:9px;translate:-50% -50%;
-        border-left:1px solid rgba(244,242,237,.8);
-        border-top:1px solid rgba(244,242,237,.8)}
-#grid b:nth-of-type(1){left:33.333%;top:33.333%}
-#grid b:nth-of-type(2){left:66.666%;top:33.333%;rotate:90deg}
-#grid b:nth-of-type(3){left:33.333%;top:66.666%;rotate:270deg}
-#grid b:nth-of-type(4){left:66.666%;top:66.666%;rotate:180deg}
+   Each mode draws only under its own body class, so no mode is "the absence
+   of the others" - that pattern is what let RF and OFF look identical for a
+   while. The marks themselves are as they were: b70 restyled the grid and the
+   rangefinder and both were worse. */
+#grid{position:absolute;inset:0;pointer-events:none;display:none;opacity:.5;
+  background:
+   linear-gradient(to right, transparent calc(33.33% - .5px), rgba(244,242,237,.45) 33.33%, transparent calc(33.33% + .5px)),
+   linear-gradient(to right, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px)),
+   linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(244,242,237,.45) 33.33%, transparent calc(33.33% + .5px)),
+   linear-gradient(to bottom, transparent calc(66.66% - .5px), rgba(244,242,237,.45) 66.66%, transparent calc(66.66% + .5px))}
+body.f-grid #grid{display:block}
 #cross{position:absolute;left:50%;top:50%;width:22px;height:22px;
        translate:-50% -50%;display:none;pointer-events:none;
        filter:drop-shadow(0 0 1.4px rgba(0,0,0,.8))}
@@ -99,33 +83,15 @@ body.f-cross #cross{display:block}
   color:var(--dot);opacity:0;transition:opacity .22s var(--ease)}
 #evrow.live .val{opacity:1}
 @media(prefers-reduced-motion:reduce){#evrow .thumb,#evrow .val{transition:none}}
-/* RANGEFINDER. A real bright-line finder is a continuous thin frame with
-   heavier corners, not four floating brackets - the eye reads the rectangle,
-   the corners just anchor it. The patch is the split-image spot: faintly
-   lifted, with a hairline through it. Light, not blue: blue reads as
-   interface, a warm-white line reads as optics. */
-#rf u{position:absolute;inset:6.5%;border:1px solid rgba(244,242,237,.34)}
-#rf i{position:absolute;width:15px;height:15px;border:0 solid rgba(244,242,237,.9)}
-#rf i:nth-child(2){left:6.5%;top:6.5%;border-left-width:1.5px;border-top-width:1.5px}
-#rf i:nth-child(3){right:6.5%;top:6.5%;border-right-width:1.5px;border-top-width:1.5px}
-#rf i:nth-child(4){left:6.5%;bottom:6.5%;border-left-width:1.5px;border-bottom-width:1.5px}
-#rf i:nth-child(5){right:6.5%;bottom:6.5%;border-right-width:1.5px;border-bottom-width:1.5px}
-#rf b{position:absolute;left:50%;top:50%;width:19%;aspect-ratio:4/3;
-      translate:-50% -50%;border:1px solid rgba(244,242,237,.62);
-      background:rgba(244,242,237,.05)}
-#rf b s{position:absolute;left:0;right:0;top:50%;height:1px;
-        background:rgba(244,242,237,.62)}
-/* SCOPE. The 2.39 mask sizes itself from --ga, so it is correct in portrait,
-   in landscape, and under every squeeze without a line of script. Bands and
-   bars are the same sum: whichever axis has to give, gives. A frame already
-   wider than 2.39 - the 2.00x squeeze reaches 2.50 - clamps both to zero. */
-#scope i,#scope u{position:absolute;background:rgba(0,0,0,.55)}
-#scope i{left:0;right:0;height:max(0px, calc((1 - var(--ga,.8) / 2.39) / 2 * 100%))}
-#scope i:nth-child(1){top:0;border-bottom:1px solid rgba(244,242,237,.45)}
-#scope i:nth-child(2){bottom:0;border-top:1px solid rgba(244,242,237,.45)}
-#scope u{top:0;bottom:0;width:max(0px, calc((1 - 2.39 / var(--ga,.8)) / 2 * 100%))}
-#scope u:nth-child(3){left:0;border-right:1px solid rgba(244,242,237,.45)}
-#scope u:nth-child(4){right:0;border-left:1px solid rgba(244,242,237,.45)}
+#rf{position:absolute;inset:0;pointer-events:none;display:none}
+body.f-rf #rf{display:block}
+#rf i{position:absolute;width:18px;height:18px;border:0 solid rgba(244,242,237,.8)}
+#rf i:nth-child(1){left:7%;top:7%;border-left-width:2px;border-top-width:2px}
+#rf i:nth-child(2){right:7%;top:7%;border-right-width:2px;border-top-width:2px}
+#rf i:nth-child(3){left:7%;bottom:7%;border-left-width:2px;border-bottom-width:2px}
+#rf i:nth-child(4){right:7%;bottom:7%;border-right-width:2px;border-bottom-width:2px}
+#rf b{position:absolute;left:50%;top:50%;width:17%;aspect-ratio:5/3;
+      translate:-50% -50%;border:1px solid rgba(59,130,246,.75)}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 #denied{position:absolute;inset:0;display:none;place-items:center;
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
@@ -199,14 +165,13 @@ body.f-cross #cross{display:block}
 
   #frame{padding:0 calc(189px + env(safe-area-inset-right))
                  0 calc(43px + env(safe-area-inset-left))}
-  #glass{width:auto;height:100%;aspect-ratio:5/4;--ga:1.25}
+  #glass{width:auto;height:100%;aspect-ratio:5/4}
   /* one dimension must be real: aspect-ratio alone cannot size a box whose
      only child is absolutely positioned, and it collapsed to nothing. The
      frame is width-limited at every squeeze on a phone, so take the width
      and let the ratio give the height. */
   body.ana #glass{width:100%;height:auto;max-height:100%;
-                  aspect-ratio:calc(1.25 * var(--sq, 1));
-                  --ga:calc(1.25 * var(--sq, 1))}
+                  aspect-ratio:calc(1.25 * var(--sq, 1))}
   body.ana #frame{padding:0 calc(184px + env(safe-area-inset-right))
                     0 calc(6px + env(safe-area-inset-left))}
   body.flip.ana #frame{padding:0 calc(6px + env(safe-area-inset-right))
@@ -329,9 +294,8 @@ body.f-cross #cross{display:block}
         </svg>
         <span>ANAMORPHIC ONLY IN LANDSCAPE</span>
       </div>
-      <div id="grid"><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b></div>
-      <div id="rf"><u></u><i></i><i></i><i></i><i></i><b><s></s></b></div>
-      <div id="scope"><i></i><i></i><u></u><u></u></div>
+      <div id="grid"></div>
+      <div id="rf"><i></i><i></i><i></i><i></i><b></b></div>
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
       <div id="flash"></div>
@@ -468,7 +432,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 70;                     /* bump with every ship; lands in EXIF */
+const BUILD = 71;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -765,7 +729,6 @@ $("evrow").addEventListener("pointercancel", evEnd);
 const FINDERS = [
   { k: "grid",  badge: "GRID",  label: "THIRDS" },
   { k: "rf",    badge: "RF",    label: "RANGEFINDER" },
-  { k: "scope", badge: "SCOPE", label: "SCOPE 2.39" },
   { k: "cross", badge: "CROSS", label: "CROSS" },
   { k: "off",   badge: "OFF",   label: "OFF" }
 ];
