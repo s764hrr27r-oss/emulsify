@@ -405,7 +405,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 57;                     /* bump with every ship; lands in EXIF */
+const BUILD = 58;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -485,6 +485,7 @@ const labDevelop = (buf, seed, fid, full) => {
     if (fid) jobFrame.set(id, fid);
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
                          build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
+                         mm: GLASS.mm,
                          size: full ? RUNGS[0].px : RUNGS[rung].px,
                          dc:   full ? RUNGS[0].dc : RUNGS[rung].dc });
   });
@@ -533,14 +534,23 @@ const lensAllowed = F => !anaOn();    /* the ladder is frozen under a squeeze */
 /* Under an adapter the frame wants every pixel the glass can give, so no
    digital crop at all: the widest physical camera at its native field. The
    badge reports the resulting equivalent and cannot be changed. */
-const widestPhys = () => phys.length ? phys[0] : null;   /* sorted by e */
+/* Not the ultra-wide: an adapter's image circle cannot cover that field and
+   the corners vignette hard. The main camera at its native frame is the
+   widest glass the adapter actually covers. */
+const anaPhys = () => {
+  if (!phys.length) return null;
+  return phys.find(p => p.e >= 20) || phys[phys.length - 1];
+};
+/* The squeeze compresses the horizontal axis, so MORE scene lands across the
+   frame: the horizontal coverage is that of a shorter lens, native / squeeze.
+   Multiplying would describe a narrower picture, which is backwards. */
 function anaLabel() {
-  const w = widestPhys();
+  const w = anaPhys();
   const q = (typeof ANA === "object" ? ANA.s : 1);
-  return w ? "ANA " + Math.round(w.e * q) : "ANA";
+  return w ? "ANA " + Math.round(w.e / q) : "ANA";
 }
 function applyAnaGlass() {
-  const w = widestPhys();
+  const w = anaPhys();
   if (!w) return;
   const sameDev = w.id === GLASS.id;
   if (!sameDev && restarting) return;

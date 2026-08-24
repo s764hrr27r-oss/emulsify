@@ -1,4 +1,8 @@
-// lab-worker.js — v3.1. Verbatim canon; JPEG prints
+// lab-worker.js — v3.2. Verbatim canon; JPEG prints
+// v3.2: the print records what it was shot on. FocalLength is the taking
+// lens; FocalLengthIn35mmFilm is the horizontal 35mm equivalent, native
+// DIVIDED by the squeeze, because an adapter compresses the horizontal axis
+// and so widens the field; LensModel and ImageDescription carry the text.
 // v3.1: anamorphic desqueeze, applied LAST. The adapter squeezes the frame
 // optically, so the whole pipeline - metering, emulsion, grain, print - runs
 // on the squeezed negative exactly as shot. Only at the encode does the
@@ -389,6 +393,7 @@ def bake(jpg_bytes, w, t, secs):
         ex[0x010F] = "EMULSIFY"
         ex[0x0110] = "HONEY 70 - 222"
         ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)
+        _lens_tags(ex)
         ex[0x8827] = 222
         ex[0x829A] = (int(round(float(secs)*100)) or 1, 100)
         img.save(buf, "JPEG", quality=93, exif=ex)
@@ -429,6 +434,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         ex[0x010F] = "EMULSIFY"                 # Make
         ex[0x0110] = "HONEY 70 - 222"           # Model
         ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)             # Software
+        _lens_tags(ex)
         ex[0x8827] = 222                        # ISO (film speed)
         ex[0x829A] = (int(round(secs*100)), 100)   # ExposureTime = develop seconds
         img.save(buf, "JPEG", quality=93, exif=ex)
@@ -510,6 +516,23 @@ def _stage_thumb(a):
 _EV_BIAS = 0.0
 _BUILD = 0                                  # set per job by the interface
 _ANA = 1.0                                  # anamorphic squeeze factor
+_LENS_MM = 0                                # taking lens, 35mm equivalent
+def _lens_tags(ex):
+    """Record what took the picture. Horizontal equivalent = native / squeeze."""
+    try:
+        mm = float(_LENS_MM or 0)
+        if mm <= 0:
+            return
+        q = float(_ANA or 1.0)
+        horiz = mm / q if q > 1.001 else mm
+        desc = (("%dmm + %.2fx anamorphic (%dmm horizontal equiv)"
+                 % (round(mm), q, round(horiz))) if q > 1.001 else ("%dmm" % round(mm)))
+        ex[0x920A] = (int(round(mm)), 1)
+        ex[0xA405] = int(round(horiz))
+        ex[0xA434] = "EMULSIFY " + desc
+        ex[0x010E] = desc
+    except Exception:
+        pass
 def _desqueeze(img):
     """Stretch the finished print back out. Last thing before encoding, so
     every earlier stage saw the negative in the state the lens recorded."""
@@ -623,6 +646,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
             ex[0x010F] = "EMULSIFY"
             ex[0x0110] = "HONEY 70 - 222"
             ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)
+            _lens_tags(ex)
             ex[0x8827] = 222
             ex[0x829A] = (int(round(secs*100)), 100)
             img.save(buf, "JPEG", quality=93, exif=ex)
@@ -662,6 +686,7 @@ onmessage = async (e) => {
     pyodide.globals.set("_EV_BIAS", e.data.ev || 0);
     pyodide.globals.set("_BUILD", e.data.build || 0);
     pyodide.globals.set("_ANA", e.data.ana || 1);
+    pyodide.globals.set("_LENS_MM", e.data.mm || 0);
     if (e.data.dc !== undefined) pyodide.globals.set("_DC_ON", !!e.data.dc);
     const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });
