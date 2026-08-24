@@ -1,4 +1,6 @@
-// lab-worker.js — v3.5. Verbatim canon; JPEG prints
+// lab-worker.js — v3.6. Verbatim canon; JPEG prints
+// v3.6: per-lens tint. _TINT/_TINT_S arrive per job; the gate is strength,
+// not the squeeze. Absent = no tint, so spherical output is untouched.
 // v3.5: the adapter tint is corrected at HALF strength. The glass measures
 // R1.1631 G1.0282 B0.8087 with white balance locked. v3.3 applied all of it
 // and overshot 24 levels blue; v3.4 applied none and undershot 26 levels
@@ -524,13 +526,30 @@ _EV_BIAS = 0.0
 _BUILD = 0                                  # set per job by the interface
 _ANA = 1.0                                  # anamorphic squeeze factor
 _LENS_MM = 0                                # taking lens, 35mm equivalent
-_ANA_TINT = (1.1631, 1.0282, 0.8087)        # measured with white balance locked
-_ANA_TINT_S = 0.50                          # provisional: see the header note
+_OPTIC = ""                                 # readable name of the glass, if any
+_ANA_TINT = (1.1631, 1.0282, 0.8087)        # Andoer 1.55x, WB locked - kept as
+_ANA_TINT_S = 0.50                          # documentation of the v3.5 value
+# v3.6: tint is per-lens, sent by the interface as "r,g,b" plus a strength.
+# Two 1.55x adapters from different brands are different glass and can have
+# different coatings, so the constant above could not stay global. The gate is
+# now strength alone, NOT the squeeze - a tele can be tinted and a squeeze can
+# be untinted. Both default to nothing: a job that sends no tint gets no tint,
+# so every spherical frame is bit-identical to v3.5 and the golden holds.
+_TINT = ""
+_TINT_S = 0.0
+def _tint_vec():
+    try:
+        v = [float(x) for x in str(globals().get("_TINT", "") or "").split(",") if x.strip()]
+        return v if len(v) == 3 else None
+    except Exception:
+        return None
 def _ana_debias(lin):
     try:
-        if float(_ANA or 1.0) <= 1.001 or _ANA_TINT_S <= 0:
+        s = float(globals().get("_TINT_S", 0.0) or 0.0)
+        t = _tint_vec()
+        if s <= 0 or t is None:
             return lin
-        g = 1.0 / (np.asarray(_ANA_TINT, dtype=lin.dtype) ** float(_ANA_TINT_S))
+        g = 1.0 / (np.asarray(t, dtype=lin.dtype) ** s)
         g = g / g.mean()
         return lin * g[None, None, :]
     except Exception:
@@ -543,8 +562,11 @@ def _lens_tags(ex):
             return
         q = float(_ANA or 1.0)
         horiz = mm / q if q > 1.001 else mm
+        opt = str(globals().get("_OPTIC", "") or "").strip()
         desc = (("%dmm + %.2fx anamorphic (%dmm horizontal equiv)"
                  % (round(mm), q, round(horiz))) if q > 1.001 else ("%dmm" % round(mm)))
+        if opt:
+            desc = desc + " [" + opt + "]"      # which physical glass was on
         ex[0x920A] = (int(round(mm)), 1)
         ex[0xA405] = int(round(horiz))
         ex[0xA434] = "EMULSIFY " + desc
@@ -705,6 +727,9 @@ onmessage = async (e) => {
     pyodide.globals.set("_BUILD", e.data.build || 0);
     pyodide.globals.set("_ANA", e.data.ana || 1);
     pyodide.globals.set("_LENS_MM", e.data.mm || 0);
+    pyodide.globals.set("_OPTIC", e.data.optic || "");
+    pyodide.globals.set("_TINT", e.data.tint || "");
+    pyodide.globals.set("_TINT_S", e.data.tintS || 0);
     if (e.data.dc !== undefined) pyodide.globals.set("_DC_ON", !!e.data.dc);
     const result = develop(new Uint8Array(neg), profile, seed, size || 1100);
     const obj = result.toJs({ dict_converter: Object.fromEntries });

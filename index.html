@@ -125,6 +125,8 @@ body.f-rf #rf{display:block}
   border:1px solid var(--hair);color:var(--mute);
   font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.05em}
 .lensbtn.locked{opacity:.45}
+.lensbtn img{position:absolute;inset:5px;width:calc(100% - 10px);height:calc(100% - 10px);
+  object-fit:contain;pointer-events:none;display:block}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
 #anamenu{left:24px;right:auto}
 #lensmenu,#anamenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
@@ -418,7 +420,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 65;                     /* bump with every ship; lands in EXIF */
+const BUILD = 66;                     /* bump with every ship; lands in EXIF */
 const worker = new Worker("lab-worker.js?v=" + BUILD);
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
@@ -499,6 +501,9 @@ const labDevelop = (buf, seed, fid, full) => {
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
                          build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
                          mm: GLASS.mm,
+                         optic: ANA.id === "none" ? "" : ANA.label,
+                         tint:  ANA.tint ? ANA.tint.join(",") : "",
+                         tintS: ANA.tint ? (ANA.tintS || 0) : 0,
                          size: full ? RUNGS[0].px : RUNGS[rung].px,
                          dc:   full ? RUNGS[0].dc : RUNGS[rung].dc });
   });
@@ -543,7 +548,12 @@ const LADDER = [
 ];
 const labelOf = F => (LADDER.find(l => l.F === F) || { k: F + "mm" }).k;
 const anaOn = () => (typeof ANA === "object" ? ANA.s : 1) > 1.001;
-const lensAllowed = F => !anaOn();    /* the ladder is frozen under a squeeze */
+/* anaOn is the squeeze alone - it gates desqueeze, --sq, oval grain and the
+   portrait lock. optOn is ANY glass mounted, and gates what is true of all of
+   it: the ladder freezes, the badge reports the resulting focal, the camera is
+   chosen by coverage rather than by rung. A tele is optOn but not anaOn. */
+const optOn = () => !!(typeof ANA === "object" && ANA.id && ANA.id !== "none");
+const lensAllowed = F => !optOn();    /* the ladder is frozen under any glass */
 /* Under an adapter the frame wants every pixel the glass can give, so no
    digital crop at all: the widest physical camera at its native field. The
    badge reports the resulting equivalent and cannot be changed. */
@@ -554,26 +564,37 @@ const lensAllowed = F => !anaOn();    /* the ladder is frozen under a squeeze */
    the frame steps in until the vignette clears. Chosen off a crop grid shot
    through the actual adapter: 1.15 still carried the dark edge, 1.50 gave
    away frame for nothing. One constant - change it here. */
-const ANA_CROP = 1.30;
+/* the crop now lives on the optic record; 1.30 is the Andoer's, not a law */
 const anaPhys = () => {
   if (!phys.length) return null;
-  return phys.find(p => p.e >= 20) || phys[phys.length - 1];
+  const need = (typeof ANA === "object" && ANA.minE) || 20;
+  return phys.find(p => p.e >= need) || phys[phys.length - 1];
 };
 /* The squeeze compresses the horizontal axis, so MORE scene lands across the
    frame: the horizontal coverage is that of a shorter lens, native / squeeze.
    Multiplying would describe a narrower picture, which is backwards. */
-function anaLabel() {
+/* A squeeze widens the horizontal field, so its number is a horizontal
+   equivalent and needs the ANA qualifier. A tele just is a longer lens, so it
+   reads as one. A macro's magnification is not a focal at all and moves with
+   subject distance, so it declines to invent a number. */
+function opticLabel() {
   const w = anaPhys();
-  const q = (typeof ANA === "object" ? ANA.s : 1);
-  return w ? "ANA " + Math.round(w.e * ANA_CROP / q) : "ANA";
+  if (!w) return "LENS";
+  if (ANA.kind === "MACRO") return "MACRO";
+  const mm = w.e * (ANA.crop || 1) * (ANA.m || 1);
+  const q = ANA.s || 1;
+  return q > 1.001 ? "ANA " + Math.round(mm / q) : Math.round(mm) + "mm";
 }
-function applyAnaGlass() {
+function applyOpticGlass() {
   const w = anaPhys();
   if (!w) return;
   const sameDev = w.id === GLASS.id;
   if (!sameDev && restarting) return;
-  GLASS.mm = w.e * ANA_CROP; GLASS.id = w.id; GLASS.crop = ANA_CROP;
-  $("lens").textContent = anaLabel();
+  const cr = ANA.crop || 1;
+  /* crop is digital and belongs to GLASS.crop; m is optical and only moves the
+     reported focal - the sensor never sees it as a zoom. */
+  GLASS.mm = w.e * cr * (ANA.m || 1); GLASS.id = w.id; GLASS.crop = cr;
+  $("lens").textContent = opticLabel();
   lensView();
   if (!sameDev) startCamera(w.id);
 }
@@ -602,7 +623,7 @@ function setGlass(F) {
   const sameDev = r.id === GLASS.id;
   if (!sameDev && restarting) return;
   GLASS.mm = F; GLASS.id = r.id; GLASS.crop = r.crop;
-  $("lens").textContent = anaOn() ? anaLabel() : labelOf(F);
+  $("lens").textContent = optOn() ? opticLabel() : labelOf(F);
   tickBadge($("lens"));
   lensView();
   paintLensMenu();
@@ -623,7 +644,7 @@ async function discoverLenses() {
   if (!r) return;
   GLASS.id = r.id; GLASS.crop = r.crop;
   $("lens").textContent = labelOf(GLASS.mm);
-  if (anaOn()) applyAnaGlass();
+  if (optOn()) applyOpticGlass();
   tickBadge($("lens"));
   lensView();
   paintLensMenu();
@@ -915,23 +936,70 @@ async function cook(c, voice, full) {
    print is stretched back - the same thing that happens on real anamorphic
    film. The viewfinder shows the desqueezed framing by shrinking the preview
    vertically, so what you compose is what you get. */
-const SQUEEZE = [{ k: "OFF", s: 1 }, { k: "1.33\u00d7", s: 1.33 },
-                 { k: "1.55\u00d7", s: 1.55 }, { k: "2.00\u00d7", s: 2 }];
+/* OPTICS - the glass you own, one record each. `s` is the ONLY field that
+   makes a lens anamorphic: desqueeze, the oval grain, --sq, the portrait lock
+   and body.ana all read it, so a tele or a macro carries s:1 and inherits
+   ANA-OFF behaviour by construction rather than by six remembered exclusions.
+     s     optical squeeze (horizontal compression)
+     m     focal multiplier (tele); 1 for anamorphic
+     crop  DIGITAL crop applied at capture to clear the adapter's vignette
+     minE  narrowest physical camera the glass can cover, 35mm-e
+     tint  measured transmission R,G,B with white balance locked; null = none
+     tintS fraction of that tint corrected out
+   Two 1.55x from different brands are two records: same squeeze, own tint. */
+const IC = {
+  andoer: "data:image/webp;base64,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",
+  neewer: "data:image/webp;base64,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"
+};
+const OPTICS = [
+  { id: "none", label: "OFF", kind: "OFF",
+    s: 1, m: 1, crop: 1, minE: 20, icon: null, tint: null, tintS: 0 },
+  /* MEASURED. crop 1.30 off a grid shot through this adapter; tint from a
+     matched bathroom pair on b63, half strength - see lab-worker v3.5. */
+  { id: "andoer155", label: "Andoer ANA 1.55\u00d7", kind: "ANA",
+    s: 1.55, m: 1, crop: 1.30, minE: 20, icon: IC.andoer,
+    tint: [1.1631, 1.0282, 0.8087], tintS: 0.50 },
+  /* NOT MEASURED. m and crop are the box's claim and a guess; the ratio test
+     replaces them. Do not trust the badge number until it does. */
+  { id: "neewer85", label: "NEEWER Tele 2.5\u00d7", kind: "TELE",
+    s: 1, m: 2.5, crop: 1, minE: 20, icon: IC.neewer, tint: null, tintS: 0 },
+  { id: "gen133", label: "Generic ANA 1.33\u00d7", kind: "ANA",
+    s: 1.33, m: 1, crop: 1.30, minE: 20, icon: null, tint: null, tintS: 0 },
+  { id: "gen200", label: "Generic ANA 2.00\u00d7", kind: "ANA",
+    s: 2, m: 1, crop: 1.30, minE: 20, icon: null, tint: null, tintS: 0 }
+];
 /* Off by default: most people have no adapter, and a squeeze applied without
-   one stretches every frame. Remembered once set. */
-const ANA = { s: (() => { try { const v = parseFloat(localStorage["ana"]);
-  return SQUEEZE.some(q => q.s === v) ? v : 1; } catch (e) { return 1; } })() };
-function paintAnaMenu() {
+   one stretches every frame. Remembered once set. b64 and earlier stored a
+   bare squeeze number, so an old save migrates to the first record matching
+   it rather than silently reading back as OFF. */
+let ANA = (() => {
+  let v = null; try { v = localStorage["ana"]; } catch (e) {}
+  let o = OPTICS.find(x => x.id === v);
+  if (!o) { const n = parseFloat(v); o = OPTICS.find(x => x.kind === "ANA" && x.s === n); }
+  return Object.assign({}, o || OPTICS[0]);
+})();
+function paintAnaMenu() {          /* the menu is text; the badge is the glass */
   const m = $("anamenu"); m.innerHTML = "";
-  for (const { k, s: v } of SQUEEZE) {
+  for (const o of OPTICS) {
     const b = document.createElement("button");
-    b.textContent = k;
+    b.textContent = o.label;
     b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
-    if (v === ANA.s) b.className = "cur";
-    b.onclick = () => { closeAnaMenu(); setSqueeze(v); };
+    if (o.id === ANA.id) b.className = "cur";
+    b.onclick = () => { closeAnaMenu(); setOptic(o.id); };
     m.appendChild(b);
   }
+}
+function paintAnaBadge() {
+  const b = $("ana");
+  b.innerHTML = "";
+  if (ANA.icon) {
+    const i = document.createElement("img");
+    i.src = ANA.icon; i.alt = ANA.label; i.decoding = "async";
+    b.appendChild(i);
+  } else b.textContent = "OFF";
+  b.setAttribute("aria-label", ANA.label);
+  tickBadge(b);
 }
 const anaBlocked = () =>
   (typeof ANA === "object" ? ANA.s : 1) > 1.001 &&
@@ -941,19 +1009,18 @@ function anaGuard() {
   if (w) w.classList.toggle("on", anaBlocked());
 }
 let anaPrev = null;                   /* the rung to return to when it is off */
-function setSqueeze(v) {
-  ANA.s = v;
-  try { localStorage["ana"] = v; } catch (e) {}
-  if (v > 1.001) { anaPrev = anaPrev === null ? GLASS.mm : anaPrev; applyAnaGlass(); }
+function setOptic(id) {
+  const o = OPTICS.find(x => x.id === id) || OPTICS[0];
+  ANA = Object.assign({}, o);
+  try { localStorage["ana"] = ANA.id; } catch (e) {}
+  if (optOn()) { anaPrev = anaPrev === null ? GLASS.mm : anaPrev; applyOpticGlass(); }
   else if (anaPrev !== null) { const back = anaPrev; anaPrev = null; setGlass(back); }
-  const q = SQUEEZE.find(x => x.s === v);
-  $("ana").textContent = q ? q.k : "OFF";
-  tickBadge($("ana"));
+  paintAnaBadge();
   lensView();
   paintAnaMenu();
-  paintLensMenu();                    /* the whole ladder greys under a squeeze */
-  $("lens").classList.toggle("locked", anaOn());
-  if (anaOn()) $("lens").textContent = anaLabel();
+  paintLensMenu();                    /* the whole ladder greys under any glass */
+  $("lens").classList.toggle("locked", optOn());
+  if (optOn()) $("lens").textContent = opticLabel();
   anaGuard();
 }
 function closeAnaMenu() {
@@ -964,7 +1031,7 @@ $("ana").onclick = () => {
   const on = $("anamenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
-setSqueeze(ANA.s);
+setOptic(ANA.id);
 addEventListener("resize", anaGuard);
 addEventListener("orientationchange", anaGuard);
 
