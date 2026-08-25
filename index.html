@@ -457,7 +457,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 76;                     /* bump with every ship; lands in EXIF */
+const BUILD = 77;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -669,20 +669,22 @@ const anaPhys = () => {
    equivalent and needs the ANA qualifier. A tele just is a longer lens, so it
    reads as one. A macro's magnification is not a focal at all and moves with
    subject distance, so it declines to invent a number. */
-function opticLabel() {
+let ZOOM = 1;
+function zoomLabel(z) {
   const w = anaPhys();
   if (!w) return "LENS";
   if (ANA.kind === "MACRO") return "MACRO";
-  const mm = w.e * (ANA.crop || 1) * (ANA.m || 1);
+  const mm = w.e * (ANA.crop || 1) * z * (ANA.m || 1);
   const q = ANA.s || 1;
   return q > 1.001 ? "ANA " + Math.round(mm / q) : Math.round(mm) + "mm";
 }
+function opticLabel() { return zoomLabel(ZOOM); }
 function applyOpticGlass() {
   const w = anaPhys();
   if (!w) return;
   const sameDev = w.id === GLASS.id;
   if (!sameDev && restarting) return;
-  const cr = ANA.crop || 1;
+  const cr = (ANA.crop || 1) * ZOOM;     /* vignette crop and focal step, both digital */
   /* crop is digital and belongs to GLASS.crop; m is optical and only moves the
      reported focal - the sensor never sees it as a zoom. */
   GLASS.mm = w.e * cr * (ANA.m || 1); GLASS.id = w.id; GLASS.crop = cr;
@@ -743,6 +745,20 @@ async function discoverLenses() {
 }
 function paintLensMenu() {
   const m = $("lensmenu"); m.innerHTML = "";
+  if (optOn()) {
+    /* under glass, the mm menu belongs to the lens: its focal steps, labelled
+       by what they resolve to on this phone's camera */
+    for (const z of (ANA.zooms || [1])) {
+      const b = document.createElement("button");
+      b.textContent = zoomLabel(z);
+      b.insertAdjacentHTML("beforeend",
+        '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
+      if (Math.abs(z - ZOOM) < 0.001) b.className = "cur";
+      b.onclick = () => { closeLensMenu(); ZOOM = z; applyOpticGlass(); paintLensMenu(); };
+      m.appendChild(b);
+    }
+    return;
+  }
   for (const { k, F } of LADDER) {
     const b = document.createElement("button");
     b.textContent = k;
@@ -758,8 +774,10 @@ const closeLensMenu = () => {
   $("lensmenu").classList.remove("on"); $("lensveil").classList.remove("on");
 };
 $("lens").onclick = () => {
-  if (!phys.length || optOn()) return;   /* frozen while any glass is on */
+  if (!phys.length) return;
+  if (optOn() && (ANA.zooms || [1]).length < 2) return;   /* single-focal glass stays frozen */
   closeAnaMenu(); closeFinderMenu();
+  paintLensMenu();
   const on = $("lensmenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
@@ -1069,11 +1087,19 @@ const OPTICS = [
      not a measurement. crop 1.30 is borrowed from the Andoer as the cautious
      default: too much crop loses frame, too little shows vignette. */
   { id: "freewell133", label: "Freewell Gold ANA 1.33\u00d7", kind: "ANA",
-    s: 1.33, m: 1, crop: 1.30, minE: 20, icon: IC.freewell, tint: null, tintS: 0 },
+    s: 1.33, m: 1, crop: 1.30, minE: 20, icon: IC.freewell, tint: null, tintS: 0,
+    zooms: [1, 1.5, 2] },
   /* NOT MEASURED. m and crop are the box's claim and a guess; the ratio test
      replaces them. Do not trust the badge number until it does. */
+  /* zooms: focal steps INSIDE a mounted lens, as digital crops on top of the
+     glass. The precedent is the spherical ladder itself - 44mm has always
+     been a 1.69x sensor crop wearing a name - so tele x1.5 (~98mm, a 1.5x
+     crop) has better provenance than the 44 rung, and x2 (~130mm) sits just
+     past it, on far better glass than bare sensor. Single-zoom lenses keep
+     the frozen badge. ZOOM resets to 1 whenever the optic changes. */
   { id: "neewer85", label: "NEEWER Tele 2.5\u00d7", kind: "TELE",
-    s: 1, m: 2.5, crop: 1, minE: 20, icon: IC.neewer, tint: null, tintS: 0 }
+    s: 1, m: 2.5, crop: 1, minE: 20, icon: IC.neewer, tint: null, tintS: 0,
+    zooms: [1, 1.5, 2] }
 ];
 /* Off by default: most people have no adapter, and a squeeze applied without
    one stretches every frame. Remembered once set. b64 and earlier stored a
@@ -1120,6 +1146,7 @@ let anaPrev = null;                   /* the rung to return to when it is off */
 function setOptic(id) {
   const o = OPTICS.find(x => x.id === id) || OPTICS[0];
   ANA = Object.assign({}, o);
+  ZOOM = 1;                              /* a new lens starts at its base focal */
   try { localStorage["ana"] = ANA.id; } catch (e) {}
   if (optOn()) { anaPrev = anaPrev === null ? GLASS.mm : anaPrev; applyOpticGlass(); }
   else if (anaPrev !== null) { const back = anaPrev; anaPrev = null; setGlass(back); }
@@ -1127,7 +1154,7 @@ function setOptic(id) {
   lensView();
   paintAnaMenu();
   paintLensMenu();                    /* the whole ladder greys under any glass */
-  $("lens").classList.toggle("locked", optOn());
+  $("lens").classList.toggle("locked", optOn() && (ANA.zooms || [1]).length < 2);
   if (optOn()) $("lens").textContent = opticLabel();
   anaGuard();
 }
