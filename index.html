@@ -239,11 +239,6 @@ body.f-rf #rf{display:block}
 #back::before{content:"";position:absolute;left:11px;top:9px;width:12px;height:12px;
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
   transform:rotate(45deg)}
-#big{min-width:44px;height:30px;padding:0 10px;border:1px solid var(--hair);
-  border-radius:999px;background:none;color:var(--mute);
-  font:11px ui-monospace,Menlo,monospace;letter-spacing:.08em}
-#big.off{display:none}
-#big.work{color:var(--dot);border-color:var(--dot);opacity:.75;pointer-events:none}
 .barx{margin-left:auto;display:flex;gap:6px;align-items:center}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
@@ -359,7 +354,7 @@ body.f-rf #rf{display:block}
 </svg>
 
 <div id="print">
-  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"><button id="big" class="off" aria-label="Export at twice the size">&times;2</button></span></div>
+  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"></span></div>
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
@@ -462,7 +457,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 78;                     /* bump with every ship; lands in EXIF */
+const BUILD = 79;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1232,7 +1227,6 @@ async function openPrint(id) {
       "EMULSIFY-222" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
       { type: "image/jpeg" });
   } catch (e) { armedFile = null; }
-  $("big").classList.toggle("off", !armedFile);
   let negD = null;
   try { negD = await get("prints", id + ":neg"); } catch (e) {}
   if (tok !== openTok) return;
@@ -1320,7 +1314,6 @@ async function buildStrip(selId) {
 function openItem(id) { return cooking.has(id) ? openCooking(id) : openPrint(id); }
 async function openCooking(id) {
   watching = id; current = null; armedFile = null;
-  $("big").classList.add("off");
   const stage = $("stage"); stage.innerHTML = "";
   const u = cookThumbs.get(id);
   if (u) {
@@ -1349,143 +1342,6 @@ function paintWatched() {              /* a new stage landed while watching */
 $("back").onclick = () => { $("print").classList.remove("on"); setPaged(false);
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
-/* PRINT BIGGER, the degrain -> 2x -> regrain ritual, entirely at export.
-   Develops stay rung capped; this is enlargement of the print, with fresh
-   grain synthesized at the output scale so the result never goes waxy.
-   Proven against the float pipeline: quantization cost 0.6 lv, seams 0.96,
-   ~120 MB working set. The worker never wakes; the golden cannot move. */
-let GRAIN_MASTER = null;
-function grainMaster() {               /* 1024 band limited unit field, once */
-  if (GRAIN_MASTER) return GRAIN_MASTER;
-  const N = 1024, raw = new Float32Array(N * N);
-  let st = 123456789;
-  const rnd = () => { st ^= st << 13; st ^= st >>> 17; st ^= st << 5;
-                      st >>>= 0; return st / 2147483648 - 1; };
-  for (let i = 0; i < N * N; i++) raw[i] = rnd();
-  const g1 = sepGauss(raw, N, N, 0.6), g2 = sepGauss(raw, N, N, 1.8);
-  let m = 0, v = 0;
-  for (let i = 0; i < N * N; i++) { g1[i] -= g2[i]; m += g1[i]; }
-  m /= N * N;
-  for (let i = 0; i < N * N; i++) { g1[i] -= m; v += g1[i] * g1[i]; }
-  const inv = 1 / Math.sqrt(v / (N * N));
-  for (let i = 0; i < N * N; i++) g1[i] *= inv;
-  GRAIN_MASTER = g1; return g1;
-}
-function sepGauss(src, W, H, sig) {    /* separable small kernel blur */
-  const R = Math.max(1, Math.round(sig * 2.5)), K = new Float32Array(2 * R + 1);
-  let ks = 0;
-  for (let i = -R; i <= R; i++) { K[i + R] = Math.exp(-i * i / (2 * sig * sig)); ks += K[i + R]; }
-  for (let i = 0; i < K.length; i++) K[i] /= ks;
-  const a = new Float32Array(W * H), b = new Float32Array(W * H);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    let s2 = 0;
-    for (let i = -R; i <= R; i++) {
-      const xx = Math.min(W - 1, Math.max(0, x + i));
-      s2 += src[y * W + xx] * K[i + R];
-    }
-    a[y * W + x] = s2;
-  }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    let s2 = 0;
-    for (let i = -R; i <= R; i++) {
-      const yy = Math.min(H - 1, Math.max(0, y + i));
-      s2 += a[yy * W + x] * K[i + R];
-    }
-    b[y * W + x] = s2;
-  }
-  return b;
-}
-function buildGrainField(W, H, seed) { /* feathered stamps of the master */
-  const M = grainMaster(), T = 512, F = 24, S = T - F;
-  const win = new Float32Array(T);
-  for (let i = 0; i < F; i++) win[i] = 0.5 - 0.5 * Math.cos(Math.PI * i / F);
-  for (let i = 0; i < F; i++) win[T - 1 - i] = win[i];
-  for (let i = F; i < T - F; i++) win[i] = 1;
-  const num = new Float32Array(W * H), den = new Float32Array(W * H);
-  let st = (seed >>> 0) || 424242;
-  const ri = () => { st ^= st << 13; st ^= st >>> 17; st ^= st << 5; st >>>= 0; return st % 512; };
-  for (let cy = 0; cy * S < H; cy++) for (let cx = 0; cx * S < W; cx++) {
-    const oy = ri(), ox = ri(), y0 = cy * S, x0 = cx * S;
-    const ye = Math.min(y0 + T, H), xe = Math.min(x0 + T, W);
-    for (let y = y0; y < ye; y++) {
-      const wy = win[y - y0], mrow = (oy + y - y0) * 1024 + ox, orow = y * W;
-      for (let x = x0; x < xe; x++) {
-        const w = wy * win[x - x0];
-        num[orow + x] += M[mrow + x - x0] * w;
-        den[orow + x] += w * w;
-      }
-    }
-  }
-  for (let i = 0; i < W * H; i++) num[i] /= Math.sqrt(Math.max(den[i], 1e-9));
-  return num;
-}
-async function spliceExif(srcBlob, outBlob) {  /* carry the APP1 verbatim */
-  try {
-    const s = new Uint8Array(await srcBlob.arrayBuffer());
-    let o = 2, app1 = null;
-    while (o + 4 < s.length && s[o] === 0xFF) {
-      const mk = s[o + 1], len = (s[o + 2] << 8) | s[o + 3];
-      if (mk === 0xE1) { app1 = s.slice(o, o + 2 + len); break; }
-      if (mk === 0xDA) break;
-      o += 2 + len;
-    }
-    if (!app1) return outBlob;
-    const d = new Uint8Array(await outBlob.arrayBuffer());
-    return new Blob([d.slice(0, 2), app1, d.slice(2)], { type: "image/jpeg" });
-  } catch (e) { return outBlob; }
-}
-const GRAIN_A = 0.05;                 /* HONEY 70's midtone print grain, ~5.8 lv */
-async function exportBig() {
-  if (!current || watching) return;
-  const chip = $("big"); if (chip.classList.contains("work")) return;
-  chip.classList.add("work");
-  try {
-    const blob = await get("prints", current);
-    const bmp = await createImageBitmap(blob);
-    const W = bmp.width, H = bmp.height, W2 = W * 2, H2 = H * 2;
-    const c1 = document.createElement("canvas"); c1.width = W; c1.height = H;
-    const x1 = c1.getContext("2d"); x1.drawImage(bmp, 0, 0);
-    const d1 = x1.getImageData(0, 0, W, H);      /* degrain in place, sigma .7 */
-    for (let ch = 0; ch < 3; ch++) {
-      const f = new Float32Array(W * H);
-      for (let i = 0; i < W * H; i++) f[i] = d1.data[i * 4 + ch];
-      const b = sepGauss(f, W, H, 0.7);
-      for (let i = 0; i < W * H; i++) d1.data[i * 4 + ch] = b[i] + 0.5;
-    }
-    x1.putImageData(d1, 0, 0);
-    const c2 = document.createElement("canvas"); c2.width = W2; c2.height = H2;
-    const x2 = c2.getContext("2d");
-    x2.imageSmoothingEnabled = true; x2.imageSmoothingQuality = "high";
-    x2.drawImage(c1, 0, 0, W2, H2);
-    const d2 = x2.getImageData(0, 0, W2, H2);
-    const g = buildGrainField(W2, H2, parseInt(current.slice(-6), 36) || 7);
-    const LUT = new Float32Array(256);
-    for (let i = 0; i < 256; i++) {
-      const L = i / 255; LUT[i] = Math.pow(Math.min(1, Math.max(0, 4 * L * (1 - L))), 0.7);
-    }
-    const px = d2.data;
-    for (let i = 0, n = W2 * H2; i < n; i++) {
-      const j = i * 4;
-      const lum = (px[j] + px[j + 1] + px[j + 2]) / 3 | 0;
-      const f = 1 + GRAIN_A * LUT[lum] * g[i];
-      let r = px[j] * f, gg = px[j + 1] * f, bb = px[j + 2] * f;
-      px[j] = r < 0 ? 0 : r > 255 ? 255 : r;
-      px[j + 1] = gg < 0 ? 0 : gg > 255 ? 255 : gg;
-      px[j + 2] = bb < 0 ? 0 : bb > 255 ? 255 : bb;
-    }
-    x2.putImageData(d2, 0, 0);
-    const out = await new Promise(res => c2.toBlob(res, "image/jpeg", 0.92));
-    const final = await spliceExif(blob, out);
-    const secs = localStorage["t" + current] || "";
-    const file = new File([final],
-      "EMULSIFY-222" + (secs ? "-" + secs + "s" : "") + "-" + current.slice(-4) + "-BIG2X.jpg",
-      { type: "image/jpeg" });
-    if (navigator.canShare && navigator.canShare({ files: [file] }))
-      await navigator.share({ files: [file] }).catch(() => {});
-  } catch (e) {}
-  chip.classList.remove("work");
-}
-$("big").onclick = exportBig;
 /* navigation is the strip: tap a thumb below; hold the print to save */
 let HOLD = null;
 $("stage").addEventListener("pointerdown", e => {
