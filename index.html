@@ -235,6 +235,9 @@ body.f-rf #rf{display:block}
        transition:opacity .26s var(--ease),transform .26s var(--ease)}
 #print.on{opacity:1;pointer-events:auto;transform:none}
 #print .bar{display:flex;align-items:center;padding:12px 18px}
+#ver{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);right:10px;z-index:60;
+  font:9px ui-monospace,Menlo,monospace;letter-spacing:.08em;color:var(--mute);opacity:.55;
+  pointer-events:none;user-select:none;-webkit-user-select:none}
 #back{width:34px;height:34px;position:relative}
 #back::before{content:"";position:absolute;left:11px;top:9px;width:12px;height:12px;
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
@@ -337,6 +340,7 @@ body.f-rf #rf{display:block}
   </div>
 </div>
 
+<div id="ver" aria-hidden="true"></div>
 <div id="lensveil"></div>
 <div id="lensmenu"></div>
 <div id="anamenu"></div>
@@ -457,7 +461,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 80;                     /* bump with every ship; lands in EXIF */
+const BUILD = 81;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -562,9 +566,13 @@ addEventListener("visibilitychange", () => {   /* iOS drops it on return */
   if (document.visibilityState === "visible" && pending > 0) labAwake(true);
 });
 const jobFrame = new Map();
+$("ver").textContent = "b" + BUILD;
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
-  if (ready !== undefined) { sizeFromProbe(e.data.probe); return; }
+  if (ready !== undefined) {
+    if (e.data.ver) $("ver").textContent = "b" + BUILD + " \u00b7 w" + e.data.ver;
+    sizeFromProbe(e.data.probe); return;
+  }
   if (e.data.progress) return;
   if (e.data.stage) {                 /* the bath, live: the negative forms */
     const f = jobFrame.get(id);

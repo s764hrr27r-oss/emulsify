@@ -102,6 +102,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
+const WORKER_VER = "3.8";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -766,7 +767,7 @@ def _canon_develop_v22(neg_bytes, profile, seed, long_edge=LONG_EDGE):
   bakePy = pyodide.globals.get("bake");
   let ms = 0;
   try { ms = pyodide.runPython("probe_ms()"); } catch (e) { ms = 0; }
-  postMessage({ ready: true, probe: ms });
+  postMessage({ ready: true, probe: ms, ver: WORKER_VER });
 })();
 
 let CURJOB = null;
