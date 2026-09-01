@@ -1,6 +1,7 @@
-// lab-worker.js — v3.7. Verbatim canon; JPEG prints
+// lab-worker.js — v3.8. Verbatim canon; JPEG prints
+// v3.8: STRATA LIGHT. Seeded 64 band hue scramble (+-5.6 deg) on the scene light
+// at the _expand seam; chemistry untouched. Golden moves: v11 5ea19a4ea48e310f -> v12 cff518ecfbeda947.
 // v3.7: _expand computes its highlight power only where it can act.
-// Bit-identical; the seed-99 golden holds at 5ea19a4ea48e310f.
 // v3.6: per-lens tint. _TINT/_TINT_S arrive per job; the gate is strength,
 // not the squeeze. Absent = no tint, so spherical output is untouched.
 // v3.5: the adapter tint is corrected at HALF strength. The glass measures
@@ -717,6 +718,49 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     except Exception:
         gc.collect()
         return slow
+
+# ---- v3.8 STRATA LIGHT: a seeded 64 band hue scramble on the scene light ----
+# The light arriving at the emulsion is perturbed: the hue circle is cut into
+# 64 hard bands and each band is rotated by its own amount, up to +-5.6 degrees,
+# in one fixed pattern per seed. It is applied at the _expand seam, so it is a
+# property of the light, like shooting through strange glass. Every stage
+# downstream is untouched canon: the film responds to odd light honestly.
+# Each print gets a private colour bias its seed decides, invisible as a
+# mechanism, present as a mood. Amplitude 0.0 reproduces v3.7 bit for bit.
+_SCR_AMP = 5.6
+_SCR_NB = 64
+_SCR_SEED = [99]
+_OK_M1 = np.array([[0.4122214708, 0.5363325363, 0.0514459929],
+                   [0.2119034982, 0.6806995451, 0.1073969566],
+                   [0.0883024619, 0.2817188376, 0.6299787005]])
+_OK_M2 = np.array([[0.2104542553, 0.7936177850, -0.0040720468],
+                   [1.9779984951, -2.4285922050, 0.4505937099],
+                   [0.0259040371, 0.7827717662, -0.8086757660]])
+_OK_M1i = np.linalg.inv(_OK_M1)
+_OK_M2i = np.linalg.inv(_OK_M2)
+
+def _scramble_light(lin, amp, seed):
+    if amp <= 0.0:
+        return lin
+    lab = np.cbrt(np.maximum(lin @ _OK_M1.T, 0.0)) @ _OK_M2.T
+    L = lab[..., 0]; a = lab[..., 1]; b = lab[..., 2]
+    C = np.hypot(a, b)
+    h = np.degrees(np.arctan2(b, a)) % 360.0
+    pat = np.random.RandomState(int(seed) % 4294967296).uniform(-1.0, 1.0, _SCR_NB) * amp
+    dh = pat[(np.floor(h / 360.0 * _SCR_NB).astype(int)) % _SCR_NB]
+    h2 = np.radians(h + dh)
+    lab2 = np.stack([L, C * np.cos(h2), C * np.sin(h2)], -1)
+    return np.maximum(((lab2 @ _OK_M2i.T) ** 3) @ _OK_M1i.T, 0.0)
+
+_expand_v37 = _expand
+def _expand(lin, kmax=2.2):
+    return _scramble_light(_expand_v37(lin, kmax), _SCR_AMP, _SCR_SEED[0])
+
+_canon_develop_v22_pre_scr = _canon_develop_v22
+def _canon_develop_v22(neg_bytes, profile, seed, long_edge=LONG_EDGE):
+    _SCR_SEED[0] = int(seed)          # each coat scrambles with its own seed, like grain
+    return _canon_develop_v22_pre_scr(neg_bytes, profile, seed, long_edge)
+
 `);
   develop = pyodide.globals.get("develop");
   bakePy = pyodide.globals.get("bake");
