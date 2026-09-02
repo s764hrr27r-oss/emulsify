@@ -315,6 +315,7 @@ body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.
 body.sleep #aura,body.sleep #sparkle{opacity:0 !important}
 /* the back is open: dark while the roll rewinds, the film running backwards */
 body.rewinding #dim{opacity:.96}
+body.rewinding #scopes{opacity:.15;transition:opacity .6s var(--ease)}
 body.rewinding #backlcd .seg{color:var(--mute);text-shadow:none}
 body.rewinding #lcdframe{color:#e0a050 !important}
 body.rewinding #lcdstate{color:var(--ready)}
@@ -375,7 +376,19 @@ body.sleep #scopes{opacity:0}
 #scopes canvas{display:block;border-radius:4px;background:radial-gradient(ellipse at 50% 40%, #0a0906, #040403 85%);
   box-shadow:inset 0 0 10px rgba(0,0,0,.95), inset 0 0 1px rgba(255,255,255,.05)}
 #scopes .card.vec canvas,#scopes .card.vec .face{border-radius:50%}
-#scopes .lbl{font:7px ui-monospace,Menlo,monospace;letter-spacing:.2em;color:#8a8478;opacity:.8;text-shadow:0 1px 0 rgba(0,0,0,.9)}
+/* engraved, not printed: cut into the metal, dark inside, a hairline of light on the lower edge */
+#scopes .lbl{font:7px ui-monospace,Menlo,monospace;letter-spacing:.2em;color:#6e6a60;opacity:.95;
+  text-shadow:0 -1px 0 rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.10)}
+/* the glass: a soft curved specular across the upper face; the lamp: a warm
+   glow along the top inside edge of the bezel, lighting the dial from above */
+#scopes .face::after{content:"";position:absolute;inset:4px;border-radius:4px;pointer-events:none;
+  background:
+    radial-gradient(120% 60% at 50% -20%, rgba(240,200,140,.16), transparent 60%),
+    linear-gradient(172deg, rgba(255,255,255,.085) 0%, rgba(255,255,255,.03) 28%, transparent 46%)}
+#scopes .card.vec .face::after{border-radius:50%;inset:4px}
+/* WARM-UP: switched on, the face glows up from dark over half a second */
+#scopes .card.warm .face{animation:warmup .7s cubic-bezier(.3,.6,.2,1) both}
+@keyframes warmup{0%{opacity:0;transform:scale(.97)}40%{opacity:.55}100%{opacity:1;transform:none}}
 /* THE TINY FINDER. Between frames the camera has only a small bright window
    of the scene, sharp and real, sitting in the middle of the dark. Winding on
    enlarges it to the full gate over exactly the length of the lever stroke, so
@@ -842,7 +855,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 119;                     /* bump with every ship; lands in EXIF */
+const BUILD = 120;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1593,13 +1606,26 @@ function paintScopeCards() {
     const sw = document.createElement("input"); sw.type = "checkbox"; sw.setAttribute("switch", ""); sw.className = "hapov"; sw.tabIndex = -1;
     b.appendChild(sw);
     b.onclick = () => {
-      if (scopesOn.has(k)) scopesOn.delete(k); else scopesOn.add(k);
+      const turningOn = !scopesOn.has(k);
+      if (turningOn) scopesOn.add(k); else scopesOn.delete(k);
       try { localStorage.scopes = JSON.stringify([...scopesOn]); } catch (e) {}
-      paintScopeCards(); fitScopes(); scopeLoop();
+      paintScopeCards(); fitScopes();
+      if (turningOn) warmUp(k);
+      scopeLoop();
     };
     m.appendChild(b);
   }
   fitScopes();
+}
+/* WARM-UP: the face glows up, and any needle is thrown to full scale to fall
+   back to its reading. Called for one instrument when switched on, for all of
+   them when the camera wakes or a new roll is loaded. */
+function warmUp(only) {
+  for (const k of scopesOn) {
+    if (only && k !== only) continue;
+    const c = scopeEls[k].card; c.classList.remove("warm"); void c.offsetWidth; c.classList.add("warm");
+    if (k === "meter") kick("meter", 14); if (k === "kelv") kick("kelv", 9500);
+  }
 }
 function closeScopeMenu() { $("scopemenu").classList.remove("on"); $("lensveil").classList.remove("on"); }
 $("hapb").addEventListener("click", () => {
@@ -1637,7 +1663,7 @@ function fitScopes() {
   }
 }
 addEventListener("resize", fitScopes); addEventListener("orientationchange", () => setTimeout(fitScopes, 140));
-setTimeout(fitScopes, 80); setTimeout(fitScopes, 800);
+setTimeout(fitScopes, 80); setTimeout(fitScopes, 800); setTimeout(() => warmUp(), 900);
 
 let scCanvas = null, lvHistory = [], scopeRAF = 0, lastScope = 0;
 function sampleFrame() {
@@ -1683,12 +1709,44 @@ function arcScale(g, cx, cy, r, a0, a1, n, big) {
   g.strokeStyle = "rgba(200,190,170,.35)"; g.beginPath(); g.arc(cx, cy, r, -a1, -a0); g.stroke();
 }
 const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
-const smooth = {};                              /* needle inertia per instrument */
-function ease(k, target, rate) { smooth[k] = smooth[k] === undefined ? target : smooth[k] + (target - smooth[k]) * rate; return smooth[k]; }
+/* NEEDLES WITH WEIGHT. A damped second-order system per needle: it swings past
+   the reading, rings once, settles. Stiffness and damping are tuned so a big
+   change overshoots by a few degrees and a small one barely moves. */
+const springs = {};
+function spring(k, target, dt) {
+  const sp = springs[k] || (springs[k] = { x: target, v: 0 });
+  const K = 46, D = 8.5;                              /* stiffness, damping */
+  const a = K * (target - sp.x) - D * sp.v;
+  sp.v += a * dt; sp.x += sp.v * dt;
+  return sp.x;
+}
+/* POWER-ON DEFLECTION: on warm-up the needle is thrown to full scale and falls
+   back to its reading, the way a real galvanometer announces itself */
+function kick(k, full) { const sp = springs[k]; if (sp) { sp.x = full; sp.v = 0; } }
+/* PEAK HOLD: traces rise at once and fall slowly; a marker holds the recent max */
+const peaks = {};
+function peakHold(k, arr, fall) {
+  const p = peaks[k] || (peaks[k] = new Float32Array(arr.length));
+  for (let i = 0; i < arr.length; i++) p[i] = arr[i] > p[i] ? arr[i] : p[i] * fall;
+  return p;
+}
+/* PHOSPHOR BLOOM: a sharp change in the reading overdrives the trace for a few
+   hundred milliseconds. bloom decays toward 0 every frame; a jump adds to it. */
+let bloom = 0, lastMeanY = null;
+function bloomFrom(meanY) {
+  if (lastMeanY !== null) bloom = Math.min(1, bloom + Math.min(1, Math.abs(meanY - lastMeanY) / 22));
+  lastMeanY = meanY; bloom *= 0.86;
+  return bloom;
+}
+let scopeDT = 0.07, scopeLast = 0;
 
 function drawScopes() {
   const d = sampleFrame(); if (!d) return;
-  const N = d.length / 4;
+  const N = d.length / 4, now = performance.now();
+  scopeDT = Math.min(0.1, Math.max(0.016, (now - scopeLast) / 1000)); scopeLast = now;
+  let meanY = 0; for (let i = 0; i < N; i += 4) meanY += lum(d[4*i], d[4*i+1], d[4*i+2]); meanY /= (N / 4);
+  const bl = bloomFrom(meanY);                         /* 0 calm .. 1 just changed */
+  const glow = 1 + bl * 1.6;
   let hl = null, hr, hg, hb, clipH = 0, clipS = 0, R = 0, G = 0, B = 0;
   if (scopesOn.has("hist") || scopesOn.has("rgb") || scopesOn.has("kelv")) {
     hl = new Float32Array(32); hr = new Float32Array(32); hg = new Float32Array(32); hb = new Float32Array(32);
@@ -1700,10 +1758,11 @@ function drawScopes() {
   }
   if (scopesOn.has("hist")) {
     const [g, w, h, dpr] = face(scopeEls.hist.cv, .45); graticule(g, w, h, 8, 3);
-    const mx = Math.max(1, ...hl), base = h - 11 * dpr, pts = [];
-    for (let i = 0; i < 32; i++) pts.push([w * (i + .5) / 32, base - (hl[i] / mx) * (base - 4 * dpr)]);
+    const hp = peakHold("hist", hl, 0.90), mx = Math.max(1, ...hp), base = h - 11 * dpr, pts = [], pk = [];
+    for (let i = 0; i < 32; i++) { pts.push([w * (i + .5) / 32, base - (hl[i] / mx) * (base - 4 * dpr)]); pk.push([w * (i + .5) / 32, base - (hp[i] / mx) * (base - 4 * dpr)]); }
     g.fillStyle = AMBER + ".16)"; g.beginPath(); g.moveTo(pts[0][0], base); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(pts[31][0], base); g.closePath(); g.fill();
-    trace(g, pts, AMBER, 1.2 * dpr);
+    trace(g, pk, "rgba(240,168,64,", 0.6 * dpr);      /* the peak marker, falling slowly */
+    trace(g, pts, AMBER, (1.2 + 1.2 * bl) * dpr);      /* the live trace, blooming on change */
     g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(200,190,170,.7)";
     g.fillText((100 * clipS / N).toFixed(0) + "% BLK", 4 * dpr, h - 3 * dpr);
     const ch = 100 * clipH / N; g.fillStyle = ch > 1 ? AMBER + ".95)" : "rgba(200,190,170,.7)";
@@ -1715,12 +1774,12 @@ function drawScopes() {
       const mx = Math.max(1, ...hh), y0 = r * h / 3 + 3 * dpr, rh = h / 3 - 5 * dpr, pts = [];
       for (let i = 0; i < 32; i++) pts.push([w * (i + .5) / 32, y0 + rh - (hh[i] / mx) * rh]);
       g.fillStyle = col + ".12)"; g.beginPath(); g.moveTo(pts[0][0], y0 + rh); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(pts[31][0], y0 + rh); g.closePath(); g.fill();
-      trace(g, pts, col, 1.0 * dpr);
+      trace(g, pts, col, (1.0 + 1.0 * bl) * dpr);
     });
   }
   if (scopesOn.has("kelv")) {
     const [g, w, h, dpr] = face(scopeEls.kelv.cv, 0);
-    const rb = (R + 1) / (B + 1), K = ease("kelv", Math.max(2500, Math.min(9500, 6500 * Math.pow(rb, -0.9))), .18);
+    const rb = (R + 1) / (B + 1), K = spring("kelv", Math.max(2500, Math.min(9500, 6500 * Math.pow(rb, -0.9))), scopeDT * 0.9);
     const cx = w / 2, cy = h * 0.92, r = Math.min(w * 0.44, h * 0.8), a0 = Math.PI * 0.9, a1 = Math.PI * 0.1;
     arcScale(g, cx, cy, r, a0, a1, 14, 7);
     const grad = g.createLinearGradient(cx - r, 0, cx + r, 0);
@@ -1739,12 +1798,17 @@ function drawScopes() {
     g.strokeStyle = AMBER + ".12)"; g.lineWidth = 1;
     for (let a = 0; a < 360; a += 30) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + r * Math.cos(a * Math.PI / 180), cy - r * Math.sin(a * Math.PI / 180)); g.stroke(); }
     [0.33, 0.66, 1].forEach(f => { g.beginPath(); g.arc(cx, cy, r * f, 0, 7); g.stroke(); });
+    /* THE SKIN LINE. The fixed reference every broadcast vectorscope carries:
+       about 123 degrees in this hue frame, the axis skin tones of every
+       ethnicity fall along. When a person is in frame, their points line up on it. */
+    const sk = 123 * Math.PI / 180;
+    g.strokeStyle = PHOS + ".28)"; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + r * Math.cos(sk), cy - r * Math.sin(sk)); g.stroke(); g.setLineDash([]);
     for (let i = 0; i < N; i += 2) {
       const rr = d[4*i] / 255, gg = d[4*i+1] / 255, bb = d[4*i+2] / 255, mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb), sat = mx ? (mx - mn) / mx : 0;
       if (sat < 0.05) continue;
       const dl = mx - mn; let hue = mx === rr ? ((gg - bb) / dl) % 6 : mx === gg ? (bb - rr) / dl + 2 : (rr - gg) / dl + 4;
       const th = hue * Math.PI / 3;
-      g.fillStyle = `hsla(${(hue * 60 + 360) % 360},70%,62%,.30)`;
+      g.fillStyle = `hsla(${(hue * 60 + 360) % 360},70%,62%,${(.30 + .35 * bl).toFixed(2)})`;
       g.fillRect(cx + r * sat * Math.cos(th) - 1, cy - r * sat * Math.sin(th) - 1, 2, 2);
     }
   }
@@ -1755,7 +1819,7 @@ function drawScopes() {
     g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(200,190,170,.7)"; g.textAlign = "center";
     for (let i = 0; i <= 12; i += 3) { const a = a0 + (a1 - a0) * i / 12; g.fillText(String(i + 2), cx + (r + 8 * dpr) * Math.cos(a), cy - (r + 8 * dpr) * Math.sin(a) + 2 * dpr); }
     g.textAlign = "left";
-    const lv = ease("meter", meterNeedle, .22);
+    const lv = spring("meter", meterNeedle, scopeDT);
     needle(g, cx, cy, r - 2, a0 + (a1 - a0) * (Math.max(2, Math.min(14, lv)) - 2) / 12, AMBER + ".95)");
     g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = PHOS + ".85)"; g.fillText("LV " + lv.toFixed(1), 5 * dpr, h - 4 * dpr);
   }
@@ -1848,6 +1912,7 @@ function rollOver() {
   rewindVoice();
   const body = document.body, fe = $("lcdframe"), re = $("lcdroll");
   body.classList.add("rewinding");
+  kick("meter", 2); kick("kelv", 2500); bloom = 0;      /* the instruments go down with the roll */
   let n = ROLL_LEN, i = 0;
   const total = 34, spin = () => {
     n--; i++;
@@ -1864,6 +1929,7 @@ function rollOver() {
     setTimeout(() => { re.textContent = ROLL; }, 260);
     body.classList.remove("rewinding");
     leaderVoice();
+    warmUp();                                            /* and come back up with the new one */
     setTimeout(() => { fe.textContent = "000"; backLCD(); }, 380);   /* 001 arrives from below */
   }, 1650);
 }
@@ -1920,7 +1986,7 @@ $("windwrap").addEventListener("pointerdown", () => {
    when a removal sliced to a shared anchor.) */
 let sleepTimer = 0, asleep = false;
 function wake() {
-  if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); }
+  if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); warmUp(); }
   clearTimeout(sleepTimer);
   sleepTimer = setTimeout(() => { asleep = true; document.body.classList.add("sleep"); humStop(); }, 120000);
 }
