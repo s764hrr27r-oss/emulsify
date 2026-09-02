@@ -827,7 +827,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 110;                     /* bump with every ship; lands in EXIF */
+const BUILD = 111;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1193,6 +1193,7 @@ function evTick(zero) {
     src.connect(bp); bp.connect(g); g.connect(AC.destination); src.start(t);
   } catch (e) {}
 }
+let EVD = null;                       /* declared BEFORE setEV: setEV runs at load and reads it */
 function setEV(v) {
   v = Math.max(-2, Math.min(2, v));
   v = Math.round(v * 3) / 3;
@@ -1215,7 +1216,6 @@ function setEV(v) {
 }
 setEV((() => { try { return parseFloat(localStorage["ev"]) || 0; }
                catch (e) { return 0; } })());
-let EVD = null;
 function evFromY(y) {
   const r = $("evrow").querySelector(".track").getBoundingClientRect();
   return (0.5 - (y - r.top) / r.height) * 4;
@@ -1527,8 +1527,7 @@ function lightValue() {
 /* the back panel reads out what the camera is actually set to */
 function backLCD() {
   try {
-    const mm = ($("lens").textContent || "").replace(/[^0-9]/g, "") || "33";
-    $("lcdlens").textContent = mm;
+    $("lcdlens").textContent = String(Math.round((typeof GLASS === "object" && GLASS.mm) || 33));
     const shown = Math.min((frameNo || 0) + 1, ROLL_LEN);
     const fe = $("lcdframe");
     if (fe.textContent !== String(shown).padStart(3, "0")) {
