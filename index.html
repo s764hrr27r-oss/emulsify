@@ -32,6 +32,10 @@ body.paged #camera{transform:scale(.97)}
    thing that makes a small finder read as a finder rather than a bug. */
 .top{height:36px;flex:0 0 auto;display:flex;align-items:center;padding:0 18px}
 #hapb{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;-webkit-appearance:auto;border-radius:5px;z-index:3}
+/* the EV detent's haptic: a rendered but invisible switch that the drag handler
+   toggles on every third-stop. iOS plays its Taptic on a switch toggle made
+   inside a user input handler, which a pointermove is. */
+#hapev{position:absolute;left:-2px;top:0;width:2px;height:2px;margin:0;opacity:0;pointer-events:none;-webkit-appearance:auto}
 #backlcd{flex:1;display:flex;align-items:baseline;gap:5px;flex-wrap:nowrap;overflow:hidden;
   font:11px ui-monospace,Menlo,monospace;color:var(--mute);
   border:1px solid var(--hair);border-radius:5px;padding:4px 9px;
@@ -768,7 +772,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="quad"></div>
       <div id="spot"><i></i><i></i><i></i><i></i></div>
       <div id="cross"></div>
-      <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
+      <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div><input type="checkbox" switch id="hapev" aria-hidden="true" tabindex="-1"></div>
       <div id="lockgrid"></div>
       <div id="sparkle"><i></i><i></i><i></i><i></i></div>
       <div id="scopes">
@@ -913,7 +917,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 133;                     /* bump with every ship; lands in EXIF */
+const BUILD = 134;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1284,7 +1288,10 @@ function setEV(v) {
   v = Math.max(-2, Math.min(2, v));
   v = Math.round(v * 3) / 3;
   if (Math.abs(v) < 0.17) v = 0;                    /* zero detent */
-  if (EVD && EV.v !== undefined && v !== EV.v) evTick(v === 0);
+  if (EVD && EV.v !== undefined && v !== EV.v) {
+    evTick(v === 0);
+    try { $("hapev").click(); } catch (e) {}            /* the detent under the thumb */
+  }
   EV.v = v;
   const t = $("evrow").querySelector(".thumb");
   const f = $("evrow").querySelector(".fill");
