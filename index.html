@@ -708,7 +708,10 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 #strip button{position:relative}
 #strip .tw{position:relative;flex:0 0 auto;width:44px;height:44px}
 #strip .tw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
-                 -webkit-appearance:auto;border-radius:5px}
+                 -webkit-appearance:auto;border-radius:5px;
+                 touch-action:pan-x pan-y}   /* a drag across a switch is a scroll, not a slide */
+#strip{touch-action:pan-x;cursor:grab}
+#strip.dragging{cursor:grabbing;scroll-snap-type:none}
 #strip img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 #strip img.step{animation:stepup 2.4s var(--ease) both}
 #strip .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
@@ -908,7 +911,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 130;                     /* bump with every ship; lands in EXIF */
+const BUILD = 131;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2536,6 +2539,25 @@ async function openPrint(id) {
 }
 /* the strip IS the gallery: frames still in the bath sit at the front,
    wearing their current stage, and step forward in place as it changes */
+/* THE STRIP SCROLLS. The haptic switch over every thumb is a native control,
+   and a native switch reads a sideways drag as sliding its toggle, which ate
+   the pan the strip needed. touch-action above asks Safari to hand the pan to
+   the scroller; this drives the scroll by hand regardless, and a gesture that
+   moved more than a few pixels is not allowed to open a print on release. */
+(function stripDrag() {
+  const st = $("strip"); let x0 = 0, sl = 0, dragged = false, down = false;
+  st.addEventListener("pointerdown", e => { down = true; dragged = false; x0 = e.clientX; sl = st.scrollLeft; }, { passive: true });
+  st.addEventListener("pointermove", e => {
+    if (!down) return;
+    const dx = e.clientX - x0;
+    if (!dragged && Math.abs(dx) > 6) { dragged = true; st.classList.add("dragging"); }
+    if (dragged) st.scrollLeft = sl - dx;
+  }, { passive: true });
+  const up = () => { down = false; setTimeout(() => { st.classList.remove("dragging"); }, 0); };
+  st.addEventListener("pointerup", up, { passive: true }); st.addEventListener("pointercancel", up, { passive: true });
+  /* a click that ends a drag is swallowed before the thumb sees it */
+  st.addEventListener("click", e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
+})();
 async function buildStrip(selId) {
   const strip = $("strip");
   const ids = galleryIds().slice(0, 40);
