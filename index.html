@@ -54,23 +54,52 @@ body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
      shadow. Five coloured shadows, each pushed a little toward one corner, so
      the seam is emerald here, ruby there, and never the same twice. */
   box-shadow:
-    -20px -8px 46px 5px rgba(214,216,222,.11),
-     22px -10px 46px 5px rgba(214,216,222,.09),
-     18px 20px 46px 5px rgba(214,216,222,.11),
-    -18px 22px 46px 5px rgba(214,216,222,.10),
-      0 0 30px 2px rgba(236,238,242,.05);
+    -20px -8px 46px 5px rgba(214,216,222,0.055),
+     22px -10px 46px 5px rgba(214,216,222,0.045),
+     18px 20px 46px 5px rgba(214,216,222,0.055),
+    -18px 22px 46px 5px rgba(214,216,222,0.050),
+      0 0 30px 2px rgba(236,238,242,0.025);
   transition:opacity 1.4s var(--ease)}
 body.cocked #aura{opacity:1;animation:seamdrift 14s ease-in-out infinite alternate, seambreathe 3.4s ease-in-out infinite}
 /* silver behind the gate, faintly cool, so the gold lines have something to
    sit against rather than dissolving into more gold. The lobes still drift. */
 @keyframes seamdrift{
-  0%{box-shadow:-20px -8px 46px 5px rgba(214,216,222,.11), 22px -10px 46px 5px rgba(214,216,222,.09),
-                18px 20px 46px 5px rgba(214,216,222,.11), -18px 22px 46px 5px rgba(214,216,222,.10), 0 0 30px 2px rgba(236,238,242,.05)}
-  100%{box-shadow:-12px 20px 46px 5px rgba(214,216,222,.10), -22px -10px 46px 5px rgba(214,216,222,.11),
-                 20px -16px 46px 5px rgba(214,216,222,.09), 18px 18px 46px 5px rgba(214,216,222,.11), 0 0 32px 2px rgba(236,238,242,.05)}}
+  0%{box-shadow:-20px -8px 46px 5px rgba(214,216,222,0.055), 22px -10px 46px 5px rgba(214,216,222,0.045),
+                18px 20px 46px 5px rgba(214,216,222,0.055), -18px 22px 46px 5px rgba(214,216,222,0.050), 0 0 30px 2px rgba(236,238,242,0.025)}
+  100%{box-shadow:-12px 20px 46px 5px rgba(214,216,222,0.050), -22px -10px 46px 5px rgba(214,216,222,0.055),
+                 20px -16px 46px 5px rgba(214,216,222,0.045), 18px 18px 46px 5px rgba(214,216,222,0.055), 0 0 32px 2px rgba(236,238,242,0.025)}}
 @keyframes seambreathe{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.15)}}
 body.released #aura{transition:opacity .4s var(--ease);opacity:0;animation:none}
 #glass{position:relative;z-index:1}
+/* SPARKLE. Tiny silver points scattered just inside the gate's edge, each one
+   glinting on its own cycle, never two at once. They are the size of grain and
+   nearly the brightness of nothing; you catch one in the corner of your eye
+   and it is gone. Idle they do not exist. */
+#sparkle{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;transition:opacity .9s var(--ease);
+  background-image:
+    radial-gradient(circle at 3% 12%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+    radial-gradient(circle at 97% 9%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+    radial-gradient(circle at 5% 88%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+    radial-gradient(circle at 96% 91%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+    radial-gradient(circle at 2% 50%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
+    radial-gradient(circle at 98% 44%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
+    radial-gradient(circle at 48% 2%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
+    radial-gradient(circle at 53% 98%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
+    radial-gradient(circle at 12% 4%, rgba(255,236,200,.85) 0 .5px, transparent 1.1px),
+    radial-gradient(circle at 90% 96%, rgba(255,236,200,.85) 0 .5px, transparent 1.1px),
+    radial-gradient(circle at 7% 30%, rgba(240,242,246,.8) 0 .4px, transparent 1px),
+    radial-gradient(circle at 94% 70%, rgba(240,242,246,.8) 0 .4px, transparent 1px)}
+body.cocked #sparkle{opacity:1;animation:glint 7s linear infinite}
+/* one mask sweeps the field so different points catch the light at different
+   moments: a soft band of visibility travelling diagonally, everything outside
+   it dark. Hence never all at once. */
+@keyframes glint{
+  0%{-webkit-mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%)}
+  25%{-webkit-mask-image:radial-gradient(circle at 110% 10%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at 110% 10%, #000 0 6%, transparent 14%)}
+  50%{-webkit-mask-image:radial-gradient(circle at 90% 115%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at 90% 115%, #000 0 6%, transparent 14%)}
+  75%{-webkit-mask-image:radial-gradient(circle at -10% 90%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at -10% 90%, #000 0 6%, transparent 14%)}
+  100%{-webkit-mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%)}}
+body.released #sparkle{transition:opacity .3s var(--ease);opacity:0}
 /* the readouts turn gold and radiate when the shutter is set */
 #backlcd .seg{transition:color .6s var(--ease), text-shadow .6s var(--ease)}
 body.cocked #backlcd .seg{color:#e6c37a;
@@ -580,6 +609,7 @@ body:not(.cocked) #shutter{opacity:.38}
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
       <div id="lockgrid"></div>
+      <div id="sparkle"></div>
       <div id="tension"><i></i><i></i><i></i><i></i></div>
       <div id="flash"></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
@@ -717,7 +747,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 102;                     /* bump with every ship; lands in EXIF */
+const BUILD = 103;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1036,7 +1066,7 @@ function paintLensMenu() {
       b.insertAdjacentHTML("beforeend",
         '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
       if (Math.abs(z - ZOOM) < 0.001) b.className = "cur";
-      b.onclick = () => { galleryNote(7 + zi); closeLensMenu(); ZOOM = z; applyOpticGlass(); paintLensMenu(); };
+      b.onclick = () => { closeLensMenu(); ZOOM = z; applyOpticGlass(); paintLensMenu(); };
       m.appendChild(b);
     });
     return;
@@ -1048,7 +1078,7 @@ function paintLensMenu() {
     else b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
     if (F === GLASS.mm) b.className = "cur";
-    b.onclick = () => { galleryNote(7 + li); closeLensMenu(); setGlass(F); };
+    b.onclick = () => { closeLensMenu(); setGlass(F); };
     m.appendChild(b);
   });
 }
@@ -1056,7 +1086,6 @@ const closeLensMenu = () => {
   $("lensmenu").classList.remove("on"); $("lensveil").classList.remove("on");
 };
 $("lens").onclick = () => {
-  galleryNote(3);
   if (!phys.length) return;
   if (optOn() && (ANA.zooms || [1]).length < 2) return;   /* single-focal glass stays frozen */
   closeAnaMenu(); closeFinderMenu();
@@ -1138,7 +1167,7 @@ function paintFinderMenu() {
     b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
     if (f.k === FINDER) b.className = "cur";
-    b.onclick = () => { galleryNote(5 + fi); closeFinderMenu(); setFinder(f.k); };
+    b.onclick = () => { closeFinderMenu(); setFinder(f.k); };
     m.appendChild(b);
   });
 }
@@ -1147,7 +1176,7 @@ function closeFinderMenu() {
 }
 setFinder(FINDER);
 $("finder").addEventListener("click", () => {
-  galleryNote(2); closeLensMenu(); closeAnaMenu();
+  closeLensMenu(); closeAnaMenu();
   const on = $("findermenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 });
@@ -1578,7 +1607,7 @@ function paintAnaMenu() {          /* the menu is text; the badge is the glass *
     b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
     if (o.id === ANA.id) b.className = "cur";
-    b.onclick = () => { galleryNote(6 + oi); closeAnaMenu(); setOptic(o.id); };
+    b.onclick = () => { closeAnaMenu(); setOptic(o.id); };
     m.appendChild(b);
   });
 }
@@ -1620,7 +1649,7 @@ function closeAnaMenu() {
   $("anamenu").classList.remove("on"); $("lensveil").classList.remove("on");
 }
 $("ana").onclick = () => {
-  galleryNote(1); closeLensMenu(); closeFinderMenu();
+  closeLensMenu(); closeFinderMenu();
   const on = $("anamenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
@@ -1668,7 +1697,7 @@ async function paintChip() {
   }
 }
 paintChip();
-$("chip").onclick = () => { const k = galleryIds()[0]; if (k) openItem(k); else galleryNote(4); };
+$("chip").onclick = () => { const k = galleryIds()[0]; if (k) openItem(k); };
 
 /* ---------- print view; long-press the print itself to save ---------- */
 let current = null, armedFile = null, watching = null, openTok = 0;
@@ -1804,7 +1833,7 @@ function paintWatched() {              /* a new stage landed while watching */
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
   }, 2600);
 }
-$("back").onclick = () => { galleryNote(0); $("print").classList.remove("on"); setPaged(false); if (cocked) humStart();
+$("back").onclick = () => { $("print").classList.remove("on"); setPaged(false); if (cocked) humStart();
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
