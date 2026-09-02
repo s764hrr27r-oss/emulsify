@@ -378,12 +378,14 @@ body.cocked #wind b{color:var(--ready)}
    given the 12px the layout keeps inside the frame lines; it is chosen so that no state, mid-
    transition or otherwise, can put an instrument pixel outside the black. */
 body.cocked #scopes,body.curtain #scopes{opacity:0;transform:scale(1.02)}
-body.curtain:not(.cocked) #scopes{transform:none;transition:opacity .45s var(--ease) .1s}
+/* re-entry after a frame: the field settles from 2% too close, slowly, while
+   the blinds are still parting; the individual instruments wake behind it */
+body.reentry:not(.cocked) #scopes{transition:opacity .9s cubic-bezier(.2,.7,.2,1), transform 1.1s cubic-bezier(.16,.8,.2,1)}
 body.released #scopes{transition:opacity .26s var(--ease), transform .24s cubic-bezier(.5,0,.9,.4)}
 body.sleep #scopes{opacity:0}
 #scopes .slot{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:hidden}
 #scopes .slot.top,#scopes .slot.bottom{flex-direction:row;align-items:flex-end}
-#scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto;padding:5px;box-sizing:border-box}
+#scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto;padding:5px;box-sizing:border-box;animation-delay:0ms}
 #scopes .card.on{display:flex}
 /* THE HOUSING. Black-painted steel that has been used: the paint is worn
    through to bare metal along the edges and at the corners where fingers go,
@@ -440,8 +442,8 @@ body.sleep #scopes{opacity:0}
     linear-gradient(var(--g3a,11deg), transparent calc(var(--g3p,80%) - .2%), rgba(255,255,255,var(--g3o,.05)) var(--g3p,80%), transparent calc(var(--g3p,80%) + .3%))}
 #scopes .card.vec .face::after{border-radius:50%;inset:5px}
 /* WARM-UP: switched on, the face glows up from dark over half a second */
-#scopes .card.warm .face{animation:warmup .7s cubic-bezier(.3,.6,.2,1) both}
-@keyframes warmup{0%{opacity:0;transform:scale(.97)}40%{opacity:.55}100%{opacity:1;transform:none}}
+#scopes .card.warm{animation:warmup .8s cubic-bezier(.25,.6,.2,1) both;animation-delay:inherit}
+@keyframes warmup{0%{opacity:0;transform:translateY(3px) scale(.985)}45%{opacity:.6}100%{opacity:1;transform:none}}
 /* THE TINY FINDER. Between frames the camera has only a small bright window
    of the scene, sharp and real, sitting in the middle of the dark. Winding on
    enlarges it to the full gate over exactly the length of the lever stroke, so
@@ -911,7 +913,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 131;                     /* bump with every ship; lands in EXIF */
+const BUILD = 132;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1729,12 +1731,32 @@ function paintScopeCards() {
 /* WARM-UP: the face glows up, and any needle is thrown to full scale to fall
    back to its reading. Called for one instrument when switched on, for all of
    them when the camera wakes or a new roll is loaded. */
+/* the wake-up, per instrument: t0 is when its light arrives. Before t0 it is
+   dark and still. From t0 the face glows up (CSS), the phosphor heats over
+   700 ms (trace alpha), and a needle SWEEPS from rest to full scale over 380
+   ms, driven, then lets the spring bring it back to the reading. */
+const wakeAt = {};
 function warmUp(only) {
-  for (const k of scopesOn) {
-    if (only && k !== only) continue;
-    const c = scopeEls[k].card; c.classList.remove("warm"); void c.offsetWidth; c.classList.add("warm");
-    if (k === "meter") kick("meter", 14); if (k === "kelv") kick("kelv", 9500);
+  const now = performance.now(); let i = 0;
+  for (const [k] of SCOPES) {
+    if (!scopesOn.has(k) || (only && k !== only)) continue;
+    const delay = only ? 0 : i++ * 110;                 /* one after another, 110 ms apart */
+    wakeAt[k] = now + delay;
+    const c = scopeEls[k].card; c.classList.remove("warm"); void c.offsetWidth;
+    c.style.animationDelay = delay + "ms"; c.classList.add("warm");
+    if (k === "meter" || k === "kelv") { const sp = springs[k]; if (sp) { sp.v = 0; } }
   }
+}
+function warmth(k) {                                    /* 0 dark .. 1 fully lit */
+  const t0 = wakeAt[k]; if (t0 === undefined) return 1;
+  return Math.max(0, Math.min(1, (performance.now() - t0) / 700));
+}
+function sweep(k, restV, fullV, target, dt) {           /* a needle waking: driven sweep, then the spring */
+  const t0 = wakeAt[k]; const el = t0 === undefined ? 1e9 : performance.now() - t0;
+  if (el < 0) return restV;
+  if (el < 380) { const p = el / 380, e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; const x = restV + (fullV - restV) * e;
+    const sp = springs[k] || (springs[k] = { x, v: 0 }); sp.x = x; sp.v = 0; return x; }
+  return spring(k, target, dt);
 }
 function closeScopeMenu() { $("scopemenu").classList.remove("on"); $("lensveil").classList.remove("on"); }
 $("hapb").addEventListener("click", () => {
@@ -1865,8 +1887,10 @@ function graticule(g, w, h, nx, ny) {
   for (let i = 1; i < ny; i++) { const y = Math.round(h * i / ny) + .5; g.moveTo(0, y); g.lineTo(w, y); }
   g.stroke();
 }
+let traceWarmth = 1;
 function trace(g, pts, col, width) {          /* a glowing line: wide faint pass, then the core */
-  for (const [lw, a] of [[width * 3.2, .10], [width * 1.6, .22], [width, .95]]) {
+  for (const [lw, a0] of [[width * 3.2, .10], [width * 1.6, .22], [width, .95]]) {
+    const a = a0 * traceWarmth;
     g.strokeStyle = col + a + ")"; g.lineWidth = lw; g.lineJoin = "round"; g.beginPath();
     pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
   }
@@ -1942,6 +1966,7 @@ function drawScopes() {
     }
   }
   if (scopesOn.has("hist")) {
+    traceWarmth = warmth("hist");
     const [g, w, h, dpr] = face(scopeEls.hist.cv, .45); graticule(g, w, h, 8, 3);
     const hp = peakHold("hist", hl, Math.pow(0.90, scopeDT / 0.07)), mx = Math.max(1, ...hp), base = h - 11 * dpr, pts = [], pk = [];
     for (let i = 0; i < 32; i++) { pts.push([w * (i + .5) / 32, base - (hl[i] / mx) * (base - 4 * dpr)]); pk.push([w * (i + .5) / 32, base - (hp[i] / mx) * (base - 4 * dpr)]); }
@@ -1954,6 +1979,7 @@ function drawScopes() {
     const t = ch.toFixed(0) + "% CLIP"; g.fillText(t, w - g.measureText(t).width - 4 * dpr, h - 3 * dpr);
   }
   if (scopesOn.has("rgb")) {
+    traceWarmth = warmth("rgb");
     const [g, w, h, dpr] = face(scopeEls.rgb.cv, .45); graticule(g, w, h, 8, 3);
     [[hr, "rgba(232,96,80,"], [hg, "rgba(120,214,120,"], [hb, "rgba(110,150,240,"]].forEach(([hh, col], r) => {
       const mx = Math.max(1, ...hh), y0 = r * h / 3 + 3 * dpr, rh = h / 3 - 5 * dpr, pts = [];
@@ -1964,7 +1990,7 @@ function drawScopes() {
   }
   if (scopesOn.has("kelv")) {
     const [g, w, h, dpr] = face(scopeEls.kelv.cv, 0); dial(g, w, h, "kelv");
-    const rb = (R + 1) / (B + 1), K = spring("kelv", Math.max(2500, Math.min(9500, 6500 * Math.pow(rb, -0.9))), scopeDT * 0.9);
+    const rb = (R + 1) / (B + 1), K = sweep("kelv", 2500, 9500, Math.max(2500, Math.min(9500, 6500 * Math.pow(rb, -0.9))), scopeDT * 0.9);
     const cx = w / 2, cy = h * 0.92, r = Math.min(w * 0.44, h * 0.8), a0 = Math.PI * 0.9, a1 = Math.PI * 0.1;
     arcScale(g, cx, cy, r, a0, a1, 14, 7);
     const grad = g.createLinearGradient(cx - r, 0, cx + r, 0);
@@ -1993,7 +2019,7 @@ function drawScopes() {
       if (sat < 0.05) continue;
       const dl = mx - mn; let hue = mx === rr ? ((gg - bb) / dl) % 6 : mx === gg ? (bb - rr) / dl + 2 : (rr - gg) / dl + 4;
       const th = hue * Math.PI / 3;
-      g.fillStyle = `hsla(${(hue * 60 + 360) % 360},70%,62%,${(.30 + .35 * bl).toFixed(2)})`;
+      g.fillStyle = `hsla(${(hue * 60 + 360) % 360},70%,62%,${((.30 + .35 * bl) * warmth("vec")).toFixed(2)})`;
       g.fillRect(cx + r * sat * Math.cos(th) - 1, cy - r * sat * Math.sin(th) - 1, 2, 2);
     }
   }
@@ -2006,7 +2032,7 @@ function drawScopes() {
     g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = INK + ".8)"; g.textAlign = "center";
     for (let i = 0; i <= 12; i += 3) { const a = a0 + (a1 - a0) * i / 12; g.fillText(String(i + 2), cx + (r + 8 * dpr) * Math.cos(a), cy - (r + 8 * dpr) * Math.sin(a) + 2 * dpr); }
     g.textAlign = "left";
-    const lv = spring("meter", meterNeedle, scopeDT);
+    const lv = sweep("meter", 2, 14, meterNeedle, scopeDT);
     needle(g, cx, cy, r - 2, a0 + (a1 - a0) * (Math.max(2, Math.min(14, lv)) - 2) / 12, INK + ".95)");
     g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = INK + ".8)"; g.fillText("LV " + lv.toFixed(1), 5 * dpr, h - 4 * dpr);
   }
@@ -2137,6 +2163,7 @@ function rollOver() {
   const body = document.body, fe = $("lcdframe"), re = $("lcdroll");
   body.classList.add("rewinding");
   kick("meter", 2); kick("kelv", 2500); bloom = 0;      /* the instruments go down with the roll */
+  for (const k in wakeAt) delete wakeAt[k];
   let n = ROLL_LEN, i = 0;
   const total = 34, spin = () => {
     n--; i++;
@@ -2229,10 +2256,13 @@ function release() {                        /* the frame is taken: let go */
     setTimeout(() => body.classList.remove("released"), 440);
   }, 160);
   setTimeout(() => {
-    body.classList.remove("curtain");       /* blinds part on the small live view, 460 ms */
-    /* and light reaches the instruments again: they wake as the blinds open,
-       needles thrown and settling, the way they do when a case is opened */
-    setTimeout(() => { warmUp(); scopeLoop(); }, 120);
+    /* the blinds part over 460 ms, and light spills onto the instruments WHILE
+       they part: the field settles in from a hair too close over 1.1 s, and
+       the instruments wake one after another behind it. One continuous reveal. */
+    body.classList.add("reentry");
+    body.classList.remove("curtain");
+    setTimeout(() => { warmUp(); scopeLoop(); }, 90);
+    setTimeout(() => body.classList.remove("reentry"), 1300);
   }, 560);
 }
 $("shutterwrap").onclick = async () => {
