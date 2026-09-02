@@ -31,6 +31,7 @@ body.paged #camera{transform:scale(.97)}
    glass in front, the film speed, and whether the shutter is set. It is the
    thing that makes a small finder read as a finder rather than a bug. */
 .top{height:36px;flex:0 0 auto;display:flex;align-items:center;padding:0 18px}
+#hapb{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;-webkit-appearance:auto;border-radius:5px;z-index:3}
 #backlcd{flex:1;display:flex;align-items:baseline;gap:5px;flex-wrap:nowrap;overflow:hidden;
   font:11px ui-monospace,Menlo,monospace;color:var(--mute);
   border:1px solid var(--hair);border-radius:5px;padding:4px 9px;
@@ -345,6 +346,29 @@ body.rewinding #wind .perf{animation:filmback .5s linear infinite;transition:non
 #wind.winding b{opacity:.25}
 body.cocked #wind{border-color:var(--ready);opacity:.72}
 body.cocked #wind b{color:var(--ready)}
+/* ---------- THE INSTRUMENTS ----------
+   Live scopes drawn from the camera into the black field around the small
+   finder, only while the shutter is not set. Off by default. Chosen from a
+   menu under the back panel. Each has a home: waveform above, histogram and
+   meter below, RGB parade left, colour temperature and vectorscope right.
+   All of it fades the instant you wind on; nothing competes with the picture. */
+#scopes{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:1;transition:opacity .35s var(--ease)}
+body.cocked #scopes,body.sleep #scopes{opacity:0}
+#scopes .slot{position:absolute;display:flex;flex-direction:column;gap:10px;justify-content:center}
+#scopes .top{left:8%;right:8%;top:4%;height:26%}
+#scopes .bottom{left:8%;right:8%;bottom:4%;height:26%}
+#scopes .left{left:3%;width:31%;top:33%;height:34%}
+#scopes .right{right:3%;width:31%;top:33%;height:34%}
+#scopes .card{display:none;flex-direction:column;gap:3px}
+#scopes .card.on{display:flex}
+#scopes canvas{width:100%;display:block;border:1px solid rgba(255,255,255,.07);border-radius:3px}
+#scopes .lbl{font:7.5px ui-monospace,Menlo,monospace;letter-spacing:.16em;color:var(--mute);opacity:.7}
+#scopes .card.wave canvas{aspect-ratio:3/1}
+#scopes .card.hist canvas{aspect-ratio:3.4/1}
+#scopes .card.rgb canvas{aspect-ratio:1.5/1}
+#scopes .card.kelv canvas{aspect-ratio:1.5/1}
+#scopes .card.meter canvas{aspect-ratio:4.2/1}
+#scopes .card.vec canvas{aspect-ratio:1/1;border-radius:50%}
 /* THE TINY FINDER. Between frames the camera has only a small bright window
    of the scene, sharp and real, sitting in the middle of the dark. Winding on
    enlarges it to the full gate over exactly the length of the lever stroke, so
@@ -459,24 +483,27 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
   object-fit:contain;pointer-events:none;display:block}
 .lensbtn:active{color:var(--w);border-color:var(--mute)}
 #anamenu{left:24px;right:auto}
-#lensmenu,#anamenu,#findermenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
+#lensmenu,#anamenu,#findermenu,#scopemenu{position:fixed;display:none;flex-direction:column;gap:2px;z-index:12;
   background-color:var(--k);background-image:var(--grain);
   border:1px solid var(--hair);border-radius:14px;
   padding:8px 4px;right:24px;bottom:calc(env(safe-area-inset-bottom) + 106px)}
 
-#lensmenu button,#anamenu button,#findermenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
+#lensmenu button,#anamenu button,#findermenu button,#scopemenu button{font-family:ui-monospace,Menlo,monospace;font-size:12px;
   letter-spacing:.05em;color:var(--mute);padding:8px 18px;border-radius:8px;
   position:relative}
 .hapov{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
        -webkit-appearance:auto}
 #lensmenu button.cur,#anamenu button.cur,#findermenu button.cur{color:var(--dot)}
+#scopemenu button.cur{color:var(--ready)}
+#scopemenu{right:auto;left:18px;bottom:auto;top:calc(env(safe-area-inset-top) + 96px)}
+#scopemenu .hint{font-size:9px;letter-spacing:.14em;color:var(--mute);opacity:.6;padding:4px 18px 6px}
 #lensmenu button:disabled,#anamenu button:disabled,#findermenu button:disabled{opacity:.25}
 #lensveil{position:fixed;inset:0;display:none;z-index:11}
 #lensveil.on{display:block}
-#lensmenu,#anamenu,#findermenu{display:flex;opacity:0;pointer-events:none;
+#lensmenu,#anamenu,#findermenu,#scopemenu{display:flex;opacity:0;pointer-events:none;
   transform:translateY(8px) scale(.97);
   transition:opacity .22s var(--ease),transform .22s var(--ease)}
-#lensmenu.on,#anamenu.on,#findermenu.on{opacity:1;pointer-events:auto;transform:none}
+#lensmenu.on,#anamenu.on,#findermenu.on,#scopemenu.on{opacity:1;pointer-events:auto;transform:none}
 
 /* ---------- landscape: 5:4 horizontal format, controls on the right ---------- */
 @media (orientation: landscape){
@@ -639,6 +666,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <span class="seg" id="lcdlv">--</span><span class="lbl">LIGHT</span>
       <span class="state" id="lcdstate">WIND ON</span>
       <span class="build" id="lcdbuild"></span>
+      <input type="checkbox" switch id="hapb" aria-label="Instruments" tabindex="-1">
     </div>
   </div>
   <div id="frame">
@@ -664,6 +692,9 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
       <div id="lockgrid"></div>
       <div id="sparkle"><i></i><i></i><i></i><i></i></div>
+      <div id="scopes">
+        <div class="slot top"></div><div class="slot left"></div><div class="slot right"></div><div class="slot bottom"></div>
+      </div>
       <div id="tension"><i></i><i></i><i></i><i></i></div>
       <div id="flash"></div>
       <div id="dim"></div>
@@ -686,6 +717,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 <div id="lensmenu"></div>
 <div id="anamenu"></div>
 <div id="findermenu"></div>
+<div id="scopemenu"></div>
 
 
 <svg id="dyefx" width="0" height="0" aria-hidden="true"
@@ -802,7 +834,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 115;                     /* bump with every ship; lands in EXIF */
+const BUILD = 117;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1248,7 +1280,7 @@ function closeFinderMenu() {
 }
 setFinder(FINDER);
 $("finder").addEventListener("click", () => {
-  closeLensMenu(); closeAnaMenu();
+  closeLensMenu(); closeAnaMenu(); closeScopeMenu();
   const on = $("findermenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 });
@@ -1389,8 +1421,13 @@ function galleryNote(i) {
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === "suspended") AC.resume();
-    const n = Math.max(0, i | 0);
-    const semis = EGYPT[n % 5] + 12 * (Math.floor(n / 5) % 3);
+    /* the strip walks the scale up for seven frames and back down for five,
+       a twelve-frame rise and fall that cycles, so a long roll never climbs
+       out of the register that sounds like this camera. Degrees 0..6 span
+       D3 to E4; the descent revisits 5..1 so the turn is not a jump. */
+    const n = Math.max(0, i | 0) % 12;
+    const deg = n <= 6 ? n : 12 - n;                 /* 0 1 2 3 4 5 6 5 4 3 2 1 */
+    const semis = EGYPT[deg % 5] + 12 * Math.floor(deg / 5);
     const f = 146.83 * Math.pow(2, semis / 12);
     const t = AC.currentTime + 0.004, out = AC.createGain();
     out.gain.setValueAtTime(0.0001, t);
@@ -1500,6 +1537,158 @@ function lightValue() {
     return Math.max(0, Math.min(20, Math.round(14 + 2 * Math.log2(Math.max(mean, 1e-4)))));
   } catch (e) { return null; }
 }
+/* ---------- THE INSTRUMENTS ----------
+   One 96x72 sample of the live view per meter tick feeds every scope. Each
+   scope is a small canvas in its home slot; drawing them costs less than the
+   sample. Nothing runs when the shutter is set, the tab is hidden, or the
+   gallery is open, and nothing runs at all if none are chosen. */
+const SCOPES = [
+  ["wave",  "WAVEFORM",     "top"],
+  ["hist",  "HISTOGRAM",    "bottom"],
+  ["meter", "METER",        "bottom"],
+  ["rgb",   "RGB PARADE",   "left"],
+  ["kelv",  "COLOUR TEMP",  "right"],
+  ["vec",   "VECTORSCOPE",  "right"],
+];
+let scopesOn = new Set();
+try { scopesOn = new Set(JSON.parse(localStorage.scopes || "[]").filter(k => SCOPES.some(sc => sc[0] === k))); } catch (e) {}
+const scopeEls = {};
+(function buildScopes() {
+  for (const [k, label, slot] of SCOPES) {
+    const card = document.createElement("div"); card.className = "card " + k;
+    const cv = document.createElement("canvas"); const lb = document.createElement("div"); lb.className = "lbl"; lb.textContent = label;
+    card.appendChild(cv); card.appendChild(lb);
+    $("scopes").querySelector("." + slot).appendChild(card);
+    scopeEls[k] = { card, cv };
+  }
+  paintScopeCards();
+})();
+function paintScopeCards() {
+  for (const k in scopeEls) scopeEls[k].card.classList.toggle("on", scopesOn.has(k));
+  const m = $("scopemenu"); m.innerHTML = "";
+  const h = document.createElement("div"); h.className = "hint"; h.textContent = "INSTRUMENTS  ·  choose any"; m.appendChild(h);
+  for (const [k, label] of SCOPES) {
+    const b = document.createElement("button"); b.textContent = label;
+    b.classList.toggle("cur", scopesOn.has(k));
+    const sw = document.createElement("input"); sw.type = "checkbox"; sw.setAttribute("switch", ""); sw.className = "hapov"; sw.tabIndex = -1;
+    b.appendChild(sw);
+    b.onclick = () => {
+      if (scopesOn.has(k)) scopesOn.delete(k); else scopesOn.add(k);
+      try { localStorage.scopes = JSON.stringify([...scopesOn]); } catch (e) {}
+      paintScopeCards(); drawScopes(true);
+    };
+    m.appendChild(b);
+  }
+}
+function closeScopeMenu() { $("scopemenu").classList.remove("on"); $("lensveil").classList.remove("on"); }
+$("hapb").addEventListener("click", () => {
+  closeLensMenu(); closeAnaMenu(); closeFinderMenu();
+  const on = $("scopemenu").classList.toggle("on");
+  $("lensveil").classList.toggle("on", on);
+});
+/* the veil closes it like the others */
+$("lensveil").addEventListener("click", closeScopeMenu);
+
+let scCanvas = null, lvHistory = [];
+function sampleFrame() {
+  const v = $("video"); if (!v || !v.videoWidth) return null;
+  scCanvas = scCanvas || Object.assign(document.createElement("canvas"), { width: 96, height: 72 });
+  const g = scCanvas.getContext("2d", { willReadFrequently: true });
+  g.drawImage(v, 0, 0, 96, 72);
+  return g.getImageData(0, 0, 96, 72).data;
+}
+function ctx2d(cv) {
+  const dpr = Math.min(2, devicePixelRatio || 1), w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const g = cv.getContext("2d"); g.clearRect(0, 0, w, h); return [g, w, h, dpr];
+}
+const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+function drawScopes(force) {
+  if (!scopesOn.size || (cocked && !force)) return;
+  const d = sampleFrame(); if (!d) return;
+  const N = d.length / 4;
+  if (scopesOn.has("wave")) {
+    const [g, w, h] = ctx2d(scopeEls.wave.cv);
+    const img = g.createImageData(96, 24); const px = img.data;
+    for (let i = 0; i < N; i++) {
+      const x = i % 96, y = 23 - Math.min(23, Math.floor(lum(d[4*i], d[4*i+1], d[4*i+2]) / 255 * 24));
+      const o = 4 * (y * 96 + x); px[o] = 214; px[o+1] = 216; px[o+2] = 222; px[o+3] = Math.min(255, px[o+3] + 70);
+    }
+    const tmp = Object.assign(document.createElement("canvas"), { width: 96, height: 24 }); tmp.getContext("2d").putImageData(img, 0, 0);
+    g.imageSmoothingEnabled = true; g.drawImage(tmp, 0, 0, w, h);
+    g.strokeStyle = "rgba(255,255,255,.08)"; g.lineWidth = 1; [0.5].forEach(f => { g.beginPath(); g.moveTo(0, h * f); g.lineTo(w, h * f); g.stroke(); });
+  }
+  if (scopesOn.has("hist") || scopesOn.has("rgb")) {
+    const hl = new Float32Array(32), hr = new Float32Array(32), hg = new Float32Array(32), hb = new Float32Array(32);
+    let clipH = 0, clipS = 0;
+    for (let i = 0; i < N; i++) {
+      const r = d[4*i], gg = d[4*i+1], b = d[4*i+2], Y = lum(r, gg, b);
+      hl[Math.min(31, Y / 8 | 0)]++; hr[Math.min(31, r >> 3)]++; hg[Math.min(31, gg >> 3)]++; hb[Math.min(31, b >> 3)]++;
+      if (Y > 250) clipH++; if (Y < 5) clipS++;
+    }
+    if (scopesOn.has("hist")) {
+      const [g, w, h, dpr] = ctx2d(scopeEls.hist.cv); const mx = Math.max(1, ...hl);
+      g.fillStyle = "rgba(214,216,222,.75)";
+      for (let i = 0; i < 32; i++) { const bh = (hl[i] / mx) * (h - 14 * dpr); g.fillRect(i * w / 32, h - 12 * dpr - bh, w / 32 - 1, bh); }
+      g.font = `${7 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(138,138,134,.9)";
+      g.fillText(`${(100 * clipS / N).toFixed(1)}% black`, 3 * dpr, h - 3 * dpr);
+      const ch = 100 * clipH / N; g.fillStyle = ch > 1 ? "rgba(236,150,60,.95)" : "rgba(138,138,134,.9)";
+      const t = `${ch.toFixed(1)}% clipped`; g.fillText(t, w - g.measureText(t).width - 3 * dpr, h - 3 * dpr);
+    }
+    if (scopesOn.has("rgb")) {
+      const [g, w, h] = ctx2d(scopeEls.rgb.cv); const rows = [[hr, "rgba(224,90,90,.6)"], [hg, "rgba(90,200,122,.6)"], [hb, "rgba(90,138,224,.6)"]];
+      rows.forEach(([hh, col], r) => { const mx = Math.max(1, ...hh), y0 = r * h / 3, rh = h / 3 - 3;
+        g.fillStyle = col; for (let i = 0; i < 32; i++) { const bh = (hh[i] / mx) * rh; g.fillRect(i * w / 32, y0 + rh - bh, w / 32 - 1, bh); } });
+    }
+  }
+  if (scopesOn.has("kelv") || scopesOn.has("vec")) {
+    let R = 0, G = 0, B = 0, satSum = 0;
+    for (let i = 0; i < N; i++) { const r = d[4*i], g = d[4*i+1], b = d[4*i+2]; R += r; G += g; B += b;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b); satSum += mx ? (mx - mn) / mx : 0; }
+    if (scopesOn.has("kelv")) {
+      const [g, w, h, dpr] = ctx2d(scopeEls.kelv.cv);
+      const rb = (R + 1) / (B + 1); const K = Math.round(Math.max(2500, Math.min(9500, 6500 * Math.pow(rb, -0.9))) / 50) * 50;
+      g.font = `${15 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(207,205,199,.95)"; g.textAlign = "center";
+      g.fillText(K + "", w / 2, h * 0.46); g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(138,138,134,.9)"; g.fillText("KELVIN", w / 2, h * 0.62);
+      const bx = w * 0.15, bw = w * 0.7, by = h * 0.76, grad = g.createLinearGradient(bx, 0, bx + bw, 0);
+      grad.addColorStop(0, "rgba(236,150,60,.7)"); grad.addColorStop(0.5, "rgba(230,230,226,.5)"); grad.addColorStop(1, "rgba(96,138,224,.7)");
+      g.fillStyle = grad; g.fillRect(bx, by, bw, 3 * dpr);
+      const nx = bx + bw * (K - 2500) / 7000; g.fillStyle = "rgba(229,180,90,.95)"; g.fillRect(nx - dpr, by - 4 * dpr, 2 * dpr, 11 * dpr);
+      g.textAlign = "left";
+    }
+    if (scopesOn.has("vec")) {
+      const [g, w, h] = ctx2d(scopeEls.vec.cv); const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 2;
+      g.strokeStyle = "rgba(255,255,255,.07)"; g.lineWidth = 1;
+      for (let a = 0; a < 360; a += 30) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + r * Math.cos(a * Math.PI / 180), cy - r * Math.sin(a * Math.PI / 180)); g.stroke(); }
+      g.beginPath(); g.arc(cx, cy, r * 0.5, 0, 7); g.stroke();
+      for (let i = 0; i < N; i += 3) {
+        const rr = d[4*i] / 255, gg = d[4*i+1] / 255, bb = d[4*i+2] / 255, mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb), sat = mx ? (mx - mn) / mx : 0;
+        if (sat < 0.04) continue;
+        let hue; const dl = mx - mn;
+        if (mx === rr) hue = ((gg - bb) / dl) % 6; else if (mx === gg) hue = (bb - rr) / dl + 2; else hue = (rr - gg) / dl + 4;
+        const th = hue * Math.PI / 3; g.fillStyle = `hsla(${(hue * 60 + 360) % 360},85%,60%,.35)`;
+        g.fillRect(cx + r * sat * Math.cos(th) - 1, cy - r * sat * Math.sin(th) - 1, 2, 2);
+      }
+    }
+  }
+  if (scopesOn.has("meter")) {
+    const [g, w, h, dpr] = ctx2d(scopeEls.meter.cv);
+    lvHistory.push(meterNeedle); if (lvHistory.length > 60) lvHistory.shift();
+    const x0 = w * 0.06, x1 = w * 0.94, y0 = h * 0.42;
+    g.strokeStyle = "rgba(255,255,255,.14)"; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y0); g.stroke();
+    g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(138,138,134,.9)"; g.textAlign = "center";
+    for (let i = 0; i <= 12; i++) { const x = x0 + (x1 - x0) * i / 12, big = i % 3 === 0; g.fillRect(x, y0 - (big ? 6 : 3) * dpr, 1, (big ? 6 : 3) * dpr); if (big) g.fillText(String(i + 2), x, y0 + 9 * dpr); }
+    const nx = x0 + (x1 - x0) * (Math.max(2, Math.min(14, meterNeedle)) - 2) / 12;
+    g.fillStyle = "rgba(229,180,90,.95)"; g.fillRect(nx - dpr, y0 - 12 * dpr, 2 * dpr, 16 * dpr);
+    if (lvHistory.length > 2) {
+      const mn = Math.min(...lvHistory), mx = Math.max(...lvHistory), span = Math.max(0.5, mx - mn);
+      g.strokeStyle = "rgba(214,216,222,.55)"; g.beginPath();
+      lvHistory.forEach((v, i) => { const x = x0 + (x1 - x0) * i / 59, y = h * 0.95 - (v - mn) / span * h * 0.28; i ? g.lineTo(x, y) : g.moveTo(x, y); });
+      g.stroke();
+    }
+    g.textAlign = "left";
+  }
+}
 /* the back panel reads out what the camera is actually set to */
 function backLCD() {
   /* nothing to read when the page is hidden or the gallery is up: the video
@@ -1517,6 +1706,7 @@ function backLCD() {
     $("lcdroll").textContent = ROLL;
     document.documentElement.style.setProperty("--film", String(frameNo || 0));     /* 2. the film moves */
     const raw = lightValue();
+    drawScopes(false);
     /* a meter needle overshoots nothing and flickers nothing: the reading is
        smoothed toward the scene, fast when the change is large, slow when it
        is small, and the display only moves when a whole step has been crossed */
