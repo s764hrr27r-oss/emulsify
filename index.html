@@ -10,6 +10,7 @@
 <title>Emulsify</title>
 <style>
 :root{ --k:#0a0a0a; --w:#f4f2ed; --mute:#8a8a86; --dot:#3b82f6; --hair:#232323;
+  --ready:#e5484d;   /* the shutter-set red: only the wind and the state wear it */
        --ease:cubic-bezier(.32,.72,0,1);
        --grain:url(data:image/png;base64,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) }
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
@@ -37,8 +38,9 @@ body.paged #camera{transform:scale(.97)}
 #backlcd .seg{font-size:13px;letter-spacing:.06em;color:#cfcdc7}
 #backlcd .lbl{font-size:8px;letter-spacing:.16em;opacity:.55;margin-right:6px}
 #backlcd .state{margin-left:auto;font-size:9px;letter-spacing:.18em;opacity:.75}
-body.cocked #backlcd .state{color:var(--dot);opacity:1}
-body.cocked #backlcd{border-color:rgba(229,180,90,.35)}
+#backlcd .build{font-size:8px;letter-spacing:.06em;opacity:.3;margin-left:8px}
+body.cocked #backlcd .state{color:var(--ready);opacity:1}
+body.cocked #backlcd{border-color:rgba(229,72,77,.4)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}}
@@ -146,19 +148,19 @@ body.f-rf #rf{display:block}
 #haw{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
      -webkit-appearance:auto;border-radius:8px}   /* native switch = real Taptic on iOS */
 #wind{display:block;width:100%;margin:0;height:34px;position:relative;
-  background:none;border:1px solid var(--hair);border-radius:8px;overflow:hidden;padding:0;
+  background:none;border:1px solid rgba(229,72,77,.28);border-radius:8px;overflow:hidden;padding:0;
   -webkit-tap-highlight-color:transparent}
 #wind .perf{position:absolute;inset:0;
   background-image:radial-gradient(circle at 10px 50%, var(--hair) 0 3.2px, transparent 3.3px);
   background-size:20px 100%;background-repeat:repeat-x;opacity:.85;
   transform:translateX(0);transition:none}
 #wind b{position:absolute;inset:0;display:grid;place-items:center;
-  font:9px ui-monospace,Menlo,monospace;letter-spacing:.22em;color:var(--mute);opacity:.8}
-#wind:active{border-color:var(--dot)}
+  font:9px ui-monospace,Menlo,monospace;letter-spacing:.22em;color:var(--ready);opacity:.62}
+#wind:active{border-color:var(--ready)}
 #wind.winding .perf{transition:transform .58s cubic-bezier(.18,.85,.28,1);transform:translateX(-60px)}
 #wind.winding b{opacity:.25}
-body.cocked #wind{border-color:var(--dot);opacity:.55}
-body.cocked #wind b{color:var(--dot)}
+body.cocked #wind{border-color:var(--ready);opacity:.72}
+body.cocked #wind b{color:var(--ready)}
 /* THE TINY FINDER. Between frames the camera has only a small bright window
    of the scene, sharp and real, sitting in the middle of the dark. Winding on
    enlarges it to the full gate over exactly the length of the lever stroke, so
@@ -312,8 +314,8 @@ body:not(.cocked) #shutter{opacity:.38}
   #wind b{writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:.18em;font-size:8px}
   body.flip #windwrap{right:auto;left:calc(4px + env(safe-area-inset-left))}
   #chips,#shutterwrap,#rightstack{justify-self:center}
-  #rightstack{flex-direction:row;align-self:start}
-  #chips{align-self:end}
+  #rightstack{flex-direction:row;align-self:end}
+  #chips{align-self:start}
   /* clockwise turn: the phone's bottom edge is now on the LEFT, so the deck
      goes with it and the gate padding mirrors. The deck's INTERNAL layout does
      not mirror - b65: flipping align-self here without also flipping `order`
@@ -324,8 +326,12 @@ body:not(.cocked) #shutter{opacity:.38}
   body.flip #frame{padding:0 calc(43px + env(safe-area-inset-right))
                      0 calc(189px + env(safe-area-inset-left))}
   .deck::before{inset:16px 6px}
+  /* portrait reads chips, shutter, lens pair from left to right, so landscape
+     must read the same top to bottom. Before b89 the order was reversed and the
+     two orientations disagreed about where anything lived. */
+  #chips{order:0;flex-direction:column}
   #shutterwrap{order:1}
-  #chips{order:2;flex-direction:column}
+  #rightstack{order:2}
   .spacer{display:none}
   #lensmenu,#anamenu,#findermenu{right:calc(env(safe-area-inset-right) + 190px);left:auto;
             bottom:auto;top:50%;translate:0 -50%}
@@ -341,9 +347,7 @@ body:not(.cocked) #shutter{opacity:.38}
        transition:opacity .26s var(--ease),transform .26s var(--ease)}
 #print.on{opacity:1;pointer-events:auto;transform:none}
 #print .bar{display:flex;align-items:center;padding:12px 18px}
-#ver{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);right:10px;z-index:60;
-  font:9px ui-monospace,Menlo,monospace;letter-spacing:.08em;color:var(--mute);opacity:.55;
-  pointer-events:none;user-select:none;-webkit-user-select:none}
+#ver{display:none}      /* the build now lives inside the back panel */
 #back{width:34px;height:34px;position:relative}
 #back::before{content:"";position:absolute;left:11px;top:9px;width:12px;height:12px;
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
@@ -416,8 +420,9 @@ body:not(.cocked) #shutter{opacity:.38}
       <span class="seg" id="lcdframe">001</span>
       <span class="lbl">FRAME</span>
       <span class="seg" id="lcdlens">33</span><span class="lbl">MM</span>
-      <span class="seg" id="lcdiso">222</span><span class="lbl">ISO</span>
+      <span class="seg" id="lcdlv">--</span><span class="lbl">LIGHT</span>
       <span class="state" id="lcdstate">WIND ON</span>
+      <span class="build" id="lcdbuild"></span>
     </div>
   </div>
   <div id="frame">
@@ -578,7 +583,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 88;                     /* bump with every ship; lands in EXIF */
+const BUILD = 89;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -683,11 +688,11 @@ addEventListener("visibilitychange", () => {   /* iOS drops it on return */
   if (document.visibilityState === "visible" && pending > 0) labAwake(true);
 });
 const jobFrame = new Map();
-$("ver").textContent = "b" + BUILD;
+let workerVer = "";
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
   if (ready !== undefined) {
-    if (e.data.ver) $("ver").textContent = "b" + BUILD + " \u00b7 w" + e.data.ver;
+    if (e.data.ver) { workerVer = e.data.ver; backLCD(); }
     sizeFromProbe(e.data.probe); return;
   }
   if (e.data.progress) return;
@@ -1152,18 +1157,44 @@ function cock(on) {
   const st = $("lcdstate");
   if (st) st.textContent = cocked ? "SHUTTER SET" : "WIND ON";
 }
+/* THE LIGHT READING. The camera measures the scene rather than quoting a film
+   speed at you: a 32x32 sample of the live view, mean luminance in linear
+   light, expressed on a log scale so it moves a step per stop. Roughly 4 in a
+   dim room, 13 in open sun. */
+let lvCanvas = null;
+function lightValue() {
+  const v = $("video");
+  if (!v || !v.videoWidth) return null;
+  try {
+    lvCanvas = lvCanvas || Object.assign(document.createElement("canvas"), { width: 32, height: 32 });
+    const g = lvCanvas.getContext("2d", { willReadFrequently: true });
+    g.drawImage(v, 0, 0, 32, 32);
+    const d = g.getImageData(0, 0, 32, 32).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i] / 255, gg = d[i + 1] / 255, b = d[i + 2] / 255;
+      const lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      sum += 0.2126 * lin(r) + 0.7152 * lin(gg) + 0.0722 * lin(b);
+    }
+    const mean = sum / (d.length / 4);
+    return Math.max(0, Math.min(20, Math.round(14 + 2 * Math.log2(Math.max(mean, 1e-4)))));
+  } catch (e) { return null; }
+}
 /* the back panel reads out what the camera is actually set to */
 function backLCD() {
   try {
     const mm = ($("lens").textContent || "").replace(/[^0-9]/g, "") || "33";
     $("lcdlens").textContent = mm;
     $("lcdframe").textContent = String((frameNo || 0) + 1).padStart(3, "0");
+    const lv = lightValue();
+    $("lcdlv").textContent = lv === null ? "--" : String(lv).padStart(2, "0");
+    $("lcdbuild").textContent = "b" + BUILD + (workerVer ? " w" + workerVer : "");
   } catch (e) {}
 }
 let frameNo = 0;
 try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; } catch (e) {}
 backLCD();
-setInterval(backLCD, 1200);                 /* cheap: keeps the lens readout honest */
+setInterval(backLCD, 700);                 /* cheap: keeps the lens readout honest */
 $("windwrap").onclick = () => {
   if (cocked) return;                       /* already set: no double stroke */
   const w = $("wind");
@@ -1437,7 +1468,7 @@ async function openPrint(id) {
     const blob = await get("prints", id);
     const secs = localStorage["t" + id] || "";
     armedFile = new File([blob],
-      "EMULSIFY-222" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
+      "EMULSIFY" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
       { type: "image/jpeg" });
   } catch (e) { armedFile = null; }
   let negD = null;
