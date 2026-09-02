@@ -310,6 +310,16 @@ body.f-rf #rf{display:block}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 /* asleep: the finder and the back fall away until touched */
 #dim{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .35s var(--ease);z-index:4}
+/* THE CURTAINS. After the frame, two focal-plane blinds meet across the gate
+   and hide the change of state: the finder shrinking, the instruments coming
+   back. When they part, everything behind them is already in its place. A
+   transform on two elements: the compositor does it for nothing. */
+#curtains{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+#curtains i{position:absolute;top:0;bottom:0;width:50.5%;background:#0a0a0a;
+  transition:transform .30s cubic-bezier(.2,.8,.2,1)}
+#curtains .l{left:0;transform:translateX(-101%);box-shadow:inset -3px 0 6px rgba(0,0,0,.9), 1px 0 0 rgba(255,255,255,.07)}
+#curtains .r{right:0;transform:translateX(101%);box-shadow:inset 3px 0 6px rgba(0,0,0,.9), -1px 0 0 rgba(255,255,255,.07)}
+body.curtain #curtains i{transform:none;transition:transform .09s cubic-bezier(.4,0,1,1)}
 body.sleep #dim{opacity:.8;transition:opacity 1.6s var(--ease)}
 body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
 body.sleep #aura,body.sleep #sparkle{opacity:0 !important}
@@ -743,6 +753,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="tension"><i></i><i></i><i></i><i></i></div>
       <div id="flash"></div>
       <div id="dim"></div>
+      <div id="curtains"><i class="l"></i><i class="r"></i></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
   </div>
@@ -879,7 +890,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 123;                     /* bump with every ship; lands in EXIF */
+const BUILD = 124;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2062,9 +2073,14 @@ document.addEventListener("visibilitychange", () => {
 });
 wake();
 function release() {                        /* the frame is taken: let go */
-  cock(false);
-  document.body.classList.add("released");
-  setTimeout(() => document.body.classList.remove("released"), 440);
+  const body = document.body;
+  body.classList.add("curtain");            /* blinds meet: 90 ms */
+  setTimeout(() => {
+    cock(false);                            /* behind them: finder shrinks, instruments return */
+    body.classList.add("released");
+    setTimeout(() => body.classList.remove("released"), 440);
+  }, 100);
+  setTimeout(() => body.classList.remove("curtain"), 460);   /* blinds part on a settled back */
 }
 $("shutterwrap").onclick = async () => {
   const v = $("video");
