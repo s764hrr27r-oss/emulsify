@@ -54,21 +54,20 @@ body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
      shadow. Five coloured shadows, each pushed a little toward one corner, so
      the seam is emerald here, ruby there, and never the same twice. */
   box-shadow:
-    -20px -8px 46px 5px rgba(229,180,90,.12),
-     22px -10px 46px 5px rgba(229,180,90,.10),
-     18px 20px 46px 5px rgba(229,180,90,.12),
-    -18px 22px 46px 5px rgba(229,180,90,.11),
-      0 0 30px 2px rgba(240,205,130,.05);
+    -20px -8px 46px 5px rgba(214,216,222,.11),
+     22px -10px 46px 5px rgba(214,216,222,.09),
+     18px 20px 46px 5px rgba(214,216,222,.11),
+    -18px 22px 46px 5px rgba(214,216,222,.10),
+      0 0 30px 2px rgba(236,238,242,.05);
   transition:opacity 1.4s var(--ease)}
 body.cocked #aura{opacity:1;animation:seamdrift 14s ease-in-out infinite alternate, seambreathe 3.4s ease-in-out infinite}
-/* one colour, the gold of the lines. The four lobes still trade corners so the
-   warmth is never perfectly even around the gate, but it is never anything
-   other than gold. */
+/* silver behind the gate, faintly cool, so the gold lines have something to
+   sit against rather than dissolving into more gold. The lobes still drift. */
 @keyframes seamdrift{
-  0%{box-shadow:-20px -8px 46px 5px rgba(229,180,90,.12), 22px -10px 46px 5px rgba(229,180,90,.10),
-                18px 20px 46px 5px rgba(229,180,90,.12), -18px 22px 46px 5px rgba(229,180,90,.11), 0 0 30px 2px rgba(240,205,130,.05)}
-  100%{box-shadow:-12px 20px 46px 5px rgba(229,180,90,.11), -22px -10px 46px 5px rgba(229,180,90,.12),
-                 20px -16px 46px 5px rgba(229,180,90,.10), 18px 18px 46px 5px rgba(229,180,90,.12), 0 0 32px 2px rgba(240,205,130,.05)}}
+  0%{box-shadow:-20px -8px 46px 5px rgba(214,216,222,.11), 22px -10px 46px 5px rgba(214,216,222,.09),
+                18px 20px 46px 5px rgba(214,216,222,.11), -18px 22px 46px 5px rgba(214,216,222,.10), 0 0 30px 2px rgba(236,238,242,.05)}
+  100%{box-shadow:-12px 20px 46px 5px rgba(214,216,222,.10), -22px -10px 46px 5px rgba(214,216,222,.11),
+                 20px -16px 46px 5px rgba(214,216,222,.09), 18px 18px 46px 5px rgba(214,216,222,.11), 0 0 32px 2px rgba(236,238,242,.05)}}
 @keyframes seambreathe{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.15)}}
 body.released #aura{transition:opacity .4s var(--ease);opacity:0;animation:none}
 #glass{position:relative;z-index:1}
@@ -122,8 +121,40 @@ body.cocked #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(
                      0 0 22px rgba(229,180,90,.18);animation:rimbreath 3.2s ease-in-out infinite}
 @keyframes rimbreath{0%,100%{box-shadow:0 0 0 1px rgba(236,236,232,.45), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(214,214,208,.25), 0 0 18px rgba(229,180,90,.12)}
                      50%{box-shadow:0 0 0 1px rgba(246,246,242,.85), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(226,226,220,.5), 0 0 30px rgba(229,180,90,.26)}}
-/* the grid itself: white, but lit, when set */
-body.cocked #lockgrid{filter:drop-shadow(0 0 2px rgba(246,220,150,.18))}
+/* THE GRID IS LIT. Not thicker: a 1px white core that carries a radiant
+   sheath, the way a blade of light does. The core is constant; only the
+   sheath breathes, and it breathes slowly and barely, so the lines feel alive
+   rather than blink. Two shadows: a tight warm halo and a wide faint one. */
+body.cocked.f-grid #lockgrid{
+  filter:drop-shadow(0 0 1.6px rgba(255,236,200,.62)) drop-shadow(0 0 8px rgba(236,150,60,.20));
+  animation:lockin .5s cubic-bezier(.16,.9,.22,1) both, saber 3.6s ease-in-out .5s infinite}
+/* THE RANGEFINDER PATCH, set: the small rectangle is the hottest thing on the
+   glass. Its border goes from cool blue to a warm white core with a fire sheath
+   heavier than the grid's, and it breathes faster. The corner brackets take a
+   lesser share of the same heat. */
+#rf b{transition:border-color .5s var(--ease), filter .5s var(--ease)}
+body.cocked #rf b{border-color:rgba(59,130,246,.95);   /* the patch keeps its blue */
+  filter:drop-shadow(0 0 2px rgba(255,220,170,.85)) drop-shadow(0 0 9px rgba(240,140,50,.42)) drop-shadow(0 0 22px rgba(236,120,40,.22));
+  animation:rfire 2.6s ease-in-out .4s infinite}
+@keyframes rfire{
+  0%,100%{filter:drop-shadow(0 0 2px rgba(255,220,170,.80)) drop-shadow(0 0 8px rgba(240,140,50,.36)) drop-shadow(0 0 20px rgba(236,120,40,.18))}
+  50%{filter:drop-shadow(0 0 3px rgba(255,232,190,1)) drop-shadow(0 0 14px rgba(244,140,44,.58)) drop-shadow(0 0 30px rgba(236,120,40,.34))}}
+body.cocked #rf i{border-color:rgba(255,236,206,.9);
+  filter:drop-shadow(0 0 1.5px rgba(255,220,170,.6)) drop-shadow(0 0 7px rgba(236,140,50,.26));
+  animation:rfire2 2.6s ease-in-out 1.0s infinite}
+@keyframes rfire2{
+  0%,100%{filter:drop-shadow(0 0 1.5px rgba(255,220,170,.55)) drop-shadow(0 0 6px rgba(236,140,50,.22))}
+  50%{filter:drop-shadow(0 0 2.2px rgba(255,232,190,.85)) drop-shadow(0 0 11px rgba(244,140,44,.40))}}
+/* fire, not gold: the sheath runs amber into orange, and the outer glow is the
+   part that moves. The 1px white core still never changes. */
+@keyframes saber{
+  0%,100%{filter:drop-shadow(0 0 1.6px rgba(255,236,200,.56)) drop-shadow(0 0 7px rgba(236,150,60,.16))}
+  50%{filter:drop-shadow(0 0 2.4px rgba(255,240,210,.80)) drop-shadow(0 0 12px rgba(240,140,50,.30))}}
+/* the corner marks breathe with it, a beat behind */
+body.cocked #tension i{animation:drawin .34s var(--ease) both, cornerglow 4.2s ease-in-out 1.2s infinite}
+@keyframes cornerglow{
+  0%,100%{box-shadow:0 0 6px rgba(236,150,60,.26)}
+  50%{box-shadow:0 0 12px rgba(240,140,50,.44)}}
 /* the tension corners pick up the same warmth */
 body.cocked #tension i{border-color:rgba(255,240,205,.95);
   box-shadow:0 0 8px rgba(229,180,90,.35)}
@@ -254,7 +285,7 @@ body.cocked #wind b{color:var(--ready)}
 body:not(.cocked) #glass{filter:brightness(.9) saturate(.9) contrast(.98)}
 body:not(.cocked) #grid,body:not(.cocked) #quad{opacity:.10}
 body:not(.cocked) #rf,body:not(.cocked) #spot,body:not(.cocked) #cross{opacity:.2}
-body.cocked #glass{filter:brightness(1.04) saturate(1.05) contrast(1.02) sepia(.04)}
+body.cocked #glass{filter:brightness(1.04) saturate(1.05) contrast(1.02)}
 body:not(.cocked) .deck{opacity:.6;transition:opacity .3s var(--ease)}
 /* LOCK IN: the grid goes from a grey suggestion to a hard white frame line.
    Idle it is barely there; set, it is the brightest thing on the glass. */
@@ -265,7 +296,7 @@ body:not(.cocked) .deck{opacity:.6;transition:opacity .3s var(--ease)}
    linear-gradient(to bottom, transparent calc(33.33% - 1px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + 1px)),
    linear-gradient(to bottom, transparent calc(66.66% - 1px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + 1px));
   transition:opacity .3s var(--ease)}
-body.cocked #lockgrid{opacity:1;animation:lockin .5s cubic-bezier(.16,.9,.22,1) both}
+body.cocked.f-grid #lockgrid{opacity:1;animation:lockin .5s cubic-bezier(.16,.9,.22,1) both}
 @keyframes lockin{0%{transform:scale(1.2);opacity:0;filter:blur(2px)}
                   55%{opacity:1;filter:blur(0)}
                   72%{transform:scale(.992)}
@@ -686,7 +717,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 97;                     /* bump with every ship; lands in EXIF */
+const BUILD = 101;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1085,8 +1116,8 @@ const FINDERS = [
 ];
 let FINDER = (() => { try {
   const v = localStorage["finder"];
-  return FINDERS.some(f => f.k === v) ? v : "grid";
-} catch (e) { return "grid"; } })();
+  return FINDERS.some(f => f.k === v) ? v : "rf";
+} catch (e) { return "rf"; } })();
 function setFinder(m) {
   const f = FINDERS.find(x => x.k === m) || FINDERS[0];
   FINDER = f.k;
@@ -1271,6 +1302,40 @@ function galleryNote(i) {
     });
   } catch (e) {}
 }
+/* THE HUM. While the shutter is set the camera idles like a blade: two low
+   saws a hair apart so they beat against each other, an octave shimmer, all
+   through a lowpass that a slow LFO sways. It is tuned to disappear: at full
+   phone volume it is a presence in the room, not a sound you would name. It
+   fades up over a second when you wind, drops in half a second when you fire,
+   and stays quiet while you are in the gallery. */
+let hum = null;
+function humStart() {
+  if (hum || !cocked || $("print").classList.contains("on")) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const t = AC.currentTime;
+    const out = AC.createGain(); out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.0022, t + 1.4);   /* ear-to-the-body quiet */
+    const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 260; lp.Q.value = 0.7;
+    const lfo = AC.createOscillator(); lfo.frequency.value = 0.31;
+    const lfoG = AC.createGain(); lfoG.gain.value = 70; lfo.connect(lfoG); lfoG.connect(lp.frequency);
+    const mk = (type, f, g) => { const o = AC.createOscillator(), gg = AC.createGain(); o.type = type; o.frequency.value = f; gg.gain.value = g; o.connect(gg); gg.connect(lp); o.start(t); return o; };
+    const a = mk("sawtooth", 88.0, 0.40), b = mk("sawtooth", 90.4, 0.40), c = mk("sine", 176.0, 0.14), d = mk("sine", 44.0, 0.45);
+    lfo.start(t); lp.connect(out); out.connect(AC.destination);
+    hum = { out, nodes: [a, b, c, d, lfo] };
+  } catch (e) { hum = null; }
+}
+function humStop() {
+  if (!hum) return;
+  try {
+    const t = AC.currentTime, h = hum; hum = null;
+    h.out.gain.cancelScheduledValues(t);
+    h.out.gain.setValueAtTime(Math.max(h.out.gain.value, 0.0001), t);
+    h.out.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+    setTimeout(() => { try { h.nodes.forEach(n => n.stop()); h.out.disconnect(); } catch (e) {} }, 520);
+  } catch (e) { hum = null; }
+}
 function shutterVoice() {
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
@@ -1303,6 +1368,7 @@ function cock(on) {
   if (b) b.textContent = cocked ? "READY" : "TAP TO READY";
   const st = $("lcdstate");
   if (st) st.textContent = cocked ? "SHUTTER SET" : "WIND ON";
+  if (cocked) humStart(); else humStop();
 }
 /* THE LIGHT READING. The camera measures the scene rather than quoting a film
    speed at you: a 32x32 sample of the live view, mean luminance in linear
@@ -1659,7 +1725,7 @@ async function openPrint(id) {
   if (negD) { try { put("prints", id + ":neg", ""); } catch (e) {} }
 
   await buildStrip(id);
-  $("print").classList.add("on");
+  humStop(); $("print").classList.add("on");
   setPaged(true);
 }
 /* the strip IS the gallery: frames still in the bath sit at the front,
@@ -1707,7 +1773,7 @@ async function buildStrip(selId) {
 }
 /* one door for both: a print opens as a print, a frame in the bath opens
    as itself and keeps developing on the full screen */
-function openItem(id) { return cooking.has(id) ? openCooking(id) : openPrint(id); }
+function openItem(id) { humStop(); return cooking.has(id) ? openCooking(id) : openPrint(id); }
 async function openCooking(id) {
   watching = id; current = null; armedFile = null;
   const stage = $("stage"); stage.innerHTML = "";
@@ -1718,7 +1784,7 @@ async function openCooking(id) {
     stage.appendChild(img);
   }
   await buildStrip(id);
-  $("print").classList.add("on");
+  humStop(); $("print").classList.add("on");
   setPaged(true);
 }
 function paintWatched() {              /* a new stage landed while watching */
@@ -1735,7 +1801,7 @@ function paintWatched() {              /* a new stage landed while watching */
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
   }, 2600);
 }
-$("back").onclick = () => { $("print").classList.remove("on"); setPaged(false);
+$("back").onclick = () => { $("print").classList.remove("on"); setPaged(false); if (cocked) humStart();
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
