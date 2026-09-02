@@ -49,6 +49,7 @@ body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
    slowly against each other so the leak never settles, plus a slow breath.
    Everything about it is implied. If you can name a colour it is too strong. */
 #aura{position:absolute;inset:-9% -14%;pointer-events:none;z-index:0;opacity:0;
+  /* JS pins this to the glass's rect (see fitAura); the inset is only a fallback */
   background:
     radial-gradient(42% 36% at 16% 28%, rgba(31,160,105,.62), transparent 68%),
     radial-gradient(36% 42% at 84% 24%, rgba(200,40,62,.55), transparent 68%),
@@ -72,6 +73,52 @@ body.cocked #backlcd .seg{color:#ecc46a;
   text-shadow:0 0 6px rgba(236,196,106,.55), 0 0 18px rgba(229,180,90,.28)}
 body.cocked #backlcd .lbl{color:#c9a862;opacity:.7;transition:color .6s var(--ease)}
 body.cocked #backlcd{background:rgba(229,180,90,.035)}
+/* ---------- EXPENSIVE LINES ----------
+   A flat 1px hairline is a wireframe. A 1px line that carries a gradient,
+   catches a highlight at one corner and falls to shadow at the other, is a
+   jewelry box. Every outline gets the treatment; when the shutter is set the
+   highlights turn to silver and gold and breathe, slightly out of phase, so
+   nothing on the back of the camera is ever quite still. */
+.deck::before,.lensbtn,#chip,#wind,#backlcd{
+  border-color:transparent !important;
+  background-image:linear-gradient(var(--edge-a,135deg),
+     rgba(214,214,208,.30) 0%, rgba(96,96,92,.14) 38%, rgba(40,40,38,.18) 62%, rgba(196,196,190,.24) 100%);
+  background-origin:border-box;background-clip:border-box;
+  -webkit-mask:linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);mask-composite:exclude}
+/* the ones that also hold content keep it: mask only the ring layer via a pseudo */
+.lensbtn,#chip,#wind,#backlcd{-webkit-mask:none;mask:none;background-image:none;position:relative}
+.lensbtn::after,#chip::after,#wind::after,#backlcd::after{content:"";position:absolute;inset:0;border-radius:inherit;z-index:2;
+  pointer-events:none;padding:1px;
+  background:linear-gradient(135deg, rgba(214,214,208,.34), rgba(96,96,92,.14) 40%, rgba(40,40,38,.16) 60%, rgba(196,196,190,.26));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);mask-composite:exclude;
+  transition:opacity .6s var(--ease)}
+/* set: silver brightens to a live sheen and breathes; the wind and panel go gold */
+body.cocked .lensbtn::after,body.cocked #chip::after{
+  background:linear-gradient(135deg, rgba(240,240,236,.85), rgba(150,150,146,.35) 42%, rgba(70,70,68,.3) 58%, rgba(230,230,226,.7));
+  animation:silverbreath 3.2s ease-in-out infinite}
+body.cocked #finder::after{animation-delay:-.6s}
+body.cocked #lens::after{animation-delay:-1.3s}
+body.cocked #ana::after{animation-delay:-2.1s}
+body.cocked #chip::after{animation-delay:-1.7s}
+@keyframes silverbreath{0%,100%{opacity:.55;filter:brightness(.9)}50%{opacity:1;filter:brightness(1.25)}}
+body.cocked #wind::after,body.cocked #backlcd::after{
+  background:linear-gradient(135deg, rgba(246,220,150,.9), rgba(196,150,70,.35) 40%, rgba(120,90,40,.3) 60%, rgba(236,196,106,.85));
+  animation:goldshimmer 5s linear infinite;background-size:220% 220%}
+@keyframes goldshimmer{0%{background-position:0% 0%}100%{background-position:100% 100%}}
+/* the deck outline: a silver hairline that lights when set */
+.deck::before{opacity:.75;transition:opacity .6s var(--ease)}
+body.cocked .deck::before{opacity:1;
+  background-image:linear-gradient(135deg, rgba(236,236,232,.55), rgba(120,120,116,.16) 40%, rgba(60,60,58,.18) 60%, rgba(220,220,216,.45))}
+/* the shutter rim turns to metal when set */
+#shutter{transition:opacity .25s var(--ease), box-shadow .6s var(--ease)}
+body.cocked #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(214,214,208,.35),
+                     0 0 22px rgba(229,180,90,.18);animation:rimbreath 3.2s ease-in-out infinite}
+@keyframes rimbreath{0%,100%{box-shadow:0 0 0 1px rgba(236,236,232,.45), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(214,214,208,.25), 0 0 18px rgba(229,180,90,.12)}
+                     50%{box-shadow:0 0 0 1px rgba(246,246,242,.85), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(226,226,220,.5), 0 0 30px rgba(229,180,90,.26)}}
+/* the grid itself: white, but lit, when set */
+body.cocked #lockgrid{filter:drop-shadow(0 0 3px rgba(246,220,150,.35))}
 /* the tension corners pick up the same warmth */
 body.cocked #tension i{border-color:rgba(255,240,205,.95);
   box-shadow:0 0 8px rgba(229,180,90,.35)}
@@ -628,7 +675,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 91;                     /* bump with every ship; lands in EXIF */
+const BUILD = 92;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -734,6 +781,24 @@ addEventListener("visibilitychange", () => {   /* iOS drops it on return */
 });
 const jobFrame = new Map();
 let workerVer = "";
+/* the aura must hug the GLASS, not the frame: in landscape the frame is much
+   wider than the gate, and a frame-sized glow stood fully exposed in the
+   margins. Pin it to the glass's rectangle, bleeding 14% past each side. */
+function fitAura() {
+  try {
+    const g = $("glass").getBoundingClientRect(), f = $("frame").getBoundingClientRect(), a = $("aura");
+    if (!g.width || !g.height) return;
+    const bx = g.width * 0.14, by = g.height * 0.10;
+    a.style.inset = "auto";
+    a.style.left = (g.left - f.left - bx) + "px";
+    a.style.top = (g.top - f.top - by) + "px";
+    a.style.width = (g.width + 2 * bx) + "px";
+    a.style.height = (g.height + 2 * by) + "px";
+  } catch (e) {}
+}
+addEventListener("resize", fitAura);
+addEventListener("orientationchange", () => setTimeout(fitAura, 120));
+setTimeout(fitAura, 60); setTimeout(fitAura, 700); setInterval(fitAura, 2500);
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
   if (ready !== undefined) {
