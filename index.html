@@ -381,7 +381,7 @@ body.released #scopes{transition:opacity .26s var(--ease), transform .24s cubic-
 body.sleep #scopes{opacity:0}
 #scopes .slot{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:hidden}
 #scopes .slot.top,#scopes .slot.bottom{flex-direction:row;align-items:flex-end}
-#scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto;padding:2px;box-sizing:border-box;overflow:hidden}
+#scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto;padding:5px;box-sizing:border-box}
 #scopes .card.on{display:flex}
 /* THE HOUSING. Black-painted steel that has been used: the paint is worn
    through to bare metal along the edges and at the corners where fingers go,
@@ -393,7 +393,7 @@ body.sleep #scopes{opacity:0}
     repeating-linear-gradient(-63deg, rgba(0,0,0,.18) 0 1px, transparent 1px 7px),          /* and another */
     radial-gradient(90% 70% at 20% 0%, rgba(255,255,255,.07), transparent 55%),
     linear-gradient(160deg, #2d2f31 0%, #1c1d1f 40%, #26282a 65%, #131415 100%);
-  box-shadow:0 3px 7px rgba(0,0,0,.95), 0 0 0 1px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.7)}
+  box-shadow:0 2px 3px rgba(0,0,0,.95), 0 0 0 1px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.7)}
 /* the worn edge: paint gone, steel showing, brighter where it is handled */
 #scopes .face::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
   background:linear-gradient(135deg, rgba(200,204,210,.75) 0%, rgba(120,124,130,.25) 18%, rgba(60,62,66,.15) 45%, rgba(150,154,160,.4) 78%, rgba(210,214,220,.7) 100%);
@@ -424,7 +424,7 @@ body.sleep #scopes{opacity:0}
 #scopes .card.vec canvas,#scopes .card.vec .face,#scopes .card.vec .wear{border-radius:50%}
 #scopes .card.vec .screw{display:none}
 /* the nameplate: engraved into the steel below the face */
-#scopes .lbl{font:6.5px ui-monospace,Menlo,monospace;letter-spacing:.22em;color:#8b8f95;opacity:.9;
+#scopes .lbl{font:6.5px/9px ui-monospace,Menlo,monospace;height:9px;letter-spacing:.22em;color:#8b8f95;opacity:.9;
   max-width:100%;white-space:nowrap;overflow:hidden;
   text-shadow:0 -1px 0 rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.12)}
 /* the glass: a soft curved specular across the upper face; the lamp: a warm
@@ -906,7 +906,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 128;                     /* bump with every ship; lands in EXIF */
+const BUILD = 129;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1704,7 +1704,7 @@ function paintScopeCards() {
       const turningOn = !scopesOn.has(k);
       if (turningOn) scopesOn.add(k); else scopesOn.delete(k);
       try { localStorage.scopes = JSON.stringify([...scopesOn]); } catch (e) {}
-      paintScopeCards(); fitScopes();
+      paintScopeCards(); fitAndVerify();
       if (turningOn) warmUp(k);
       scopeLoop();
     };
@@ -1753,7 +1753,9 @@ function fitScopes() {
     left:   [ex, midY, fx - m - ex, midH],
     right:  [fx + fw + m, midY, W - (fx + fw + m) - ex, midH],
   };
-  const LBL = 13, PADF = 14, CGAP = 10;   /* face padding 10 + card padding 4, so screws stay inside the card */
+  /* the card box, exactly: canvas + face padding (10) + card padding (10) wide;
+     canvas + 10 + 10 + gap 3 + label 9 tall */
+  const PADF = 20, LBLH = 12, CGAP = 10;
   for (const slot in boxes) {
     const el = $("scopes").querySelector("." + slot); const [x, y, w, h] = boxes[slot];
     el.style.left = x + "px"; el.style.top = y + "px"; el.style.width = Math.max(0, w) + "px"; el.style.height = Math.max(0, h) + "px";
@@ -1762,30 +1764,56 @@ function fitScopes() {
     if (slot === "top" || slot === "bottom") {
       /* a row: every card as tall as the band allows, widths by aspect, then
          scaled down together if the row would be wider than the band */
-      let ch = h - LBL - PADF - 2, ws = cards.map(([, , , asp]) => ch * asp);
-      const total = ws.reduce((a, b) => a + b, 0) + CGAP * (cards.length - 1);
-      const avail = w - PADF - 2;
-      if (total > avail) { const k = (avail - CGAP * (cards.length - 1)) / (total - CGAP * (cards.length - 1)); ws = ws.map(v => v * k); ch *= k; }
+      let ch = h - PADF - LBLH, ws = cards.map(([, , , asp]) => ch * asp);
+      const overhead = cards.length * PADF + CGAP * (cards.length - 1);      /* every card's own frame, plus gaps */
+      const sum = ws.reduce((a, b) => a + b, 0);
+      if (sum + overhead > w) { const k = (w - overhead) / sum; ws = ws.map(v => v * k); ch *= k; }
       cards.forEach(([k], i) => { scopeEls[k].cv.style.width = Math.round(ws[i]) + "px"; scopeEls[k].cv.style.height = Math.round(ch) + "px";
                                   scopeEls[k].card.style.width = Math.round(ws[i] + PADF) + "px"; });
     } else {
       /* a column: as wide as the column allows, capped by its share of the height */
       const share = (h - CGAP * (cards.length - 1)) / cards.length;
       for (const [k, , , asp] of cards) {
-        let cw = w - PADF - 2, ch = cw / asp;
-        if (ch > share - LBL - PADF - 2) { ch = Math.max(20, share - LBL - PADF - 2); cw = ch * asp; }
+        let cw = w - PADF, ch = cw / asp;
+        if (ch > share - PADF - LBLH) { ch = Math.max(20, share - PADF - LBLH); cw = ch * asp; }
         scopeEls[k].cv.style.width = Math.round(cw) + "px"; scopeEls[k].cv.style.height = Math.round(ch) + "px";
         scopeEls[k].card.style.width = Math.round(cw + PADF) + "px";
       }
     }
   }
 }
-addEventListener("resize", fitScopes); addEventListener("orientationchange", () => setTimeout(fitScopes, 140));
+/* VERIFY. Arithmetic about boxes has been wrong before. This reads the rendered
+   rectangle of every card and compares it to its slot and to the frame lines
+   the brackets imply; any card that exceeds either is shrunk to fit and the
+   check runs again. Three passes at most. The rule is enforced by measurement. */
+function verifyScopes(pass) {
+  pass = pass || 0;
+  const g = $("glass").getBoundingClientRect();
+  const F = { l: g.left + g.width * 0.07 + 2, t: g.top + g.height * 0.07 + 2, r: g.right - g.width * 0.07 - 2, b: g.bottom - g.height * 0.07 - 2 };
+  let bad = false;
+  for (const [k, , slot, asp] of SCOPES) {
+    if (!scopesOn.has(k)) continue;
+    const card = scopeEls[k].card, cv = scopeEls[k].cv;
+    const r = card.getBoundingClientRect(), sr = $("scopes").querySelector("." + slot).getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const overX = Math.max(0, sr.left - r.left, r.right - sr.right, F.l - r.left, r.right - F.r);
+    const overY = Math.max(0, sr.top - r.top, r.bottom - sr.bottom, F.t - r.top, r.bottom - F.b);
+    if (overX > 0.5 || overY > 0.5) {
+      bad = true;
+      const kx = (r.width - 2 * overX - 1) / r.width, ky = (r.height - 2 * overY - 1) / r.height, kk = Math.max(0.5, Math.min(kx, ky));
+      const cw = parseFloat(cv.style.width) * kk, ch = cw / asp;
+      cv.style.width = Math.floor(cw) + "px"; cv.style.height = Math.floor(ch) + "px"; card.style.width = Math.floor(cw + 20) + "px";
+    }
+  }
+  if (bad && pass < 3) requestAnimationFrame(() => verifyScopes(pass + 1));
+}
+const fitAndVerify = () => { fitScopes(); requestAnimationFrame(() => verifyScopes(0)); };
+addEventListener("resize", fitAndVerify); addEventListener("orientationchange", () => setTimeout(fitAndVerify, 140));
 /* the glass's real size, whenever it changes, is what positions the slots: a
    ResizeObserver means no card is ever laid out against a stale or zero size,
    which is what left cards cut at the gate edge after rotation */
-try { new ResizeObserver(() => { fitScopes(); fitAura(); }).observe($("glass")); } catch (e) {}
-setTimeout(fitScopes, 80); setTimeout(fitScopes, 800); setTimeout(() => warmUp(), 900);
+try { new ResizeObserver(() => { fitAndVerify(); fitAura(); }).observe($("glass")); } catch (e) {}
+setTimeout(fitAndVerify, 80); setTimeout(fitAndVerify, 800); setTimeout(() => warmUp(), 900);
 
 let scCanvas = null, lvHistory = [], scopeRAF = 0, lastScope = 0;
 function sampleFrame() {
