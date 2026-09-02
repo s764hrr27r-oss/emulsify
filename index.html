@@ -193,34 +193,6 @@ body.cocked #tension i{animation:drawin .34s var(--ease) both, cornerglow 4.2s e
 @keyframes cornerglow{
   0%,100%{box-shadow:0 0 6px rgba(236,150,60,.26)}
   50%{box-shadow:0 0 12px rgba(240,140,50,.44)}}
-/* THE LEVEL. A short hairline at the centre of the gate that tilts with the
-   phone. Silver while off, gold when the horizon is within a degree. Only
-   while the shutter is set, and only if the phone agrees to say which way is
-   down. The kind of thing you stop noticing until the day you need it. */
-#level{position:absolute;left:50%;top:50%;width:26%;height:0;translate:-50% 0;pointer-events:none;
-  opacity:0;transition:opacity .5s var(--ease)}
-#level i{position:absolute;left:0;right:0;top:-.5px;height:1px;background:rgba(214,216,222,.55);
-  transform-origin:50% 50%;transition:background .3s var(--ease), box-shadow .3s var(--ease)}
-#level::before,#level::after{content:"";position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;
-  border:1px solid rgba(214,216,222,.5);background:transparent}
-#level::before{left:-7px} #level::after{right:-7px}
-body.cocked.haslevel #level{opacity:1}
-#level.true i{background:rgba(236,196,106,.95);box-shadow:0 0 6px rgba(229,180,90,.45)}
-#level.true::before,#level.true::after{border-color:rgba(236,196,106,.9)}
-/* On a 3x screen a 1px CSS line is three device pixels. A hairline should be
-   one. Every line that is meant to be fine is drawn at a third of a pixel
-   where the screen can do it, which keeps the white core of the grid a true
-   core and lets the sheath do the glowing. */
-@media (min-resolution: 2dppx){
-  #lockgrid{background:
-   linear-gradient(to right, transparent calc(33.33% - .5px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + .5px)),
-   linear-gradient(to right, transparent calc(66.66% - .5px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + .5px)),
-   linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + .5px)),
-   linear-gradient(to bottom, transparent calc(66.66% - .5px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + .5px))}
-  #level i{height:.5px}
-  #rf b{border-width:.5px}
-  .lensbtn::after,#chip::after,#wind::after,#backlcd::after{padding:.5px}
-}
 /* the tension corners pick up the same warmth */
 body.cocked #tension i{border-color:rgba(255,240,205,.95);
   box-shadow:0 0 8px rgba(229,180,90,.35)}
@@ -690,7 +662,6 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="lockgrid"></div>
       <div id="sparkle"></div>
       <div id="tension"><i></i><i></i><i></i><i></i></div>
-      <div id="level"><i></i></div>
       <div id="flash"></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
@@ -827,7 +798,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 111;                     /* bump with every ship; lands in EXIF */
+const BUILD = 112;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1651,7 +1622,6 @@ $("windwrap").onclick = () => {
   if (cocked) return;                       /* already set: no double stroke */
   const w = $("wind");
   w.classList.add("winding");
-  levelArm();                               /* first wind: ask the phone which way is down */
   windVoice();                              /* the ratchet; the switch gives the tick */
   cock(true);                               /* the picture grows WHILE the lever runs */
   setTimeout(() => {                        /* the perforations reset once stopped */
@@ -1669,29 +1639,6 @@ $("windwrap").addEventListener("pointerdown", () => {
 });
 ["pointerup","pointercancel","pointerleave"].forEach(ev =>
   $("windwrap").addEventListener(ev, () => clearTimeout(windHold)));
-/* the level asks the phone once, on the first wind, since iOS wants a gesture */
-let levelArmed = false;
-function levelArm() {
-  if (levelArmed) return; levelArmed = true;
-  const go = () => {
-    addEventListener("deviceorientation", e => {
-      if (e.gamma === null || e.beta === null) return;
-      /* roll about the viewing axis: gamma in portrait, beta in landscape */
-      const land = matchMedia("(orientation: landscape)").matches;
-      let roll = land ? e.beta : e.gamma;
-      if (land && document.body.classList.contains("flip")) roll = -roll;
-      if (Math.abs(roll) > 45) return;                    /* pointing at the floor: no horizon */
-      const lv = $("level"); lv.querySelector("i").style.transform = "rotate(" + (-roll).toFixed(2) + "deg)";
-      lv.classList.toggle("true", Math.abs(roll) < 1.0);
-      document.body.classList.add("haslevel");
-    }, { passive: true });
-  };
-  try {
-    if (typeof DeviceOrientationEvent !== "undefined" && DeviceOrientationEvent.requestPermission)
-      DeviceOrientationEvent.requestPermission().then(r => { if (r === "granted") go(); }).catch(() => {});
-    else go();
-  } catch (e) {}
-}
 function release() {                        /* the frame is taken: let go */
   cock(false);
   document.body.classList.add("released");
