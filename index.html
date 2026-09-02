@@ -31,14 +31,16 @@ body.paged #camera{transform:scale(.97)}
    glass in front, the film speed, and whether the shutter is set. It is the
    thing that makes a small finder read as a finder rather than a bug. */
 .top{height:36px;flex:0 0 auto;display:flex;align-items:center;padding:0 18px}
-#backlcd{flex:1;display:flex;align-items:baseline;gap:6px;
+#backlcd{flex:1;display:flex;align-items:baseline;gap:5px;flex-wrap:nowrap;overflow:hidden;
   font:11px ui-monospace,Menlo,monospace;color:var(--mute);
-  border:1px solid var(--hair);border-radius:5px;padding:4px 10px;
-  background:rgba(255,255,255,.012)}
-#backlcd .seg{font-size:13px;letter-spacing:.06em;color:#cfcdc7}
-#backlcd .lbl{font-size:8px;letter-spacing:.16em;opacity:.55;margin-right:6px}
-#backlcd .state{margin-left:auto;font-size:9px;letter-spacing:.18em;opacity:.75}
-#backlcd .build{font-size:8px;letter-spacing:.06em;opacity:.3;margin-left:8px}
+  border:1px solid var(--hair);border-radius:5px;padding:4px 9px;
+  background:rgba(255,255,255,.012);white-space:nowrap}
+#backlcd .seg{font-size:12.5px;letter-spacing:.05em;color:#cfcdc7;flex:0 0 auto}
+#backlcd .lbl{font-size:7.5px;letter-spacing:.14em;opacity:.55;margin-right:4px;flex:0 0 auto}
+#backlcd .state{margin-left:auto;font-size:8.5px;letter-spacing:.14em;opacity:.75;flex:0 0 auto;white-space:nowrap}
+#backlcd .build{font-size:7.5px;letter-spacing:.04em;opacity:.3;margin-left:6px;flex:0 0 auto}
+/* on the narrowest portrait widths the build yields before anything wraps */
+@media (max-width: 400px) and (orientation: portrait){ #backlcd .build{display:none} }
 body.cocked #backlcd .state{color:var(--ready);opacity:1}
 body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px;position:relative}
@@ -778,7 +780,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 105;                     /* bump with every ship; lands in EXIF */
+const BUILD = 106;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
