@@ -35,7 +35,9 @@ body.paged #camera{transform:scale(.97)}
   font:11px ui-monospace,Menlo,monospace;color:var(--mute);
   border:1px solid var(--hair);border-radius:5px;padding:4px 9px;
   background:rgba(255,255,255,.012);white-space:nowrap}
-#backlcd .seg{font-size:12.5px;letter-spacing:.05em;color:#cfcdc7;flex:0 0 auto;display:inline-block}
+#backlcd .seg{font-size:12.5px;letter-spacing:.05em;color:#cfcdc7;flex:0 0 auto;display:inline-block;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+#edgecode,#evrow .val{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
 #backlcd #lcdframe.late{color:#e0a050}
 body.cocked #backlcd #lcdframe.late{color:#f0b060}
 /* 5. ODOMETER: a changed digit arrives from below, the way a mechanical counter turns */
@@ -59,25 +61,22 @@ body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
    slowly against each other so the leak never settles, plus a slow breath.
    Everything about it is implied. If you can name a colour it is too strong. */
 #aura{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:0;background:transparent;
-  /* JS pins this to the glass's exact rect (fitAura). It has no fill at all:
-     the glass covers it completely, and the only thing that can escape is its
-     shadow. Five coloured shadows, each pushed a little toward one corner, so
-     the seam is emerald here, ruby there, and never the same twice. */
-  box-shadow:
-    -20px -8px 46px 5px rgba(214,216,222,0.055),
-     22px -10px 46px 5px rgba(214,216,222,0.045),
-     18px 20px 46px 5px rgba(214,216,222,0.055),
-    -18px 22px 46px 5px rgba(214,216,222,0.050),
-      0 0 30px 2px rgba(236,238,242,0.025);
   transition:opacity 1.4s var(--ease)}
-body.cocked #aura{opacity:1;animation:seamdrift 14s ease-in-out infinite alternate, seambreathe 3.4s ease-in-out infinite}
-/* silver behind the gate, faintly cool, so the gold lines have something to
-   sit against rather than dissolving into more gold. The lobes still drift. */
-@keyframes seamdrift{
-  0%{box-shadow:-20px -8px 46px 5px rgba(214,216,222,0.055), 22px -10px 46px 5px rgba(214,216,222,0.045),
-                18px 20px 46px 5px rgba(214,216,222,0.055), -18px 22px 46px 5px rgba(214,216,222,0.050), 0 0 30px 2px rgba(236,238,242,0.025)}
-  100%{box-shadow:-12px 20px 46px 5px rgba(214,216,222,0.050), -22px -10px 46px 5px rgba(214,216,222,0.055),
-                 20px -16px 46px 5px rgba(214,216,222,0.045), 18px 18px 46px 5px rgba(214,216,222,0.055), 0 0 32px 2px rgba(236,238,242,0.025)}}
+/* Animating box-shadow re-rasterises the blur every frame, which on a phone
+   is the difference between a camera and a space heater. So: two children,
+   each holding one static shadow state, crossfading on opacity, which the
+   compositor does for free. Same drift, no cost. */
+#aura::before,#aura::after{content:"";position:absolute;inset:0;background:transparent;
+  box-shadow:-20px -8px 46px 5px rgba(214,216,222,.055), 22px -10px 46px 5px rgba(214,216,222,.045),
+             18px 20px 46px 5px rgba(214,216,222,.055), -18px 22px 46px 5px rgba(214,216,222,.05), 0 0 30px 2px rgba(236,238,242,.025)}
+#aura::after{box-shadow:-12px 20px 46px 5px rgba(214,216,222,.05), -22px -10px 46px 5px rgba(214,216,222,.055),
+             20px -16px 46px 5px rgba(214,216,222,.045), 18px 18px 46px 5px rgba(214,216,222,.055), 0 0 32px 2px rgba(236,238,242,.025);
+             opacity:0}
+body.cocked #aura{opacity:1;animation:seambreathe 3.4s ease-in-out infinite}
+body.cocked #aura::before{animation:seamA 14s ease-in-out infinite alternate}
+body.cocked #aura::after{animation:seamB 14s ease-in-out infinite alternate}
+@keyframes seamA{from{opacity:1}to{opacity:0}}
+@keyframes seamB{from{opacity:0}to{opacity:1}}
 @keyframes seambreathe{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.15)}}
 body.released #aura{transition:opacity .4s var(--ease);opacity:0;animation:none}
 #glass{position:relative;z-index:1}
@@ -194,6 +193,34 @@ body.cocked #tension i{animation:drawin .34s var(--ease) both, cornerglow 4.2s e
 @keyframes cornerglow{
   0%,100%{box-shadow:0 0 6px rgba(236,150,60,.26)}
   50%{box-shadow:0 0 12px rgba(240,140,50,.44)}}
+/* THE LEVEL. A short hairline at the centre of the gate that tilts with the
+   phone. Silver while off, gold when the horizon is within a degree. Only
+   while the shutter is set, and only if the phone agrees to say which way is
+   down. The kind of thing you stop noticing until the day you need it. */
+#level{position:absolute;left:50%;top:50%;width:26%;height:0;translate:-50% 0;pointer-events:none;
+  opacity:0;transition:opacity .5s var(--ease)}
+#level i{position:absolute;left:0;right:0;top:-.5px;height:1px;background:rgba(214,216,222,.55);
+  transform-origin:50% 50%;transition:background .3s var(--ease), box-shadow .3s var(--ease)}
+#level::before,#level::after{content:"";position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;
+  border:1px solid rgba(214,216,222,.5);background:transparent}
+#level::before{left:-7px} #level::after{right:-7px}
+body.cocked.haslevel #level{opacity:1}
+#level.true i{background:rgba(236,196,106,.95);box-shadow:0 0 6px rgba(229,180,90,.45)}
+#level.true::before,#level.true::after{border-color:rgba(236,196,106,.9)}
+/* On a 3x screen a 1px CSS line is three device pixels. A hairline should be
+   one. Every line that is meant to be fine is drawn at a third of a pixel
+   where the screen can do it, which keeps the white core of the grid a true
+   core and lets the sheath do the glowing. */
+@media (min-resolution: 2dppx){
+  #lockgrid{background:
+   linear-gradient(to right, transparent calc(33.33% - .5px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + .5px)),
+   linear-gradient(to right, transparent calc(66.66% - .5px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + .5px)),
+   linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + .5px)),
+   linear-gradient(to bottom, transparent calc(66.66% - .5px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + .5px))}
+  #level i{height:.5px}
+  #rf b{border-width:.5px}
+  .lensbtn::after,#chip::after,#wind::after,#backlcd::after{padding:.5px}
+}
 /* the tension corners pick up the same warmth */
 body.cocked #tension i{border-color:rgba(255,240,205,.95);
   box-shadow:0 0 8px rgba(229,180,90,.35)}
@@ -302,10 +329,6 @@ body.f-rf #rf{display:block}
    the button you are about to press */
 body.cocked.slowlight #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(224,160,80,.55),
                               0 0 26px rgba(236,150,60,.30);animation:none}
-/* the self-timer running: the state counts, the shutter pulses */
-body.timing #lcdstate{color:#e0a050}
-body.timing #shutter{animation:timerpulse 1s ease-in-out infinite}
-@keyframes timerpulse{0%,100%{opacity:1}50%{opacity:.55}}
 /* asleep: the finder and the back fall away until touched */
 body.sleep #glass{filter:brightness(.22) saturate(.5) !important;transition:filter 1.6s var(--ease)}
 body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
@@ -667,6 +690,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="lockgrid"></div>
       <div id="sparkle"></div>
       <div id="tension"><i></i><i></i><i></i><i></i></div>
+      <div id="level"><i></i></div>
       <div id="flash"></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
@@ -803,7 +827,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 109;                     /* bump with every ship; lands in EXIF */
+const BUILD = 110;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1165,7 +1189,7 @@ function evTick(zero) {
     for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 1.5);
     const src = AC.createBufferSource(); src.buffer = b;
     const bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = zero ? 3200 : 4300; bp.Q.value = 1.3;
-    const g = AC.createGain(); g.gain.value = zero ? 0.028 : 0.018;   /* the zero detent is a shade firmer */
+    const g = AC.createGain(); g.gain.value = zero ? 0.009 : 0.006;   /* the zero detent is a shade firmer */
     src.connect(bp); bp.connect(g); g.connect(AC.destination); src.start(t);
   } catch (e) {}
 }
@@ -1514,8 +1538,17 @@ function backLCD() {
     fe.classList.toggle("late", shown >= ROLL_LEN - 2);                             /* 3. last frames */
     $("lcdroll").textContent = ROLL;
     document.documentElement.style.setProperty("--film", String(frameNo || 0));     /* 2. the film moves */
-    const lv = lightValue();
-    $("lcdlv").textContent = lv === null ? "--" : String(lv).padStart(2, "0");
+    const raw = lightValue();
+    /* a meter needle overshoots nothing and flickers nothing: the reading is
+       smoothed toward the scene, fast when the change is large, slow when it
+       is small, and the display only moves when a whole step has been crossed */
+    if (raw !== null) {
+      const k = Math.min(0.55, 0.18 + 0.06 * Math.abs(raw - meterNeedle));
+      meterNeedle += (raw - meterNeedle) * k;
+    }
+    const lv = raw === null ? null : Math.round(meterNeedle);
+    const lvEl = $("lcdlv"), lvTxt = lv === null ? "--" : String(lv).padStart(2, "0");
+    if (lvEl.textContent !== lvTxt) { lvEl.textContent = lvTxt; lvEl.classList.remove("tick"); void lvEl.offsetWidth; lvEl.classList.add("tick"); }
     if (lv !== null) {
       lastLV = lv;
       /* a camera shows a shake warning when the shutter will be slow; ours
@@ -1530,33 +1563,39 @@ function backLCD() {
     $("lcdbuild").textContent = "b" + BUILD + (workerVer ? " w" + workerVer : "");
   } catch (e) {}
 }
-let frameNo = 0, ROLL = "A", lastLV = 8;
+let frameNo = 0, ROLL = "A", lastLV = 8, meterNeedle = 8;
 try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; ROLL = localStorage.roll || "A"; } catch (e) {}
 /* THE ROLL. Thirty six frames, then the film is out: a rewind, a beat of
    dark while the back is open, and a new roll on the counter. Prints carry
    the roll letter and frame in their names so a roll can be found together. */
 const ROLL_LEN = 36;
-function rewindVoice() {                     /* candidate A (motor) until one is approved */
+function rewindVoice() {
+  /* THE SPOOL. A tone climbing as the spool spins up, softened to mostly sine,
+     a little breath over it, a slow wobble in its level, and a low stop at the
+     end. Quiet: a thing happening inside a closed camera. */
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === "suspended") AC.resume();
     const t0 = AC.currentTime + 0.02, dur = 1.6, sr = AC.sampleRate, n = Math.ceil(dur * sr);
     const b = AC.createBuffer(1, n, sr), d = b.getChannelData(0);
-    let ph = 0;
+    let ph = 0, wb = 0;
     for (let i = 0; i < n; i++) {
-      const x = i / n, env = x < 0.86 ? Math.pow(Math.sin(Math.PI * x / 0.86), 0.7) : 0;
-      ph += (26 + 34 * x) / sr;
-      const am = 0.55 + 0.45 * Math.sin(2 * Math.PI * ph);
-      d[i] = (Math.random() * 2 - 1) * am * env;
+      const x = i / n, env = x < 0.86 ? Math.pow(Math.sin(Math.PI * x / 0.86), 0.8) : 0;
+      ph += (170 + 260 * Math.pow(x, 1.4)) / sr;
+      wb += (9 + 14 * x) / sr;
+      const tri = 2 * Math.abs(2 * (ph - Math.floor(ph + 0.5))) - 1;
+      const tone = 0.78 * Math.sin(2 * Math.PI * ph) + 0.22 * tri;
+      const wobble = 0.8 + 0.2 * Math.sin(2 * Math.PI * wb);
+      d[i] = (tone * 0.85 + (Math.random() * 2 - 1) * 0.10) * env * wobble;
     }
     const src = AC.createBufferSource(); src.buffer = b;
-    const bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1500; bp.Q.value = 0.9;
-    const g = AC.createGain(); g.gain.value = 0.14;
-    src.connect(bp); bp.connect(g); g.connect(AC.destination); src.start(t0);
+    const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900; lp.Q.value = 0.6;
+    const g = AC.createGain(); g.gain.value = 0.075;
+    src.connect(lp); lp.connect(g); g.connect(AC.destination); src.start(t0);
     const th = AC.createOscillator(), tg = AC.createGain();            /* the stop */
-    th.frequency.setValueAtTime(110, t0 + 1.32); th.frequency.exponentialRampToValueAtTime(60, t0 + 1.5);
-    tg.gain.setValueAtTime(0.0001, t0 + 1.32); tg.gain.exponentialRampToValueAtTime(0.22, t0 + 1.335); tg.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.52);
-    th.connect(tg); tg.connect(AC.destination); th.start(t0 + 1.32); th.stop(t0 + 1.53);
+    th.frequency.setValueAtTime(130, t0 + 1.30); th.frequency.exponentialRampToValueAtTime(70, t0 + 1.5);
+    tg.gain.setValueAtTime(0.0001, t0 + 1.30); tg.gain.exponentialRampToValueAtTime(0.12, t0 + 1.315); tg.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.55);
+    th.connect(tg); tg.connect(AC.destination); th.start(t0 + 1.30); th.stop(t0 + 1.56);
   } catch (e) {}
 }
 function rollOver() {
@@ -1606,13 +1645,14 @@ function powerOn() {
     $("backlcd").classList.add("selftest");
   } catch (e) {}
   setTimeout(() => { $("backlcd").classList.remove("selftest"); backLCD(); cock(cocked); }, 620);
-  setInterval(backLCD, 700);               /* cheap: keeps the readouts honest */
+  setInterval(backLCD, 240);               /* the needle wants a steady hand: ~4 Hz */
 }
 powerOn();
 $("windwrap").onclick = () => {
   if (cocked) return;                       /* already set: no double stroke */
   const w = $("wind");
   w.classList.add("winding");
+  levelArm();                               /* first wind: ask the phone which way is down */
   windVoice();                              /* the ratchet; the switch gives the tick */
   cock(true);                               /* the picture grows WHILE the lever runs */
   setTimeout(() => {                        /* the perforations reset once stopped */
@@ -1630,59 +1670,36 @@ $("windwrap").addEventListener("pointerdown", () => {
 });
 ["pointerup","pointercancel","pointerleave"].forEach(ev =>
   $("windwrap").addEventListener(ev, () => clearTimeout(windHold)));
+/* the level asks the phone once, on the first wind, since iOS wants a gesture */
+let levelArmed = false;
+function levelArm() {
+  if (levelArmed) return; levelArmed = true;
+  const go = () => {
+    addEventListener("deviceorientation", e => {
+      if (e.gamma === null || e.beta === null) return;
+      /* roll about the viewing axis: gamma in portrait, beta in landscape */
+      const land = matchMedia("(orientation: landscape)").matches;
+      let roll = land ? e.beta : e.gamma;
+      if (land && document.body.classList.contains("flip")) roll = -roll;
+      if (Math.abs(roll) > 45) return;                    /* pointing at the floor: no horizon */
+      const lv = $("level"); lv.querySelector("i").style.transform = "rotate(" + (-roll).toFixed(2) + "deg)";
+      lv.classList.toggle("true", Math.abs(roll) < 1.0);
+      document.body.classList.add("haslevel");
+    }, { passive: true });
+  };
+  try {
+    if (typeof DeviceOrientationEvent !== "undefined" && DeviceOrientationEvent.requestPermission)
+      DeviceOrientationEvent.requestPermission().then(r => { if (r === "granted") go(); }).catch(() => {});
+    else go();
+  } catch (e) {}
+}
 function release() {                        /* the frame is taken: let go */
   cock(false);
   document.body.classList.add("released");
   setTimeout(() => document.body.classList.remove("released"), 440);
 }
-/* SELF-TIMER. Hold the shutter for a second and the camera's timer takes
-   the shot instead of you: ten seconds, the panel counting, a mechanical
-   buzz that ticks faster as it runs down, then the release. Cancel by
-   tapping the shutter again. Only when the shutter is set. */
-let timerHold = 0, timerRun = null, timerStartedAt = 0;
-function timerTick(rate) {
-  try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
-    const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
-    o.type = "square"; o.frequency.value = 1900 + rate * 400;
-    g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
-    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 0.04);
-  } catch (e) {}
-}
-function selfTimerStart() {
-  if (timerRun || !cocked) return;
-  let n = 10; const st = $("lcdstate"), body = document.body;
-  timerStartedAt = performance.now();
-  body.classList.add("timing");
-  const step = () => {
-    if (!timerRun) return;
-    st.textContent = "TIMER " + String(n).padStart(2, "0");
-    timerTick((10 - n) / 10);
-    if (n <= 0) { timerRun = null; body.classList.remove("timing"); $("shutterwrap").onclick(); return; }
-    n--; timerRun = setTimeout(step, n < 3 ? 500 : 1000);
-  };
-  timerRun = setTimeout(step, 10); step();
-}
-function selfTimerCancel() {
-  if (!timerRun) return;
-  clearTimeout(timerRun); timerRun = null;
-  document.body.classList.remove("timing");
-  $("lcdstate").textContent = cocked ? "SHUTTER SET" : "WIND ON";
-}
-hapEl.addEventListener("pointerdown", () => {
-  clearTimeout(timerHold);
-  if (cocked && !timerRun) timerHold = setTimeout(selfTimerStart, 900);
-});
-["pointerup", "pointercancel", "pointerleave"].forEach(ev => hapEl.addEventListener(ev, () => clearTimeout(timerHold)));
 $("shutterwrap").onclick = async () => {
   const v = $("video");
-  if (timerRun) {                                    /* a tap during the count cancels it,
-                                                        but not the release of the hold that started it */
-    if (performance.now() - timerStartedAt > 700) selfTimerCancel();
-    return;
-  }
-  if (document.body.classList.contains("timing")) return;
   if (!cocked) {                            /* wind on first, like film */
     const w = $("wind");
     w.classList.remove("nudge"); void w.offsetWidth; w.classList.add("nudge");
