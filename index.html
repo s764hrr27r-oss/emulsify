@@ -36,7 +36,15 @@ body.paged #camera{transform:scale(.97)}
 #glass{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;background:#000;
        animation:bootin .5s var(--ease) both}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-             opacity:0;transition:opacity .4s var(--ease)}
+             opacity:0;transform-origin:50% 50%;
+             transition:opacity .4s var(--ease),
+                        transform .58s cubic-bezier(.16,.9,.22,1)}
+/* idle: a small sharp window, the whole scene shrunk into the middle */
+body:not(.cocked) #glass video{transform:scale(.26)}
+body.cocked #glass video{transform:none}
+/* firing drops it back fast, the way a mirror falls */
+body.released #glass video{transition:opacity .4s var(--ease),
+                                      transform .24s cubic-bezier(.5,0,.9,.4)}
 #glass video.live{opacity:1}
 /* ---------- finder overlays ----------
    Each mode draws only under its own body class, so no mode is "the absence
@@ -138,20 +146,12 @@ body.f-rf #rf{display:block}
 #wind.winding b{opacity:.25}
 body.cocked #wind{border-color:var(--dot);opacity:.55}
 body.cocked #wind b{color:var(--dot)}
-/* THE IRIS. An Exakta's mirror does not return until you wind, so between
-   frames the finder is dark. Winding on opens it: the view grows out of black
-   to the corners. Firing shuts it again. Idle keeps a small dim window so the
-   camera can still be aimed, which is the one concession to not being 1936. */
-@property --r{syntax:"<percentage>";inherits:false;initial-value:26%}
-#iris{position:absolute;inset:0;pointer-events:none;background:#000;
-  -webkit-mask-image:radial-gradient(circle at 50% 50%, transparent var(--r,26%), #000 calc(var(--r,26%) + 16%));
-  mask-image:radial-gradient(circle at 50% 50%, transparent var(--r,26%), #000 calc(var(--r,26%) + 16%));
-  --r:26%; opacity:.94;
-  transition:--r .58s cubic-bezier(.16,.9,.22,1), opacity .3s var(--ease)}
-body.cocked #iris{--r:96%;opacity:0}
-body.released #iris{transition:--r .22s cubic-bezier(.5,0,.9,.4), opacity .18s var(--ease)}
+/* THE TINY FINDER. Between frames the camera has only a small bright window
+   of the scene, sharp and real, sitting in the middle of the dark. Winding on
+   enlarges it to the full gate over exactly the length of the lever stroke, so
+   the picture grows while the ratchet runs. */
 #glass{transition:transform .3s var(--ease), filter .34s var(--ease)}
-body:not(.cocked) #glass{filter:brightness(.55) saturate(.35) contrast(.9)}
+body:not(.cocked) #glass{filter:brightness(.9) saturate(.9) contrast(.98)}
 body:not(.cocked) #grid,body:not(.cocked) #quad{opacity:.10}
 body:not(.cocked) #rf,body:not(.cocked) #spot,body:not(.cocked) #cross{opacity:.2}
 body.cocked #glass{filter:brightness(1.04) saturate(1.06) contrast(1.02)}
@@ -184,7 +184,7 @@ body.cocked #tension i{animation:drawin .34s var(--ease) both}
 @keyframes drawin{from{transform:translate(var(--dx,0),var(--dy,0)) scale(1.9);opacity:0}
                   to{transform:none;opacity:1}}
 /* the finder itself leans in while cocked, and lets go on release */
-body.cocked #glass{transform:scale(1.012)}
+
 body.cocked #grid,body.cocked #quad{opacity:.85}
 body.released #glass{animation:letgo .42s cubic-bezier(.34,1.56,.64,1) both}
 @keyframes letgo{0%{transform:scale(1.012)}45%{transform:scale(.994)}100%{transform:none}}
@@ -412,7 +412,6 @@ body:not(.cocked) #shutter{opacity:.38}
       <div id="spot"><i></i><i></i><i></i><i></i></div>
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
-      <div id="iris"></div>
       <div id="lockgrid"></div>
       <div id="tension"><i></i><i></i><i></i><i></i></div>
       <div id="flash"></div>
@@ -551,7 +550,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 85;                     /* bump with every ship; lands in EXIF */
+const BUILD = 86;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1128,11 +1127,11 @@ $("windwrap").onclick = () => {
   const w = $("wind");
   w.classList.add("winding");
   windVoice();                              /* the ratchet; the switch gives the tick */
-  setTimeout(() => {
+  cock(true);                               /* the picture grows WHILE the lever runs */
+  setTimeout(() => {                        /* the perforations reset once stopped */
     w.classList.remove("winding");
     w.querySelector(".perf").style.transform = "";
-    cock(true);
-  }, 560);
+  }, 580);
 };
 const hawEl = $("haw");                     /* native switch: iOS plays Taptic itself */
 hawEl.addEventListener("pointerdown", () => $("wind").classList.add("pressed"));
