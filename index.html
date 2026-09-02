@@ -49,11 +49,13 @@ body.cocked #backlcd #lcdframe.late{color:#f0b060}
 @keyframes warnpulse{0%,100%{opacity:.6}50%{opacity:1}}
 #backlcd .state{margin-left:auto;font-size:8.5px;letter-spacing:.14em;opacity:.75;flex:0 0 auto;white-space:nowrap}
 #backlcd .build{font-size:7.5px;letter-spacing:.04em;opacity:.3;margin-left:6px;flex:0 0 auto}
+#backlcd .build.ready{color:var(--ready);opacity:1;animation:askring 2.4s ease-in-out infinite}
+#backlcd .state.flash{color:var(--ready);opacity:1}
 #backlcd .more{font-size:10px;color:var(--ready);opacity:.7;margin-left:8px;flex:0 0 auto;line-height:1;align-self:center}
 #scopemenu.on ~ * #backlcd .more{opacity:1}
 #backlcd.selftest .seg,#backlcd.selftest .state{color:#e6c37a;opacity:.85;text-shadow:0 0 6px rgba(229,180,90,.35)}
 /* on the narrowest portrait widths the build yields before anything wraps */
-@media (max-width: 420px) and (orientation: portrait){ #backlcd .build{display:none} }
+@media (max-width: 420px) and (orientation: portrait){ #backlcd .build:not(.ready){display:none} }
 body.cocked #backlcd .state{color:var(--ready);opacity:1}
 body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px;position:relative}
@@ -906,7 +908,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 129;                     /* bump with every ship; lands in EXIF */
+const BUILD = 130;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1335,6 +1337,7 @@ function setFinder(m) {
   try { localStorage["finder"] = f.k; } catch (e) {}
   paintFinderMenu();
 }
+let pendingBuild = 0, lastUpdateCheck = 0, checkingUpdate = false;   /* declared here: paintFinderMenu runs at load and reads it */
 function paintFinderMenu() {
   const m = $("findermenu"); m.innerHTML = "";
   FINDERS.forEach((f, fi) => {
@@ -1354,6 +1357,14 @@ function paintFinderMenu() {
   ib.appendChild(isw);
   ib.onclick = () => { closeFinderMenu(); $("scopemenu").classList.add("on"); $("lensveil").classList.add("on"); };
   m.appendChild(ib);
+  /* updates: a fresh load is all an update ever needs */
+  const ub = document.createElement("button");
+  ub.textContent = pendingBuild ? "UPDATE TO b" + pendingBuild : "CHECK FOR UPDATES";
+  ub.style.color = pendingBuild ? "var(--ready)" : "var(--mute)";
+  const usw = document.createElement("input"); usw.type = "checkbox"; usw.setAttribute("switch", ""); usw.className = "hapov"; usw.tabIndex = -1;
+  ub.appendChild(usw);
+  ub.onclick = () => { closeFinderMenu(); applyUpdate(); };
+  m.appendChild(ub);
 }
 function closeFinderMenu() {
   $("findermenu").classList.remove("on"); $("lensveil").classList.remove("on");
@@ -2004,6 +2015,41 @@ function scopeLoop() {
   drawScopes();
   scopeRAF = requestAnimationFrame(scopeLoop);
 }
+/* ---------- UPDATES ----------
+   The app updates itself by reloading; nothing ever needs re-adding to the
+   home screen. This fetches the live index with the cache bypassed, reads its
+   build number, and if it is newer than the one running, says so on the panel
+   and offers the reload from the GRID menu. It checks quietly on launch and
+   whenever the app comes back to the foreground, at most every ten minutes,
+   and never reloads while a print is in the bath. */
+async function checkUpdate(manual) {
+  if (checkingUpdate) return;
+  if (!manual && performance.now() - lastUpdateCheck < 600000) return;
+  checkingUpdate = true; lastUpdateCheck = performance.now();
+  try {
+    const u = location.pathname.replace(/[^/]*$/, "") + "index.html?u=" + Date.now();
+    const r = await fetch(u, { cache: "no-store" });
+    const t = r.ok ? await r.text() : "";
+    const m = /const BUILD = (\d+);/.exec(t);
+    const found = m ? parseInt(m[1], 10) : 0;
+    if (found > BUILD) { pendingBuild = found; backLCD(); paintFinderMenu(); if (manual) flashState("b" + found + " READY"); }
+    else if (manual) flashState(found ? "UP TO DATE" : "NO CONNECTION");
+  } catch (e) { if (manual) flashState("NO CONNECTION"); }
+  checkingUpdate = false;
+}
+function flashState(text) {
+  const st = $("lcdstate"); if (!st) return;
+  const prev = st.textContent; st.textContent = text; st.classList.add("flash");
+  setTimeout(() => { st.classList.remove("flash"); st.textContent = cocked ? "SHUTTER SET" : "WIND ON"; }, 1800);
+}
+function applyUpdate() {
+  if (!pendingBuild) { checkUpdate(true); return; }
+  if (pending > 0) { flashState("AFTER THE BATH"); setTimeout(applyUpdate, 1500); return; }   /* never mid-develop */
+  flashState("UPDATING");
+  setTimeout(() => location.replace(location.pathname.replace(/[^/]*$/, "") + "index.html?v=" + pendingBuild), 400);
+}
+setTimeout(() => checkUpdate(false), 3000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(false); });
 /* the back panel reads out what the camera is actually set to */
 function backLCD() {
   /* nothing to read when the page is hidden or the gallery is up: the video
@@ -2043,7 +2089,9 @@ function backLCD() {
       const amb = 0.74 + 0.26 * Math.max(0, Math.min(1, (lv - 3) / 10));
       document.documentElement.style.setProperty("--ambient", amb.toFixed(3));
     }
-    $("lcdbuild").textContent = "b" + BUILD + (workerVer ? " w" + workerVer : "");
+    const bt = $("lcdbuild");
+    if (pendingBuild) { bt.textContent = "b" + pendingBuild + " READY"; bt.classList.add("ready"); }
+    else { bt.textContent = "b" + BUILD + (workerVer ? " w" + workerVer : ""); bt.classList.remove("ready"); }
   } catch (e) {}
 }
 let frameNo = 0, ROLL = "A", lastLV = 8, meterNeedle = 8;
