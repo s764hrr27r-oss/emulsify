@@ -442,8 +442,8 @@ body.sleep #scopes{opacity:0}
     linear-gradient(var(--g3a,11deg), transparent calc(var(--g3p,80%) - .2%), rgba(255,255,255,var(--g3o,.05)) var(--g3p,80%), transparent calc(var(--g3p,80%) + .3%))}
 #scopes .card.vec .face::after{border-radius:50%;inset:5px}
 /* WARM-UP: switched on, the face glows up from dark over half a second */
-#scopes .card.warm{animation:warmup .8s cubic-bezier(.25,.6,.2,1) both;animation-delay:inherit}
-@keyframes warmup{0%{opacity:0;transform:translateY(3px) scale(.985)}45%{opacity:.6}100%{opacity:1;transform:none}}
+#scopes .card.warm{animation:warmup .7s cubic-bezier(.25,.6,.2,1) both}
+@keyframes warmup{0%{opacity:0;transform:translateY(3px)}100%{opacity:1;transform:none}}
 /* THE TINY FINDER. Between frames the camera has only a small bright window
    of the scene, sharp and real, sitting in the middle of the dark. Winding on
    enlarges it to the full gate over exactly the length of the lever stroke, so
@@ -913,7 +913,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 132;                     /* bump with every ship; lands in EXIF */
+const BUILD = 133;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1742,10 +1742,13 @@ function warmUp(only) {
     if (!scopesOn.has(k) || (only && k !== only)) continue;
     const delay = only ? 0 : i++ * 110;                 /* one after another, 110 ms apart */
     wakeAt[k] = now + delay;
+    const cv = scopeEls[k].cv, g = cv.getContext("2d");                 /* dark, and no memory of before */
+    if (cv.width && cv.height) { g.fillStyle = "#050605"; g.fillRect(0, 0, cv.width, cv.height); }
+    delete peaks[k]; if (springs[k]) springs[k].v = 0;
     const c = scopeEls[k].card; c.classList.remove("warm"); void c.offsetWidth;
     c.style.animationDelay = delay + "ms"; c.classList.add("warm");
-    if (k === "meter" || k === "kelv") { const sp = springs[k]; if (sp) { sp.v = 0; } }
   }
+  bloom = 0;
 }
 function warmth(k) {                                    /* 0 dark .. 1 fully lit */
   const t0 = wakeAt[k]; if (t0 === undefined) return 1;
@@ -1881,16 +1884,22 @@ function dial(g, w, h, seedk) {
   const vg = g.createRadialGradient(w * .5, h * .5, Math.min(w, h) * .3, w * .5, h * .5, Math.max(w, h) * .8);
   vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.35)"); g.fillStyle = vg; g.fillRect(0, 0, w, h);
 }
+/* THE LAMP. Every instrument, gauge or scope, ends its frame the same way: a
+   veil of dark over the whole face whose weight is one minus its warmth. Dark
+   at its wake moment, clear 700 ms later, the same curve on all five. This is
+   the only way an instrument comes up, so they cannot come up differently. */
+function lamp(g, w, h, k) {
+  const wv = warmth(k); if (wv >= 1) return;
+  g.fillStyle = "rgba(5,6,5," + (1 - wv).toFixed(3) + ")"; g.fillRect(0, 0, w, h);
+}
 function graticule(g, w, h, nx, ny) {
   g.strokeStyle = PHD + ".10)"; g.lineWidth = 1; g.beginPath();
   for (let i = 1; i < nx; i++) { const x = Math.round(w * i / nx) + .5; g.moveTo(x, 0); g.lineTo(x, h); }
   for (let i = 1; i < ny; i++) { const y = Math.round(h * i / ny) + .5; g.moveTo(0, y); g.lineTo(w, y); }
   g.stroke();
 }
-let traceWarmth = 1;
 function trace(g, pts, col, width) {          /* a glowing line: wide faint pass, then the core */
-  for (const [lw, a0] of [[width * 3.2, .10], [width * 1.6, .22], [width, .95]]) {
-    const a = a0 * traceWarmth;
+  for (const [lw, a] of [[width * 3.2, .10], [width * 1.6, .22], [width, .95]]) {
     g.strokeStyle = col + a + ")"; g.lineWidth = lw; g.lineJoin = "round"; g.beginPath();
     pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
   }
@@ -1966,8 +1975,7 @@ function drawScopes() {
     }
   }
   if (scopesOn.has("hist")) {
-    traceWarmth = warmth("hist");
-    const [g, w, h, dpr] = face(scopeEls.hist.cv, .45); graticule(g, w, h, 8, 3);
+    const [g, w, h, dpr] = face(scopeEls.hist.cv, .40); graticule(g, w, h, 8, 3);
     const hp = peakHold("hist", hl, Math.pow(0.90, scopeDT / 0.07)), mx = Math.max(1, ...hp), base = h - 11 * dpr, pts = [], pk = [];
     for (let i = 0; i < 32; i++) { pts.push([w * (i + .5) / 32, base - (hl[i] / mx) * (base - 4 * dpr)]); pk.push([w * (i + .5) / 32, base - (hp[i] / mx) * (base - 4 * dpr)]); }
     g.fillStyle = PH + ".12)"; g.beginPath(); g.moveTo(pts[0][0], base); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(pts[31][0], base); g.closePath(); g.fill();
@@ -1977,16 +1985,17 @@ function drawScopes() {
     g.fillText((100 * clipS / N).toFixed(0) + "% BLK", 4 * dpr, h - 3 * dpr);
     const ch = 100 * clipH / N; g.fillStyle = ch > 1 ? "rgba(236,120,110,.95)" : PHD + ".7)";
     const t = ch.toFixed(0) + "% CLIP"; g.fillText(t, w - g.measureText(t).width - 4 * dpr, h - 3 * dpr);
+    lamp(g, w, h, "hist");
   }
   if (scopesOn.has("rgb")) {
-    traceWarmth = warmth("rgb");
-    const [g, w, h, dpr] = face(scopeEls.rgb.cv, .45); graticule(g, w, h, 8, 3);
+    const [g, w, h, dpr] = face(scopeEls.rgb.cv, .40); graticule(g, w, h, 8, 3);
     [[hr, "rgba(232,96,80,"], [hg, "rgba(120,214,120,"], [hb, "rgba(110,150,240,"]].forEach(([hh, col], r) => {
       const mx = Math.max(1, ...hh), y0 = r * h / 3 + 3 * dpr, rh = h / 3 - 5 * dpr, pts = [];
       for (let i = 0; i < 32; i++) pts.push([w * (i + .5) / 32, y0 + rh - (hh[i] / mx) * rh]);
       g.fillStyle = col + ".12)"; g.beginPath(); g.moveTo(pts[0][0], y0 + rh); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(pts[31][0], y0 + rh); g.closePath(); g.fill();
       trace(g, pts, col, (1.0 + 1.0 * bl) * dpr);
     });
+    lamp(g, w, h, "rgb");
   }
   if (scopesOn.has("kelv")) {
     const [g, w, h, dpr] = face(scopeEls.kelv.cv, 0); dial(g, w, h, "kelv");
@@ -2002,9 +2011,10 @@ function drawScopes() {
     g.font = `${8 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = INK + ".9)"; g.fillText(Math.round(K / 50) * 50 + " K", cx, cy - r * 0.42);
     g.textAlign = "left";
     needle(g, cx, cy, r - 2, a0 + (a1 - a0) * (K - 2500) / 7000, INK + ".95)");
+    lamp(g, w, h, "kelv");
   }
   if (scopesOn.has("vec")) {
-    const [g, w, h] = face(scopeEls.vec.cv, .30);
+    const [g, w, h] = face(scopeEls.vec.cv, .40);
     const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 3;
     g.strokeStyle = PHD + ".14)"; g.lineWidth = 1;
     for (let a = 0; a < 360; a += 30) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + r * Math.cos(a * Math.PI / 180), cy - r * Math.sin(a * Math.PI / 180)); g.stroke(); }
@@ -2019,9 +2029,10 @@ function drawScopes() {
       if (sat < 0.05) continue;
       const dl = mx - mn; let hue = mx === rr ? ((gg - bb) / dl) % 6 : mx === gg ? (bb - rr) / dl + 2 : (rr - gg) / dl + 4;
       const th = hue * Math.PI / 3;
-      g.fillStyle = `hsla(${(hue * 60 + 360) % 360},70%,62%,${((.30 + .35 * bl) * warmth("vec")).toFixed(2)})`;
+      g.fillStyle = `hsla(${(hue * 60 + 360) % 360},70%,62%,${(.30 + .35 * bl).toFixed(2)})`;
       g.fillRect(cx + r * sat * Math.cos(th) - 1, cy - r * sat * Math.sin(th) - 1, 2, 2);
     }
+    lamp(g, w, h, "vec");
   }
   if (scopesOn.has("meter")) {
     const [g, w, h, dpr] = face(scopeEls.meter.cv, 0); dial(g, w, h, "meter");
@@ -2035,6 +2046,7 @@ function drawScopes() {
     const lv = sweep("meter", 2, 14, meterNeedle, scopeDT);
     needle(g, cx, cy, r - 2, a0 + (a1 - a0) * (Math.max(2, Math.min(14, lv)) - 2) / 12, INK + ".95)");
     g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = INK + ".8)"; g.fillText("LV " + lv.toFixed(1), 5 * dpr, h - 4 * dpr);
+    lamp(g, w, h, "meter");
   }
 }
 /* the loop: ~14 Hz, and only while there is something to show and someone to see it */
