@@ -310,16 +310,17 @@ body.f-rf #rf{display:block}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 /* asleep: the finder and the back fall away until touched */
 #dim{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .35s var(--ease);z-index:4}
-/* THE CURTAINS. After the frame, two focal-plane blinds meet across the gate
-   and hide the change of state: the finder shrinking, the instruments coming
-   back. When they part, everything behind them is already in its place. A
-   transform on two elements: the compositor does it for nothing. */
+/* THE CURTAINS. Inside the finder window itself, so they close over the
+   picture and travel with it as it shrinks. Two focal-plane blinds meet across
+   the frame after the exposure, hold while the back changes state behind them,
+   and part on the small live view. Slow enough to be seen: 140 ms to close,
+   380 ms to open. Transforms only. */
 #curtains{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
-#curtains i{position:absolute;top:0;bottom:0;width:50.5%;background:#0a0a0a;
-  transition:transform .30s cubic-bezier(.2,.8,.2,1)}
-#curtains .l{left:0;transform:translateX(-101%);box-shadow:inset -3px 0 6px rgba(0,0,0,.9), 1px 0 0 rgba(255,255,255,.07)}
-#curtains .r{right:0;transform:translateX(101%);box-shadow:inset 3px 0 6px rgba(0,0,0,.9), -1px 0 0 rgba(255,255,255,.07)}
-body.curtain #curtains i{transform:none;transition:transform .09s cubic-bezier(.4,0,1,1)}
+#curtains i{position:absolute;top:0;bottom:0;width:51%;background:linear-gradient(180deg,#0c0c0c,#060606 50%,#0b0b0b);
+  transition:transform .38s cubic-bezier(.18,.8,.22,1)}
+#curtains .l{left:0;transform:translateX(-102%);box-shadow:inset -4px 0 8px rgba(0,0,0,.95), 1px 0 0 rgba(255,255,255,.10)}
+#curtains .r{right:0;transform:translateX(102%);box-shadow:inset 4px 0 8px rgba(0,0,0,.95), -1px 0 0 rgba(255,255,255,.10)}
+body.curtain #curtains i{transform:none;transition:transform .14s cubic-bezier(.4,0,1,1)}
 body.sleep #dim{opacity:.8;transition:opacity 1.6s var(--ease)}
 body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
 body.sleep #aura,body.sleep #sparkle{opacity:0 !important}
@@ -377,48 +378,58 @@ body.sleep #scopes{opacity:0}
 #scopes .slot.top,#scopes .slot.bottom{flex-direction:row;align-items:flex-end}
 #scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto}
 #scopes .card.on{display:flex}
-/* THE HOUSING. Brushed steel, worn at the edges, screwed to the camera back.
-   A dark recess under it so it sits IN the body, not on a picture of one. */
-#scopes .face{position:relative;border-radius:6px;padding:5px;
+/* THE HOUSING. Black-painted steel that has been used: the paint is worn
+   through to bare metal along the edges and at the corners where fingers go,
+   the surface is dull with fine scratches, and it is screwed to the body. Not
+   a period piece; a tool. */
+#scopes .face{position:relative;border-radius:5px;padding:5px;
   background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,.028) 0 1px, transparent 1px 3px),   /* brushing */
-    radial-gradient(120% 90% at 30% 10%, rgba(255,255,255,.10), transparent 60%),
-    linear-gradient(160deg, #6a6c6f 0%, #454749 38%, #5a5d60 62%, #2b2d30 100%);
-  box-shadow:0 3px 6px rgba(0,0,0,.95), 0 0 0 1px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.6)}
-/* worn edge: the chamfer catches light on the top-left and falls dark below */
+    repeating-linear-gradient(97deg, rgba(255,255,255,.022) 0 1px, transparent 1px 4px),   /* fine scratches, one way */
+    repeating-linear-gradient(-63deg, rgba(0,0,0,.18) 0 1px, transparent 1px 7px),          /* and another */
+    radial-gradient(90% 70% at 20% 0%, rgba(255,255,255,.07), transparent 55%),
+    linear-gradient(160deg, #2d2f31 0%, #1c1d1f 40%, #26282a 65%, #131415 100%);
+  box-shadow:0 3px 7px rgba(0,0,0,.95), 0 0 0 1px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.10), inset 0 -1px 0 rgba(0,0,0,.7)}
+/* the worn edge: paint gone, steel showing, brighter where it is handled */
 #scopes .face::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
-  background:linear-gradient(135deg, rgba(230,232,235,.55), rgba(120,122,126,.18) 40%, rgba(30,31,33,.5) 65%, rgba(200,202,206,.35));
+  background:linear-gradient(135deg, rgba(200,204,210,.75) 0%, rgba(120,124,130,.25) 18%, rgba(60,62,66,.15) 45%, rgba(150,154,160,.4) 78%, rgba(210,214,220,.7) 100%);
   -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);-webkit-mask-composite:xor;
   mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);mask-composite:exclude}
-/* wear: scuffs and two hairline scratches across the metal, static */
+/* wear on the paint: chips at the corners, a scuff where a thumb rests, scratches */
 #scopes .wear{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   background:
-    radial-gradient(30% 22% at 78% 82%, rgba(0,0,0,.28), transparent 70%),
-    radial-gradient(22% 18% at 14% 70%, rgba(0,0,0,.22), transparent 70%),
-    radial-gradient(18% 14% at 60% 8%, rgba(255,255,255,.07), transparent 70%),
-    linear-gradient(23deg, transparent 47.6%, rgba(255,255,255,.14) 48%, transparent 48.4%),
-    linear-gradient(-31deg, transparent 63.2%, rgba(0,0,0,.35) 63.5%, transparent 63.9%)}
-/* screws: four slotted heads at the corners, each turned a little differently */
+    radial-gradient(10px 7px at 2% 3%, rgba(190,194,200,.55), rgba(190,194,200,0) 70%),       /* corner chip */
+    radial-gradient(8px 6px at 98% 96%, rgba(190,194,200,.5), rgba(190,194,200,0) 70%),
+    radial-gradient(6px 9px at 99% 30%, rgba(190,194,200,.35), rgba(190,194,200,0) 70%),
+    radial-gradient(34% 26% at 74% 80%, rgba(255,255,255,.05), transparent 70%),               /* thumb scuff */
+    radial-gradient(26% 20% at 16% 66%, rgba(0,0,0,.30), transparent 70%),
+    linear-gradient(17deg, transparent 41.7%, rgba(220,224,230,.22) 42%, transparent 42.4%),   /* scratches */
+    linear-gradient(-37deg, transparent 58.2%, rgba(220,224,230,.16) 58.5%, transparent 58.8%),
+    linear-gradient(81deg, transparent 22.6%, rgba(0,0,0,.4) 22.8%, transparent 23.1%),
+    linear-gradient(-9deg, transparent 77.1%, rgba(220,224,230,.12) 77.3%, transparent 77.5%)}
+/* screws: steel, slotted, each turned a little differently, one of them marred */
 #scopes .screw{position:absolute;width:6px;height:6px;border-radius:50%;pointer-events:none;
-  background:radial-gradient(circle at 35% 30%, #9a9da2, #4a4c4f 60%, #1e1f21);
-  box-shadow:0 0 0 1px rgba(0,0,0,.7), inset 0 0 1px rgba(255,255,255,.4)}
-#scopes .screw::after{content:"";position:absolute;left:1px;right:1px;top:2.5px;height:1px;background:rgba(0,0,0,.85);transform:rotate(var(--turn,0deg))}
+  background:radial-gradient(circle at 35% 30%, #a9adb3, #5a5d62 60%, #22242a);
+  box-shadow:0 0 0 1px rgba(0,0,0,.8), inset 0 0 1px rgba(255,255,255,.4)}
+#scopes .screw::after{content:"";position:absolute;left:1px;right:1px;top:2.5px;height:1px;background:rgba(0,0,0,.9);transform:rotate(var(--turn,0deg))}
 #scopes .screw.tl{left:-1px;top:-1px;--turn:18deg} #scopes .screw.tr{right:-1px;top:-1px;--turn:-40deg}
-#scopes .screw.bl{left:-1px;bottom:-1px;--turn:70deg} #scopes .screw.br{right:-1px;bottom:-1px;--turn:-12deg}
+#scopes .screw.bl{left:-1px;bottom:-1px;--turn:70deg} #scopes .screw.br{right:-1px;bottom:-1px;--turn:-12deg;background:radial-gradient(circle at 35% 30%,#8c9096,#4a4d52 60%,#1c1e22)}
 /* the glass over the face */
 #scopes canvas{display:block;border-radius:3px;
   box-shadow:inset 0 0 8px rgba(0,0,0,.9), inset 0 0 1px rgba(255,255,255,.08), 0 0 0 1px rgba(0,0,0,.9)}
 #scopes .card.vec canvas,#scopes .card.vec .face,#scopes .card.vec .wear{border-radius:50%}
 #scopes .card.vec .screw{display:none}
 /* the nameplate: engraved into the steel below the face */
-#scopes .lbl{font:6.5px ui-monospace,Menlo,monospace;letter-spacing:.22em;color:#5d6064;opacity:.95;
+#scopes .lbl{font:6.5px ui-monospace,Menlo,monospace;letter-spacing:.22em;color:#8b8f95;opacity:.9;
   text-shadow:0 -1px 0 rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.12)}
 /* the glass: a soft curved specular across the upper face; the lamp: a warm
    glow along the top inside edge of the bezel, lighting the dial from above */
 #scopes .face::after{content:"";position:absolute;inset:5px;border-radius:3px;pointer-events:none;
   background:
-    radial-gradient(120% 60% at 50% -20%, rgba(220,226,235,.10), transparent 60%),
-    linear-gradient(172deg, rgba(255,255,255,.085) 0%, rgba(255,255,255,.03) 28%, transparent 46%)}
+    radial-gradient(120% 60% at 50% -20%, rgba(220,226,235,.09), transparent 60%),
+    linear-gradient(172deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.03) 28%, transparent 46%),
+    linear-gradient(28deg, transparent 33.6%, rgba(255,255,255,.10) 33.9%, transparent 34.3%),   /* scratches in the glass */
+    linear-gradient(-52deg, transparent 61.1%, rgba(255,255,255,.07) 61.3%, transparent 61.6%),
+    linear-gradient(11deg, transparent 80.4%, rgba(255,255,255,.05) 80.6%, transparent 80.9%)}
 #scopes .card.vec .face::after{border-radius:50%;inset:5px}
 /* WARM-UP: switched on, the face glows up from dark over half a second */
 #scopes .card.warm .face{animation:warmup .7s cubic-bezier(.3,.6,.2,1) both}
@@ -727,7 +738,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
   <div id="frame">
     <div id="aura"></div>
     <div id="glass">
-      <div id="screen"><video id="video" autoplay playsinline muted></video></div>
+      <div id="screen"><video id="video" autoplay playsinline muted></video><div id="curtains"><i class="l"></i><i class="r"></i></div></div>
       <div id="anawarn">
         <svg viewBox="0 0 64 40" width="54" height="34" fill="none"
              stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
@@ -753,7 +764,6 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="tension"><i></i><i></i><i></i><i></i></div>
       <div id="flash"></div>
       <div id="dim"></div>
-      <div id="curtains"><i class="l"></i><i class="r"></i></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
   </div>
@@ -890,7 +900,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 124;                     /* bump with every ship; lands in EXIF */
+const BUILD = 125;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1616,7 +1626,7 @@ const SCOPES = [
   ["kelv",  "COLOUR TEMP", "right",  1.5],
 ];
 const PH = "rgba(150,236,160,", PHD = "rgba(120,200,130,";        /* green phosphor, and its dim */
-const INK = "rgba(38,34,30,", RED = "rgba(160,44,36,";              /* dial ink and the red zone */
+const INK = "rgba(214,216,220,", RED = "rgba(200,60,50,";           /* pale dial markings and the red zone */
 let scopesOn = new Set();
 try { scopesOn = new Set(JSON.parse(localStorage.scopes || "[]").filter(k => SCOPES.some(sc => sc[0] === k))); } catch (e) {}
 const scopeEls = {};
@@ -1736,24 +1746,22 @@ function face(cv, persist) {
   const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
   const g = cv.getContext("2d");
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; g.fillStyle = "#050605"; g.fillRect(0, 0, w, h); }
-  else if (persist) { g.fillStyle = "rgba(5,6,5," + persist + ")"; g.fillRect(0, 0, w, h); }   /* phosphor decay */
+  else if (persist) { g.fillStyle = "rgba(5,6,5," + Math.min(1, persist * scopeDT / 0.07).toFixed(3) + ")"; g.fillRect(0, 0, w, h); }   /* phosphor decay, per second */
   else g.clearRect(0, 0, w, h);
   return [g, w, h, dpr];
 }
-/* THE DIAL. An aged ivory card, yellowed toward the edges, a little foxed, the
-   way a meter that has lived in a bag for forty years looks. Drawn fresh each
-   frame under the needle. */
+/* THE DIAL. A dark charcoal card, matte, with the faint unevenness of paint
+   that has been in the sun, a soft vignette under the glass, and a couple of
+   pale wear marks where the needle's shadow has always fallen. */
 function dial(g, w, h, seedk) {
-  const rg = g.createRadialGradient(w * .5, h * .55, 0, w * .5, h * .55, Math.max(w, h) * .75);
-  rg.addColorStop(0, "#e2d8bf"); rg.addColorStop(.6, "#d3c6a6"); rg.addColorStop(1, "#a8987a");
+  const rg = g.createRadialGradient(w * .5, h * .6, 0, w * .5, h * .6, Math.max(w, h) * .8);
+  rg.addColorStop(0, "#2a2c2e"); rg.addColorStop(.6, "#202224"); rg.addColorStop(1, "#131415");
   g.fillStyle = rg; g.fillRect(0, 0, w, h);
-  /* foxing: a few faint stains at fixed places */
-  const spots = [[.18, .72, .09], [.83, .28, .07], [.62, .84, .05], [.31, .22, .04]];
-  spots.forEach(([x, y, r], i) => { const sg = g.createRadialGradient(w * x, h * y, 0, w * x, h * y, Math.min(w, h) * r);
-    sg.addColorStop(0, "rgba(120,90,50,.16)"); sg.addColorStop(1, "rgba(120,90,50,0)"); g.fillStyle = sg; g.fillRect(0, 0, w, h); });
-  /* the glass vignette on the dial */
+  const spots = [[.22, .70, .10, .05], [.80, .30, .08, .04], [.60, .86, .06, .06]];
+  spots.forEach(([x, y, r, a]) => { const sg = g.createRadialGradient(w * x, h * y, 0, w * x, h * y, Math.min(w, h) * r);
+    sg.addColorStop(0, "rgba(255,255,255," + a + ")"); sg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = sg; g.fillRect(0, 0, w, h); });
   const vg = g.createRadialGradient(w * .5, h * .5, Math.min(w, h) * .3, w * .5, h * .5, Math.max(w, h) * .8);
-  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.28)"); g.fillStyle = vg; g.fillRect(0, 0, w, h);
+  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.35)"); g.fillStyle = vg; g.fillRect(0, 0, w, h);
 }
 function graticule(g, w, h, nx, ny) {
   g.strokeStyle = PHD + ".10)"; g.lineWidth = 1; g.beginPath();
@@ -1767,12 +1775,13 @@ function trace(g, pts, col, width) {          /* a glowing line: wide faint pass
     pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
   }
 }
-function needle(g, cx, cy, r, ang, col) {      /* a black needle, a soft shadow on the dial, a brass hub */
+function needle(g, cx, cy, r, ang, col) {      /* a pale needle with a red tip, its shadow on the dial, a steel hub */
   const x = cx + r * Math.cos(ang), y = cy - r * Math.sin(ang);
-  g.strokeStyle = "rgba(60,40,20,.25)"; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + 1.5, cy + 2); g.lineTo(x + 1.5, y + 2); g.stroke();
-  g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke();
-  g.fillStyle = "#3a352d"; g.beginPath(); g.arc(cx, cy, 3.2, 0, 7); g.fill();
-  g.fillStyle = "#8d857a"; g.beginPath(); g.arc(cx, cy, 1.4, 0, 7); g.fill();
+  g.strokeStyle = "rgba(0,0,0,.45)"; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + 1.5, cy + 2); g.lineTo(x + 1.5, y + 2); g.stroke();
+  g.strokeStyle = col; g.lineWidth = 1.4; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + (r - 9) * Math.cos(ang), cy - (r - 9) * Math.sin(ang)); g.stroke();
+  g.strokeStyle = RED + ".95)"; g.lineWidth = 1.6; g.beginPath(); g.moveTo(cx + (r - 9) * Math.cos(ang), cy - (r - 9) * Math.sin(ang)); g.lineTo(x, y); g.stroke();
+  g.fillStyle = "#3b3e43"; g.beginPath(); g.arc(cx, cy, 3.4, 0, 7); g.fill();
+  g.fillStyle = "#a4a8ae"; g.beginPath(); g.arc(cx, cy, 1.4, 0, 7); g.fill();
 }
 function arcScale(g, cx, cy, r, a0, a1, n, big) {
   g.strokeStyle = INK + ".75)"; g.lineWidth = 1;
@@ -1809,14 +1818,20 @@ function peakHold(k, arr, fall) {
 let bloom = 0, lastMeanY = null;
 function bloomFrom(meanY) {
   if (lastMeanY !== null) bloom = Math.min(1, bloom + Math.min(1, Math.abs(meanY - lastMeanY) / 22));
-  lastMeanY = meanY; bloom *= 0.86;
+  lastMeanY = meanY; bloom *= Math.pow(0.86, scopeDT / 0.07);   /* the same decay per second at any frame rate */
   return bloom;
 }
 let scopeDT = 0.07, scopeLast = 0;
 
+let lastFrame = null, lastSampleAt = 0;
 function drawScopes() {
-  const d = sampleFrame(); if (!d) return;
-  const N = d.length / 4, now = performance.now();
+  /* SMOOTHNESS. The video is sampled at 15 Hz, which is where the cost is;
+     everything else, needles, decay, bloom, draws every display frame from the
+     last sample, so motion is continuous rather than stepped. */
+  const nowS = performance.now();
+  if (!lastFrame || nowS - lastSampleAt >= 66) { const f = sampleFrame(); if (f) { lastFrame = f; lastSampleAt = nowS; } }
+  const d = lastFrame; if (!d) return;
+  const N = d.length / 4, now = nowS;
   scopeDT = Math.min(0.1, Math.max(0.016, (now - scopeLast) / 1000)); scopeLast = now;
   let meanY = 0; for (let i = 0; i < N; i += 4) meanY += lum(d[4*i], d[4*i+1], d[4*i+2]); meanY /= (N / 4);
   const bl = bloomFrom(meanY);                         /* 0 calm .. 1 just changed */
@@ -1832,7 +1847,7 @@ function drawScopes() {
   }
   if (scopesOn.has("hist")) {
     const [g, w, h, dpr] = face(scopeEls.hist.cv, .45); graticule(g, w, h, 8, 3);
-    const hp = peakHold("hist", hl, 0.90), mx = Math.max(1, ...hp), base = h - 11 * dpr, pts = [], pk = [];
+    const hp = peakHold("hist", hl, Math.pow(0.90, scopeDT / 0.07)), mx = Math.max(1, ...hp), base = h - 11 * dpr, pts = [], pk = [];
     for (let i = 0; i < 32; i++) { pts.push([w * (i + .5) / 32, base - (hl[i] / mx) * (base - 4 * dpr)]); pk.push([w * (i + .5) / 32, base - (hp[i] / mx) * (base - 4 * dpr)]); }
     g.fillStyle = PH + ".12)"; g.beginPath(); g.moveTo(pts[0][0], base); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(pts[31][0], base); g.closePath(); g.fill();
     trace(g, pk, PHD, 0.6 * dpr);                      /* the peak marker, falling slowly */
@@ -1901,10 +1916,10 @@ function drawScopes() {
   }
 }
 /* the loop: ~14 Hz, and only while there is something to show and someone to see it */
-function scopeLoop(now) {
+function scopeLoop() {
   scopeRAF = 0;
   if (!scopesOn.size || cocked || document.hidden || $("print").classList.contains("on") || asleep) return;
-  if (!now || now - lastScope >= 70) { lastScope = now || performance.now(); drawScopes(); }
+  drawScopes();
   scopeRAF = requestAnimationFrame(scopeLoop);
 }
 /* the back panel reads out what the camera is actually set to */
@@ -2074,13 +2089,13 @@ document.addEventListener("visibilitychange", () => {
 wake();
 function release() {                        /* the frame is taken: let go */
   const body = document.body;
-  body.classList.add("curtain");            /* blinds meet: 90 ms */
+  body.classList.add("curtain");            /* blinds meet across the picture: 140 ms */
   setTimeout(() => {
-    cock(false);                            /* behind them: finder shrinks, instruments return */
+    cock(false);                            /* behind them the finder shrinks and the instruments return */
     body.classList.add("released");
     setTimeout(() => body.classList.remove("released"), 440);
-  }, 100);
-  setTimeout(() => body.classList.remove("curtain"), 460);   /* blinds part on a settled back */
+  }, 160);
+  setTimeout(() => body.classList.remove("curtain"), 560);   /* blinds part on the small live view */
 }
 $("shutterwrap").onclick = async () => {
   const v = $("video");
