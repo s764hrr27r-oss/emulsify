@@ -49,9 +49,11 @@ body.cocked #backlcd #lcdframe.late{color:#f0b060}
 @keyframes warnpulse{0%,100%{opacity:.6}50%{opacity:1}}
 #backlcd .state{margin-left:auto;font-size:8.5px;letter-spacing:.14em;opacity:.75;flex:0 0 auto;white-space:nowrap}
 #backlcd .build{font-size:7.5px;letter-spacing:.04em;opacity:.3;margin-left:6px;flex:0 0 auto}
+#backlcd .more{font-size:10px;color:var(--ready);opacity:.7;margin-left:8px;flex:0 0 auto;line-height:1;align-self:center}
+#scopemenu.on ~ * #backlcd .more{opacity:1}
 #backlcd.selftest .seg,#backlcd.selftest .state{color:#e6c37a;opacity:.85;text-shadow:0 0 6px rgba(229,180,90,.35)}
 /* on the narrowest portrait widths the build yields before anything wraps */
-@media (max-width: 400px) and (orientation: portrait){ #backlcd .build{display:none} }
+@media (max-width: 420px) and (orientation: portrait){ #backlcd .build{display:none} }
 body.cocked #backlcd .state{color:var(--ready);opacity:1}
 body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px;position:relative}
@@ -666,6 +668,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <span class="seg" id="lcdlv">--</span><span class="lbl">LIGHT</span>
       <span class="state" id="lcdstate">WIND ON</span>
       <span class="build" id="lcdbuild"></span>
+      <span class="more" aria-hidden="true">&#9776;</span>
       <input type="checkbox" switch id="hapb" aria-label="Instruments" tabindex="-1">
     </div>
   </div>
@@ -834,7 +837,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 117;                     /* bump with every ship; lands in EXIF */
+const BUILD = 118;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1274,6 +1277,14 @@ function paintFinderMenu() {
     b.onclick = () => { closeFinderMenu(); setFinder(f.k); };
     m.appendChild(b);
   });
+  /* the instruments live one menu over; this is the door most people will find */
+  const sep = document.createElement("div"); sep.className = "hint"; sep.textContent = "";
+  const ib = document.createElement("button"); ib.textContent = "INSTRUMENTS \u2026";
+  ib.style.color = "var(--ready)";
+  const isw = document.createElement("input"); isw.type = "checkbox"; isw.setAttribute("switch", ""); isw.className = "hapov"; isw.tabIndex = -1;
+  ib.appendChild(isw);
+  ib.onclick = () => { closeFinderMenu(); $("scopemenu").classList.add("on"); $("lensveil").classList.add("on"); };
+  m.appendChild(ib);
 }
 function closeFinderMenu() {
   $("findermenu").classList.remove("on"); $("lensveil").classList.remove("on");
