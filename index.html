@@ -284,6 +284,18 @@ body.f-rf #rf{display:block}
 #rf b{position:absolute;left:50%;top:50%;width:17%;aspect-ratio:5/3;
       translate:-50% -50%;border:1px solid rgba(59,130,246,.75)}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
+/* the negative, risen over the print while held */
+#stage img.neg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;
+  transition:opacity .26s var(--ease);pointer-events:none;z-index:5}
+#stage img.neg.on{opacity:1}
+/* asleep: the finder and the back fall away until touched */
+body.sleep #glass{filter:brightness(.22) saturate(.5) !important;transition:filter 1.6s var(--ease)}
+body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
+body.sleep #aura,body.sleep #sparkle{opacity:0 !important}
+/* the back is open: dark while the roll rewinds */
+body.rewinding #glass{filter:brightness(.04) !important;transition:filter .35s var(--ease)}
+body.rewinding #backlcd .seg{color:var(--mute);text-shadow:none}
+body.rewinding #lcdstate{color:var(--ready)}
 /* ---------- THE ADVANCE ----------
    A camera will not fire until the film is wound on. The strip below the
    finder is that wind: pressing it drags one frame of perforations past and
@@ -316,6 +328,7 @@ body:not(.cocked) #grid,body:not(.cocked) #quad{opacity:.10}
 body:not(.cocked) #rf,body:not(.cocked) #spot,body:not(.cocked) #cross{opacity:.2}
 body.cocked #glass{filter:brightness(1.04) saturate(1.05) contrast(1.02)}
 body:not(.cocked) .deck{opacity:.6;transition:opacity .3s var(--ease)}
+.deck,#backlcd{filter:brightness(var(--ambient,1));transition:filter 1.2s var(--ease)}
 /* LOCK IN: the grid goes from a grey suggestion to a hard white frame line.
    Idle it is barely there; set, it is the brightest thing on the glass. */
 #lockgrid{position:absolute;inset:0;pointer-events:none;opacity:0;
@@ -352,6 +365,23 @@ body.released #glass{animation:letgo .42s cubic-bezier(.34,1.56,.64,1) both}
 #shutter{transition:opacity .25s var(--ease)}
 body:not(.cocked) #shutter{opacity:.38}
 #wind.nudge{animation:nudge .3s}
+/* ASKING. Everything else on the idle back is still, so the one thing that
+   moves is the thing to press. The label breathes on a long cycle, the border
+   with it, both faint. It is not a blink; it is a pulse you notice after a
+   moment of looking. */
+body:not(.cocked) #wind b{animation:askglow 4.6s ease-in-out infinite}
+@keyframes askglow{0%,100%{opacity:.5;text-shadow:none}
+                   50%{opacity:.95;text-shadow:0 0 8px rgba(229,180,90,.45)}}
+body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
+@keyframes askring{0%,100%{opacity:.7}50%{opacity:1}}
+/* THE GLINT. Every few minutes, at a moment nobody chose, a highlight crosses
+   the strip like light catching a lever: a narrow bright band sweeping left
+   to right in under a second. Once soon after boot for whoever is new. */
+#wind .glint{position:absolute;top:0;bottom:0;left:-30%;width:22%;pointer-events:none;opacity:0;
+  background:linear-gradient(100deg, transparent 0%, rgba(255,246,220,.02) 30%, rgba(255,246,220,.55) 50%, rgba(255,246,220,.02) 70%, transparent 100%);
+  filter:blur(.4px)}
+#wind.glinting .glint{animation:glintsweep .9s cubic-bezier(.3,.1,.2,1) both}
+@keyframes glintsweep{0%{left:-30%;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:108%;opacity:0}}
 @keyframes nudge{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 #denied{position:absolute;inset:0;display:none;place-items:center;
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
@@ -579,6 +609,7 @@ body:not(.cocked) #shutter{opacity:.38}
 <div id="camera">
   <div class="top">
     <div id="backlcd">
+      <span class="seg" id="lcdroll">A</span><span class="lbl">ROLL</span>
       <span class="seg" id="lcdframe">001</span>
       <span class="lbl">FRAME</span>
       <span class="seg" id="lcdlens">33</span><span class="lbl">MM</span>
@@ -616,7 +647,7 @@ body:not(.cocked) #shutter{opacity:.38}
     </div>
   </div>
     <div class="deck">
-    <span id="windwrap"><button id="wind" aria-label="Ready the shutter"><span class="perf"></span><b>TAP TO READY</b></button><input type="checkbox" switch id="haw" aria-label="Ready" tabindex="-1"></span>
+    <span id="windwrap"><button id="wind" aria-label="Ready the shutter"><span class="perf"></span><b>TAP TO READY</b><i class="glint"></i></button><input type="checkbox" switch id="haw" aria-label="Ready" tabindex="-1"></span>
     <div id="chips">
       <button id="chip" aria-label="Prints"><span class="dot"></span><span class="play"></span></button>
       <button id="ana" class="lensbtn" aria-label="Anamorphic">1.55</button>
@@ -747,7 +778,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 103;                     /* bump with every ship; lands in EXIF */
+const BUILD = 105;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1302,6 +1333,7 @@ function windVoice() {
     if (cold) AC.resume();
     const src = AC.createBufferSource();
     src.buffer = windBuffer();
+    src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.03;   /* a lever, not a recording */
     src.connect(AC.destination);
     src.start(AC.currentTime + (cold ? 0.06 : 0.001));
   } catch (e) {}
@@ -1373,6 +1405,9 @@ function shutterVoice() {
     if (cold) AC.resume();
     const src = AC.createBufferSource();
     src.buffer = shutterBuffer();
+    /* a slow shutter is a longer, lower kachunk. Ride the scene light: a dim
+       room at LV 4 plays at .80, open sun at LV 13 at 1.05. */
+    src.playbackRate.value = Math.max(0.80, Math.min(1.05, 0.80 + (lastLV - 4) * (0.25 / 9)));
     src.connect(AC.destination);
     src.start(AC.currentTime + (cold ? 0.06 : 0.001));
   } catch (e) {}
@@ -1428,14 +1463,53 @@ function backLCD() {
   try {
     const mm = ($("lens").textContent || "").replace(/[^0-9]/g, "") || "33";
     $("lcdlens").textContent = mm;
-    $("lcdframe").textContent = String((frameNo || 0) + 1).padStart(3, "0");
+    $("lcdframe").textContent = String(Math.min((frameNo || 0) + 1, ROLL_LEN)).padStart(3, "0");
+    $("lcdroll").textContent = ROLL;
     const lv = lightValue();
     $("lcdlv").textContent = lv === null ? "--" : String(lv).padStart(2, "0");
+    if (lv !== null) {
+      lastLV = lv;
+      /* the back dims in a dark room and brightens in sun, off the same reading */
+      const amb = 0.74 + 0.26 * Math.max(0, Math.min(1, (lv - 3) / 10));
+      document.documentElement.style.setProperty("--ambient", amb.toFixed(3));
+    }
     $("lcdbuild").textContent = "b" + BUILD + (workerVer ? " w" + workerVer : "");
   } catch (e) {}
 }
-let frameNo = 0;
-try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; } catch (e) {}
+let frameNo = 0, ROLL = "A", lastLV = 8;
+try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; ROLL = localStorage.roll || "A"; } catch (e) {}
+/* THE ROLL. Thirty six frames, then the film is out: a rewind, a beat of
+   dark while the back is open, and a new roll on the counter. Prints carry
+   the roll letter and frame in their names so a roll can be found together. */
+const ROLL_LEN = 36;
+function rewindVoice() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const t = AC.currentTime + 0.02, dur = 1.35, sr = AC.sampleRate;
+    const b = AC.createBuffer(1, Math.ceil(dur * sr), sr), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const x = i / d.length;
+      d[i] = (Math.random() * 2 - 1) * Math.sin(x * Math.PI) * (0.6 + 0.4 * Math.sin(i / sr * 2 * Math.PI * (23 + 30 * x)));
+    }
+    const src = AC.createBufferSource(); src.buffer = b;
+    const bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 1.4;
+    bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(2400, t + dur * 0.85);
+    const g = AC.createGain(); g.gain.value = 0.16;
+    src.connect(bp); bp.connect(g); g.connect(AC.destination); src.start(t);
+  } catch (e) {}
+}
+function rollOver() {
+  rewindVoice();
+  document.body.classList.add("rewinding");
+  setTimeout(() => {
+    ROLL = String.fromCharCode(((ROLL.charCodeAt(0) - 65 + 1) % 26) + 65);
+    frameNo = 0;
+    try { localStorage.roll = ROLL; localStorage.frameNo = "0"; } catch (e) {}
+    backLCD();
+    document.body.classList.remove("rewinding");
+  }, 1500);
+}
 backLCD();
 setInterval(backLCD, 700);                 /* cheap: keeps the lens readout honest */
 $("windwrap").onclick = () => {
@@ -1459,6 +1533,29 @@ $("windwrap").addEventListener("pointerdown", () => {
 });
 ["pointerup","pointercancel","pointerleave"].forEach(ev =>
   $("windwrap").addEventListener(ev, () => clearTimeout(windHold)));
+/* the glint runs on its own clock: soon after boot, then at random intervals
+   between two and five minutes, and only while the strip is asking */
+function glint() {
+  if (cocked) return;
+  const w = $("wind");
+  w.classList.remove("glinting"); void w.offsetWidth; w.classList.add("glinting");
+  setTimeout(() => w.classList.remove("glinting"), 1000);
+}
+function scheduleGlint(first) {
+  const ms = first ? 4500 : 120000 + Math.random() * 180000;
+  setTimeout(() => { glint(); scheduleGlint(false); }, ms);
+}
+scheduleGlint(true);
+/* AUTO-OFF. Two minutes untouched and the camera sleeps: finder dims, back
+   fades, hum stops. Any touch wakes it. Every camera does this. */
+let sleepTimer = 0, asleep = false;
+function wake() {
+  if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); }
+  clearTimeout(sleepTimer);
+  sleepTimer = setTimeout(() => { asleep = true; document.body.classList.add("sleep"); humStop(); }, 120000);
+}
+["pointerdown", "keydown", "touchstart"].forEach(ev => addEventListener(ev, wake, { passive: true, capture: true }));
+wake();
 function release() {                        /* the frame is taken: let go */
   cock(false);
   document.body.classList.add("released");
@@ -1509,8 +1606,9 @@ async function cook(c, voice, full) {
   closeLensMenu();
   if (voice) {
     frameNo++;                              /* the counter only moves on a real frame */
-    try { localStorage.frameNo = String(frameNo); } catch (e) {}
+    try { localStorage.frameNo = String(frameNo); localStorage["rf" + id] = ROLL + String(frameNo).padStart(2, "0"); } catch (e) {}
     backLCD();
+    if (frameNo >= ROLL_LEN) setTimeout(rollOver, 900);
     release();                              /* the tension goes with the frame */
     $("flash").style.opacity = 1;
     setTimeout(() => $("flash").style.opacity = 0, 110);
@@ -1700,7 +1798,7 @@ paintChip();
 $("chip").onclick = () => { const k = galleryIds()[0]; if (k) openItem(k); };
 
 /* ---------- print view; long-press the print itself to save ---------- */
-let current = null, armedFile = null, watching = null, openTok = 0;
+let current = null, armedFile = null, watching = null, openTok = 0, currentNeg = null;
 async function openPrint(id) {
   current = id; watching = null;
   const tok = ++openTok;              /* a faster tap wins; stale opens bail */
@@ -1709,15 +1807,17 @@ async function openPrint(id) {
   if (!u || tok !== openTok) return;
   try {                                   /* arm the print for hold-to-save */
     const blob = await get("prints", id);
-    const secs = localStorage["t" + id] || "";
+    const secs = localStorage["t" + id] || "", rf = localStorage["rf" + id] || "";
     armedFile = new File([blob],
-      "EMULSIFY" + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
+      "EMULSIFY" + (rf ? "-" + rf : "") + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
       { type: "image/jpeg" });
   } catch (e) { armedFile = null; }
   let negD = null;
   try { negD = await get("prints", id + ":neg"); } catch (e) {}
   if (tok !== openTok) return;
-  const first = !!negD;                /* the maiden view gets the whole bath */
+  let seen = false; try { seen = !!localStorage["seen" + id]; } catch (e) {}
+  const first = !!negD && !seen;       /* the maiden view gets the whole bath */
+  currentNeg = negD ? "data:image/jpeg;base64," + negD : null;
   if (calmMotion || !first) {          /* stillness asked for, or already seen: just the print,
                                           at once, so the strip can be played like keys */
     const img = document.createElement("img");
@@ -1754,7 +1854,7 @@ async function openPrint(id) {
       bath.remove(); if (nimg) nimg.remove();
     }, (first && !slow) ? 2600 : 900);
   }
-  if (negD) { try { put("prints", id + ":neg", ""); } catch (e) {} }
+  try { localStorage["seen" + id] = "1"; } catch (e) {}   /* the negative is kept: hold the print to see it */
 
   await buildStrip(id);
   humStop(); $("print").classList.add("on");
@@ -1838,17 +1938,30 @@ $("back").onclick = () => { $("print").classList.remove("on"); setPaged(false); 
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
 let HOLD = null;
+/* HOLD. Press a print and after a third of a second its negative rises over
+   it, for as long as you hold. Let go and the print returns. Hold on past
+   1.4 s and the share sheet opens instead, as before. */
+let negTimer = 0;
+function showNeg(on) {
+  const st = $("stage"); let n = st.querySelector("img.neg");
+  if (on) {
+    if (!currentNeg || watching) return;
+    if (!n) { n = document.createElement("img"); n.className = "neg"; n.src = currentNeg; st.appendChild(n); }
+    requestAnimationFrame(() => n.classList.add("on"));
+  } else if (n) { n.classList.remove("on"); setTimeout(() => n.remove(), 260); }
+}
 $("stage").addEventListener("pointerdown", e => {
   HOLD = { t: performance.now(), x: e.clientX, y: e.clientY, moved: false };
+  clearTimeout(negTimer); negTimer = setTimeout(() => { if (HOLD && !HOLD.moved) showNeg(true); }, 320);
 });
 $("stage").addEventListener("pointermove", e => {
   if (HOLD && Math.hypot(e.clientX - HOLD.x, e.clientY - HOLD.y) > 10)
     HOLD.moved = true;
 });
-$("stage").addEventListener("pointercancel", () => { HOLD = null; });
+$("stage").addEventListener("pointercancel", () => { HOLD = null; clearTimeout(negTimer); showNeg(false); });
 $("stage").addEventListener("pointerup", () => {
-  const h = HOLD; HOLD = null;
-  if (!h || h.moved || watching || performance.now() - h.t < 550) return;
+  const h = HOLD; HOLD = null; clearTimeout(negTimer); showNeg(false);
+  if (!h || h.moved || watching || performance.now() - h.t < 1400) return;
   if (armedFile && navigator.canShare &&
       navigator.canShare({ files: [armedFile] })) {
     navigator.share({ files: [armedFile] }).catch(() => {});
