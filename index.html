@@ -214,6 +214,10 @@ body.cocked #tension i{border-color:rgba(255,240,205,.95);
 body:not(.cocked) #screen{transform:scale(.26);border-radius:3px;
                           box-shadow:0 0 0 1px rgba(255,255,255,.28), 0 0 26px rgba(0,0,0,.9)}
 body.cocked #screen{transform:none;border-radius:0}
+#screen::after{content:"";position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 26px 6px rgba(0,0,0,.72), inset 0 0 4px rgba(0,0,0,.6);
+  border-radius:inherit;opacity:1;transition:opacity .5s var(--ease)}
+body.cocked #screen::after{opacity:0}
 body.released #screen{transition:transform .24s cubic-bezier(.5,0,.9,.4)}
 #glass video.live{opacity:1}
 /* ---------- finder overlays ----------
@@ -294,6 +298,14 @@ body.f-rf #rf{display:block}
 #rf b{position:absolute;left:50%;top:50%;width:17%;aspect-ratio:5/3;
       translate:-50% -50%;border:1px solid rgba(59,130,246,.75)}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
+/* in slow light the shutter's halo turns amber: the shake warning lives on
+   the button you are about to press */
+body.cocked.slowlight #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(224,160,80,.55),
+                              0 0 26px rgba(236,150,60,.30);animation:none}
+/* the self-timer running: the state counts, the shutter pulses */
+body.timing #lcdstate{color:#e0a050}
+body.timing #shutter{animation:timerpulse 1s ease-in-out infinite}
+@keyframes timerpulse{0%,100%{opacity:1}50%{opacity:.55}}
 /* asleep: the finder and the back fall away until touched */
 body.sleep #glass{filter:brightness(.22) saturate(.5) !important;transition:filter 1.6s var(--ease)}
 body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
@@ -543,6 +555,9 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
   border-left:1.5px solid var(--mute);border-bottom:1.5px solid var(--mute);
   transform:rotate(45deg)}
 .barx{margin-left:auto;display:flex;gap:6px;align-items:center}
+/* the edge code: roll letter and frame, the way they are printed along the
+   film's rebate. Gold, small, beside the back button. */
+#edgecode{margin-left:14px;font:10px ui-monospace,Menlo,monospace;letter-spacing:.2em;color:#c9a862;opacity:.85}
 #stage{flex:1;position:relative;min-height:0;margin:0 16px}
 #stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
            -webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto;
@@ -676,7 +691,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 </svg>
 
 <div id="print">
-  <div class="bar"><button id="back" aria-label="Close"></button><span class="barx"></span></div>
+  <div class="bar"><button id="back" aria-label="Close"></button><span id="edgecode"></span><span class="barx"></span></div>
   <div id="stage"></div>
   <div class="foot">
     <div id="strip"></div>
@@ -779,7 +794,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 107;                     /* bump with every ship; lands in EXIF */
+const BUILD = 108;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1481,6 +1496,7 @@ function backLCD() {
          is the LIGHT label itself turning to SLOW and going amber at LV 4 and under */
       const lbl = $("lcdlv").nextElementSibling;
       if (lbl) { lbl.textContent = lv <= 4 ? "SLOW" : "LIGHT"; lbl.classList.toggle("warn", lv <= 4); }
+      document.body.classList.toggle("slowlight", lv <= 4);
       /* the back dims in a dark room and brightens in sun, off the same reading */
       const amb = 0.74 + 0.26 * Math.max(0, Math.min(1, (lv - 3) / 10));
       document.documentElement.style.setProperty("--ambient", amb.toFixed(3));
@@ -1520,7 +1536,22 @@ function rollOver() {
     try { localStorage.roll = ROLL; localStorage.frameNo = "0"; } catch (e) {}
     backLCD();
     document.body.classList.remove("rewinding");
+    leaderVoice();                               /* the leader catches: two clicks and the film is on */
   }, 1500);
+}
+function leaderVoice() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = AC.currentTime + 0.05, sr = AC.sampleRate;
+    [[0, 0.12, 2600], [0.14, 0.10, 2100], [0.31, 0.16, 1500]].forEach(([dt, gain, f]) => {
+      const b = AC.createBuffer(1, Math.ceil(0.02 * sr), sr), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.6);
+      const src = AC.createBufferSource(); src.buffer = b;
+      const bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = 1.8;
+      const g = AC.createGain(); g.gain.value = gain;
+      src.connect(bp); bp.connect(g); g.connect(AC.destination); src.start(t0 + dt);
+    });
+  } catch (e) {}
 }
 /* POWER ON. Every camera with a panel does this: for half a second the
    segments all light, 8 888 88 88, then the real numbers settle in. Once. */
@@ -1561,8 +1592,54 @@ function release() {                        /* the frame is taken: let go */
   document.body.classList.add("released");
   setTimeout(() => document.body.classList.remove("released"), 440);
 }
+/* SELF-TIMER. Hold the shutter for a second and the camera's timer takes
+   the shot instead of you: ten seconds, the panel counting, a mechanical
+   buzz that ticks faster as it runs down, then the release. Cancel by
+   tapping the shutter again. Only when the shutter is set. */
+let timerHold = 0, timerRun = null, timerStartedAt = 0;
+function timerTick(rate) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+    o.type = "square"; o.frequency.value = 1900 + rate * 400;
+    g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 0.04);
+  } catch (e) {}
+}
+function selfTimerStart() {
+  if (timerRun || !cocked) return;
+  let n = 10; const st = $("lcdstate"), body = document.body;
+  timerStartedAt = performance.now();
+  body.classList.add("timing");
+  const step = () => {
+    if (!timerRun) return;
+    st.textContent = "TIMER " + String(n).padStart(2, "0");
+    timerTick((10 - n) / 10);
+    if (n <= 0) { timerRun = null; body.classList.remove("timing"); $("shutterwrap").onclick(); return; }
+    n--; timerRun = setTimeout(step, n < 3 ? 500 : 1000);
+  };
+  timerRun = setTimeout(step, 10); step();
+}
+function selfTimerCancel() {
+  if (!timerRun) return;
+  clearTimeout(timerRun); timerRun = null;
+  document.body.classList.remove("timing");
+  $("lcdstate").textContent = cocked ? "SHUTTER SET" : "WIND ON";
+}
+hapEl.addEventListener("pointerdown", () => {
+  clearTimeout(timerHold);
+  if (cocked && !timerRun) timerHold = setTimeout(selfTimerStart, 900);
+});
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => hapEl.addEventListener(ev, () => clearTimeout(timerHold)));
 $("shutterwrap").onclick = async () => {
   const v = $("video");
+  if (timerRun) {                                    /* a tap during the count cancels it,
+                                                        but not the release of the hold that started it */
+    if (performance.now() - timerStartedAt > 700) selfTimerCancel();
+    return;
+  }
+  if (document.body.classList.contains("timing")) return;
   if (!cocked) {                            /* wind on first, like film */
     const w = $("wind");
     w.classList.remove("nudge"); void w.offsetWidth; w.classList.add("nudge");
@@ -1808,6 +1885,7 @@ async function openPrint(id) {
   try {                                   /* arm the print for hold-to-save */
     const blob = await get("prints", id);
     const secs = localStorage["t" + id] || "", rf = localStorage["rf" + id] || "";
+    try { $("edgecode").textContent = rf ? rf[0] + " \u00b7 " + rf.slice(1) + (secs ? "  \u00b7  " + secs + "s" : "") : (secs ? secs + "s" : ""); } catch (e) {}
     armedFile = new File([blob],
       "EMULSIFY" + (rf ? "-" + rf : "") + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg",
       { type: "image/jpeg" });
