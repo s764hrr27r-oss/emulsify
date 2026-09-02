@@ -25,7 +25,20 @@ button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:p
         padding-top:env(safe-area-inset-top);
         transition:transform .26s var(--ease), opacity .24s var(--ease)}
 body.paged #camera{transform:scale(.97)}
-.top{height:36px;flex:0 0 auto}   /* spacer above the gate; was the status dot */
+/* ---------- THE CAMERA BACK ----------
+   A status panel of the kind that sits beside the eyepiece: frame count, the
+   glass in front, the film speed, and whether the shutter is set. It is the
+   thing that makes a small finder read as a finder rather than a bug. */
+.top{height:36px;flex:0 0 auto;display:flex;align-items:center;padding:0 18px}
+#backlcd{flex:1;display:flex;align-items:baseline;gap:6px;
+  font:11px ui-monospace,Menlo,monospace;color:var(--mute);
+  border:1px solid var(--hair);border-radius:5px;padding:4px 10px;
+  background:rgba(255,255,255,.012)}
+#backlcd .seg{font-size:13px;letter-spacing:.06em;color:#cfcdc7}
+#backlcd .lbl{font-size:8px;letter-spacing:.16em;opacity:.55;margin-right:6px}
+#backlcd .state{margin-left:auto;font-size:9px;letter-spacing:.18em;opacity:.75}
+body.cocked #backlcd .state{color:var(--dot);opacity:1}
+body.cocked #backlcd{border-color:rgba(229,180,90,.35)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}}
@@ -35,16 +48,16 @@ body.paged #camera{transform:scale(.97)}
 .ghost{opacity:0 !important;pointer-events:none}
 #glass{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;background:#000;
        animation:bootin .5s var(--ease) both}
+#screen{position:absolute;inset:0;transform-origin:50% 50%;overflow:hidden;
+        transition:transform .58s cubic-bezier(.16,.9,.22,1),
+                   box-shadow .4s var(--ease),border-radius .5s var(--ease)}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-             opacity:0;transform-origin:50% 50%;
-             transition:opacity .4s var(--ease),
-                        transform .58s cubic-bezier(.16,.9,.22,1)}
-/* idle: a small sharp window, the whole scene shrunk into the middle */
-body:not(.cocked) #glass video{transform:scale(.26)}
-body.cocked #glass video{transform:none}
-/* firing drops it back fast, the way a mirror falls */
-body.released #glass video{transition:opacity .4s var(--ease),
-                                      transform .24s cubic-bezier(.5,0,.9,.4)}
+             opacity:0;transition:opacity .4s var(--ease)}
+/* idle: the finder is a small bright window in the middle of the camera back */
+body:not(.cocked) #screen{transform:scale(.26);border-radius:3px;
+                          box-shadow:0 0 0 1px rgba(255,255,255,.28), 0 0 26px rgba(0,0,0,.9)}
+body.cocked #screen{transform:none;border-radius:0}
+body.released #screen{transition:transform .24s cubic-bezier(.5,0,.9,.4)}
 #glass video.live{opacity:1}
 /* ---------- finder overlays ----------
    Each mode draws only under its own body class, so no mode is "the absence
@@ -209,6 +222,11 @@ body:not(.cocked) #shutter{opacity:.38}
           transition:opacity .22s var(--ease)}
 #chip img.step{animation:stepup 2.4s var(--ease) both}
 #chip .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
+#chip .play{position:absolute;left:50%;top:50%;translate:-50% -50%;
+  width:0;height:0;border-left:9px solid rgba(244,242,237,.92);
+  border-top:6px solid transparent;border-bottom:6px solid transparent;
+  filter:drop-shadow(0 0 3px rgba(0,0,0,.8));pointer-events:none}
+#chip.hasimg .play{opacity:.85}
 #chip .dot{position:relative;display:none}
 #chip.cooking .dot{display:inline-block}
 #chip .dot.brew{animation:breathe 1.6s ease-in-out infinite}
@@ -391,10 +409,18 @@ body:not(.cocked) #shutter{opacity:.38}
 <body>
 
 <div id="camera">
-  <div class="top"></div>
+  <div class="top">
+    <div id="backlcd">
+      <span class="seg" id="lcdframe">001</span>
+      <span class="lbl">FRAME</span>
+      <span class="seg" id="lcdlens">33</span><span class="lbl">MM</span>
+      <span class="seg" id="lcdiso">222</span><span class="lbl">ISO</span>
+      <span class="state" id="lcdstate">WIND ON</span>
+    </div>
+  </div>
   <div id="frame">
     <div id="glass">
-      <video id="video" autoplay playsinline muted></video>
+      <div id="screen"><video id="video" autoplay playsinline muted></video></div>
       <div id="anawarn">
         <svg viewBox="0 0 64 40" width="54" height="34" fill="none"
              stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
@@ -421,7 +447,7 @@ body:not(.cocked) #shutter{opacity:.38}
   <span id="windwrap"><button id="wind" aria-label="Ready the shutter"><span class="perf"></span><b>TAP TO READY</b></button><input type="checkbox" switch id="haw" aria-label="Ready" tabindex="-1"></span>
   <div class="deck">
     <div id="chips">
-      <button id="chip" aria-label="Prints"><span class="dot"></span></button>
+      <button id="chip" aria-label="Prints"><span class="dot"></span><span class="play"></span></button>
       <button id="ana" class="lensbtn" aria-label="Anamorphic">1.55</button>
     </div>
     <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
@@ -550,7 +576,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 86;                     /* bump with every ship; lands in EXIF */
+const BUILD = 87;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1121,7 +1147,21 @@ function cock(on) {
   document.body.classList.toggle("cocked", cocked);
   const b = $("wind").querySelector("b");
   if (b) b.textContent = cocked ? "READY" : "TAP TO READY";
+  const st = $("lcdstate");
+  if (st) st.textContent = cocked ? "SHUTTER SET" : "WIND ON";
 }
+/* the back panel reads out what the camera is actually set to */
+function backLCD() {
+  try {
+    const mm = ($("lens").textContent || "").replace(/[^0-9]/g, "") || "33";
+    $("lcdlens").textContent = mm;
+    $("lcdframe").textContent = String((frameNo || 0) + 1).padStart(3, "0");
+  } catch (e) {}
+}
+let frameNo = 0;
+try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; } catch (e) {}
+backLCD();
+setInterval(backLCD, 1200);                 /* cheap: keeps the lens readout honest */
 $("windwrap").onclick = () => {
   if (cocked) return;                       /* already set: no double stroke */
   const w = $("wind");
@@ -1192,6 +1232,9 @@ async function cook(c, voice, full) {
   } catch (e) {}
   closeLensMenu();
   if (voice) {
+    frameNo++;                              /* the counter only moves on a real frame */
+    try { localStorage.frameNo = String(frameNo); } catch (e) {}
+    backLCD();
     release();                              /* the tension goes with the frame */
     $("flash").style.opacity = 1;
     setTimeout(() => $("flash").style.opacity = 0, 110);
