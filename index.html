@@ -72,42 +72,40 @@ body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
 #aura::after{box-shadow:-12px 20px 46px 5px rgba(214,216,222,.05), -22px -10px 46px 5px rgba(214,216,222,.055),
              20px -16px 46px 5px rgba(214,216,222,.045), 18px 18px 46px 5px rgba(214,216,222,.055), 0 0 32px 2px rgba(236,238,242,.025);
              opacity:0}
-body.cocked #aura{opacity:1;animation:seambreathe 3.4s ease-in-out infinite}
+body.cocked #aura{opacity:1}
 body.cocked #aura::before{animation:seamA 14s ease-in-out infinite alternate}
 body.cocked #aura::after{animation:seamB 14s ease-in-out infinite alternate}
 @keyframes seamA{from{opacity:1}to{opacity:0}}
 @keyframes seamB{from{opacity:0}to{opacity:1}}
-@keyframes seambreathe{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.15)}}
 body.released #aura{transition:opacity .4s var(--ease);opacity:0;animation:none}
 #glass{position:relative;z-index:1}
-/* SPARKLE. Tiny silver points scattered just inside the gate's edge, each one
-   glinting on its own cycle, never two at once. They are the size of grain and
-   nearly the brightness of nothing; you catch one in the corner of your eye
-   and it is gone. Idle they do not exist. */
-#sparkle{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;transition:opacity .9s var(--ease);
-  background-image:
-    radial-gradient(circle at 3% 12%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
-    radial-gradient(circle at 97% 9%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
-    radial-gradient(circle at 5% 88%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
-    radial-gradient(circle at 96% 91%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
-    radial-gradient(circle at 2% 50%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
-    radial-gradient(circle at 98% 44%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
-    radial-gradient(circle at 48% 2%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
-    radial-gradient(circle at 53% 98%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
-    radial-gradient(circle at 12% 4%, rgba(255,236,200,.85) 0 .5px, transparent 1.1px),
-    radial-gradient(circle at 90% 96%, rgba(255,236,200,.85) 0 .5px, transparent 1.1px),
-    radial-gradient(circle at 7% 30%, rgba(240,242,246,.8) 0 .4px, transparent 1px),
-    radial-gradient(circle at 94% 70%, rgba(240,242,246,.8) 0 .4px, transparent 1px)}
-body.cocked #sparkle{opacity:1;animation:glint 7s linear infinite}
-/* one mask sweeps the field so different points catch the light at different
-   moments: a soft band of visibility travelling diagonally, everything outside
-   it dark. Hence never all at once. */
-@keyframes glint{
-  0%{-webkit-mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%)}
-  25%{-webkit-mask-image:radial-gradient(circle at 110% 10%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at 110% 10%, #000 0 6%, transparent 14%)}
-  50%{-webkit-mask-image:radial-gradient(circle at 90% 115%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at 90% 115%, #000 0 6%, transparent 14%)}
-  75%{-webkit-mask-image:radial-gradient(circle at -10% 90%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at -10% 90%, #000 0 6%, transparent 14%)}
-  100%{-webkit-mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%);mask-image:radial-gradient(circle at -20% -20%, #000 0 6%, transparent 14%)}}
+/* SPARKLE. Twelve points in four groups, each group a static raster that
+   twinkles on opacity with its own period, so no two groups peak together.
+   No mask, no filter: nothing here repaints. Idle they do not exist. */
+#sparkle{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;transition:opacity .9s var(--ease)}
+#sparkle i{position:absolute;inset:0;opacity:0}
+#sparkle i:nth-child(1){background-image:
+  radial-gradient(circle at 3% 12%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+  radial-gradient(circle at 96% 91%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+  radial-gradient(circle at 48% 2%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px)}
+#sparkle i:nth-child(2){background-image:
+  radial-gradient(circle at 97% 9%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+  radial-gradient(circle at 5% 88%, rgba(240,242,246,.9) 0 .6px, transparent 1.2px),
+  radial-gradient(circle at 53% 98%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px)}
+#sparkle i:nth-child(3){background-image:
+  radial-gradient(circle at 2% 50%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
+  radial-gradient(circle at 12% 4%, rgba(255,236,200,.85) 0 .5px, transparent 1.1px),
+  radial-gradient(circle at 94% 70%, rgba(240,242,246,.8) 0 .4px, transparent 1px)}
+#sparkle i:nth-child(4){background-image:
+  radial-gradient(circle at 98% 44%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px),
+  radial-gradient(circle at 90% 96%, rgba(255,236,200,.85) 0 .5px, transparent 1.1px),
+  radial-gradient(circle at 7% 30%, rgba(240,242,246,.8) 0 .4px, transparent 1px)}
+body.cocked #sparkle{opacity:1}
+body.cocked #sparkle i{animation:twinkle 6.2s ease-in-out infinite}
+body.cocked #sparkle i:nth-child(2){animation-duration:7.4s;animation-delay:-2.1s}
+body.cocked #sparkle i:nth-child(3){animation-duration:5.3s;animation-delay:-3.7s}
+body.cocked #sparkle i:nth-child(4){animation-duration:8.1s;animation-delay:-1.2s}
+@keyframes twinkle{0%,70%,100%{opacity:0}80%{opacity:1}88%{opacity:.2}}
 body.released #sparkle{transition:opacity .3s var(--ease);opacity:0}
 /* the readouts turn gold and radiate when the shutter is set */
 #backlcd .seg{transition:color .6s var(--ease), text-shadow .6s var(--ease)}
@@ -144,58 +142,65 @@ body.cocked #finder::after{animation-delay:-.6s}
 body.cocked #lens::after{animation-delay:-1.3s}
 body.cocked #ana::after{animation-delay:-2.1s}
 body.cocked #chip::after{animation-delay:-1.7s}
-@keyframes silverbreath{0%,100%{opacity:.55;filter:brightness(.9)}50%{opacity:1;filter:brightness(1.25)}}
+@keyframes silverbreath{0%,100%{opacity:.5}50%{opacity:1}}
 body.cocked #wind::after,body.cocked #backlcd::after{
   background:linear-gradient(135deg, rgba(246,220,150,.9), rgba(196,150,70,.35) 40%, rgba(120,90,40,.3) 60%, rgba(236,196,106,.85));
-  animation:goldshimmer 5s linear infinite;background-size:220% 220%}
-@keyframes goldshimmer{0%{background-position:0% 0%}100%{background-position:100% 100%}}
+  animation:goldbreath 5s ease-in-out infinite}
+@keyframes goldbreath{0%,100%{opacity:.7}50%{opacity:1}}
 /* the deck outline: a silver hairline that lights when set */
 .deck::before{opacity:.75;transition:opacity .6s var(--ease)}
 body.cocked .deck::before{opacity:1;
   background-image:linear-gradient(135deg, rgba(236,236,232,.55), rgba(120,120,116,.16) 40%, rgba(60,60,58,.18) 60%, rgba(220,220,216,.45))}
-/* the shutter rim turns to metal when set */
-#shutter{transition:opacity .25s var(--ease), box-shadow .6s var(--ease)}
-body.cocked #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(214,214,208,.35),
-                     0 0 22px rgba(229,180,90,.18);animation:rimbreath 3.2s ease-in-out infinite}
-@keyframes rimbreath{0%,100%{box-shadow:0 0 0 1px rgba(236,236,232,.45), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(214,214,208,.25), 0 0 18px rgba(229,180,90,.12)}
-                     50%{box-shadow:0 0 0 1px rgba(246,246,242,.85), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(226,226,220,.5), 0 0 30px rgba(229,180,90,.26)}}
-/* THE GRID IS LIT. Not thicker: a 1px white core that carries a radiant
-   sheath, the way a blade of light does. The core is constant; only the
-   sheath breathes, and it breathes slowly and barely, so the lines feel alive
-   rather than blink. Two shadows: a tight warm halo and a wide faint one. */
-body.cocked.f-grid #lockgrid{
-  filter:drop-shadow(0 0 1.6px rgba(255,236,200,.62)) drop-shadow(0 0 8px rgba(236,150,60,.20));
-  animation:lockin .5s cubic-bezier(.16,.9,.22,1) both, saber 3.6s ease-in-out .5s infinite}
-/* THE RANGEFINDER PATCH, set: the small rectangle is the hottest thing on the
-   glass. Its border goes from cool blue to a warm white core with a fire sheath
-   heavier than the grid's, and it breathes faster. The corner brackets take a
-   lesser share of the same heat. */
-#rf b{transition:border-color .5s var(--ease), filter .5s var(--ease)}
-body.cocked #rf b{border-color:rgba(59,130,246,.95);   /* the patch keeps its blue */
-  filter:drop-shadow(0 0 2px rgba(255,220,170,.85)) drop-shadow(0 0 9px rgba(240,140,50,.42)) drop-shadow(0 0 22px rgba(236,120,40,.22));
-  animation:rfire 2.6s ease-in-out .4s infinite}
-@keyframes rfire{
-  0%,100%{filter:drop-shadow(0 0 2px rgba(255,220,170,.80)) drop-shadow(0 0 8px rgba(240,140,50,.36)) drop-shadow(0 0 20px rgba(236,120,40,.18))}
-  50%{filter:drop-shadow(0 0 3px rgba(255,232,190,1)) drop-shadow(0 0 14px rgba(244,140,44,.58)) drop-shadow(0 0 30px rgba(236,120,40,.34))}}
+/* the shutter rim turns to metal when set: the rings are a static box-shadow;
+   the breathing gold halo is a pseudo ring cross-fading on opacity */
+#shutter{position:relative;transition:opacity .25s var(--ease), box-shadow .6s var(--ease)}
+body.cocked #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(214,214,208,.35)}
+#shutter::after{content:"";position:absolute;inset:-4px;border-radius:50%;pointer-events:none;opacity:0;
+  box-shadow:0 0 0 1px rgba(246,246,242,.5), 0 0 26px rgba(229,180,90,.26)}
+body.cocked #shutter::after{animation:rimbreath 3.2s ease-in-out infinite}
+@keyframes rimbreath{0%,100%{opacity:.25}50%{opacity:1}}
+body.cocked.slowlight #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(224,160,80,.55), 0 0 22px rgba(236,150,60,.26)}
+body.cocked.slowlight #shutter::after{animation:none;opacity:0}
+/* THE GRID IS LIT, and the fire is not a filter. The glow is drawn INTO the
+   gradient as two wider, softer lines under the 1px core and rasterised once.
+   The breath is a second copy (::after) with a hotter sheath, cross-fading on
+   opacity: the compositor does that without repainting a pixel. */
+#lockgrid::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:
+   linear-gradient(to right, transparent calc(33.33% - 8px), rgba(236,150,60,.22) 33.33%, transparent calc(33.33% + 8px)),
+   linear-gradient(to right, transparent calc(33.33% - 2.4px), rgba(255,236,200,.55) 33.33%, transparent calc(33.33% + 2.4px)),
+   linear-gradient(to right, transparent calc(33.33% - 1px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + 1px)),
+   linear-gradient(to right, transparent calc(66.66% - 8px), rgba(236,150,60,.22) 66.66%, transparent calc(66.66% + 8px)),
+   linear-gradient(to right, transparent calc(66.66% - 2.4px), rgba(255,236,200,.55) 66.66%, transparent calc(66.66% + 2.4px)),
+   linear-gradient(to right, transparent calc(66.66% - 1px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + 1px)),
+   linear-gradient(to bottom, transparent calc(33.33% - 8px), rgba(236,150,60,.22) 33.33%, transparent calc(33.33% + 8px)),
+   linear-gradient(to bottom, transparent calc(33.33% - 2.4px), rgba(255,236,200,.55) 33.33%, transparent calc(33.33% + 2.4px)),
+   linear-gradient(to bottom, transparent calc(33.33% - 1px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + 1px)),
+   linear-gradient(to bottom, transparent calc(66.66% - 8px), rgba(236,150,60,.22) 66.66%, transparent calc(66.66% + 8px)),
+   linear-gradient(to bottom, transparent calc(66.66% - 2.4px), rgba(255,236,200,.55) 66.66%, transparent calc(66.66% + 2.4px)),
+   linear-gradient(to bottom, transparent calc(66.66% - 1px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + 1px))}
+body.cocked.f-grid #lockgrid::after{animation:saber 3.6s ease-in-out .5s infinite}
+@keyframes saber{0%,100%{opacity:0}50%{opacity:1}}
+/* THE RANGEFINDER PATCH, set. Blue core kept. Heat is a static box-shadow, one
+   raster; a duplicate ring behind it carries the peak and breathes on opacity.
+   Brackets take a static warmth and never animate. */
+#rf b{transition:border-color .5s var(--ease), box-shadow .5s var(--ease)}
+body.cocked #rf b{border-color:rgba(59,130,246,.95);
+  box-shadow:0 0 2px rgba(255,220,170,.55), 0 0 9px rgba(240,140,50,.30), 0 0 22px rgba(236,120,40,.14)}
+#rf b::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;opacity:0;
+  box-shadow:0 0 3px rgba(255,232,190,.9), 0 0 14px rgba(244,140,44,.5), 0 0 30px rgba(236,120,40,.28)}
+body.cocked #rf b::after{animation:rfire 2.6s ease-in-out .4s infinite}
+@keyframes rfire{0%,100%{opacity:0}50%{opacity:1}}
 body.cocked #rf i{border-color:rgba(255,236,206,.9);
-  filter:drop-shadow(0 0 1.5px rgba(255,220,170,.6)) drop-shadow(0 0 7px rgba(236,140,50,.26));
-  animation:rfire2 2.6s ease-in-out 1.0s infinite}
-@keyframes rfire2{
-  0%,100%{filter:drop-shadow(0 0 1.5px rgba(255,220,170,.55)) drop-shadow(0 0 6px rgba(236,140,50,.22))}
-  50%{filter:drop-shadow(0 0 2.2px rgba(255,232,190,.85)) drop-shadow(0 0 11px rgba(244,140,44,.40))}}
-/* fire, not gold: the sheath runs amber into orange, and the outer glow is the
-   part that moves. The 1px white core still never changes. */
-@keyframes saber{
-  0%,100%{filter:drop-shadow(0 0 1.6px rgba(255,236,200,.56)) drop-shadow(0 0 7px rgba(236,150,60,.16))}
-  50%{filter:drop-shadow(0 0 2.4px rgba(255,240,210,.80)) drop-shadow(0 0 12px rgba(240,140,50,.30))}}
-/* the corner marks breathe with it, a beat behind */
-body.cocked #tension i{animation:drawin .34s var(--ease) both, cornerglow 4.2s ease-in-out 1.2s infinite}
-@keyframes cornerglow{
-  0%,100%{box-shadow:0 0 6px rgba(236,150,60,.26)}
-  50%{box-shadow:0 0 12px rgba(240,140,50,.44)}}
-/* the tension corners pick up the same warmth */
-body.cocked #tension i{border-color:rgba(255,240,205,.95);
-  box-shadow:0 0 8px rgba(229,180,90,.35)}
+  filter:drop-shadow(0 0 1.5px rgba(255,220,170,.5)) drop-shadow(0 0 6px rgba(236,140,50,.2))}
+/* the tension corners: a static warmth */
+body.cocked #tension i{animation:drawin .34s var(--ease) both;border-color:rgba(255,240,205,.95);
+  box-shadow:0 0 8px rgba(229,180,90,.30)}
+/* hairlines at device pixels: on a 3x screen a 1px line is three pixels wide */
+@media (min-resolution: 2dppx){
+  #rf b{border-width:.5px}
+  .lensbtn::after,#chip::after,#wind::after,#backlcd::after{padding:.5px}
+}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}}
 #chips{animation:rise .5s var(--ease) both .08s}
@@ -297,16 +302,13 @@ body.f-rf #rf{display:block}
 #rf b{position:absolute;left:50%;top:50%;width:17%;aspect-ratio:5/3;
       translate:-50% -50%;border:1px solid rgba(59,130,246,.75)}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
-/* in slow light the shutter's halo turns amber: the shake warning lives on
-   the button you are about to press */
-body.cocked.slowlight #shutter{box-shadow:0 0 0 1px rgba(236,236,232,.55), 0 0 0 3px rgba(20,20,20,1), 0 0 0 4px rgba(224,160,80,.55),
-                              0 0 26px rgba(236,150,60,.30);animation:none}
 /* asleep: the finder and the back fall away until touched */
-body.sleep #glass{filter:brightness(.22) saturate(.5) !important;transition:filter 1.6s var(--ease)}
+#dim{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .35s var(--ease);z-index:4}
+body.sleep #dim{opacity:.8;transition:opacity 1.6s var(--ease)}
 body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
 body.sleep #aura,body.sleep #sparkle{opacity:0 !important}
 /* the back is open: dark while the roll rewinds, the film running backwards */
-body.rewinding #glass{filter:brightness(.04) !important;transition:filter .35s var(--ease)}
+body.rewinding #dim{opacity:.96}
 body.rewinding #backlcd .seg{color:var(--mute);text-shadow:none}
 body.rewinding #lcdframe{color:#e0a050 !important}
 body.rewinding #lcdstate{color:var(--ready)}
@@ -347,29 +349,31 @@ body.cocked #wind b{color:var(--ready)}
    of the scene, sharp and real, sitting in the middle of the dark. Winding on
    enlarges it to the full gate over exactly the length of the lever stroke, so
    the picture grows while the ratchet runs. */
-#glass{transition:transform .3s var(--ease), filter .34s var(--ease)}
-body:not(.cocked) #glass{filter:brightness(.9) saturate(.9) contrast(.98)}
+#glass{transition:transform .3s var(--ease)}
 body:not(.cocked) #grid,body:not(.cocked) #quad{opacity:.10}
 body:not(.cocked) #rf,body:not(.cocked) #spot,body:not(.cocked) #cross{opacity:.2}
-body.cocked #glass{filter:brightness(1.04) saturate(1.05) contrast(1.02)}
 body:not(.cocked) .deck{opacity:.6;transition:opacity .3s var(--ease)}
-.deck,#backlcd{filter:brightness(var(--ambient,1));transition:filter 1.2s var(--ease)}
+#backlcd{opacity:var(--ambient,1);transition:opacity 1.2s var(--ease)}
 /* LOCK IN: the grid goes from a grey suggestion to a hard white frame line.
    Idle it is barely there; set, it is the brightest thing on the glass. */
-#lockgrid{position:absolute;inset:0;pointer-events:none;opacity:0;
+#lockgrid{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s var(--ease);
   background:
+   linear-gradient(to right, transparent calc(33.33% - 5px), rgba(236,150,60,.13) 33.33%, transparent calc(33.33% + 5px)),
+   linear-gradient(to right, transparent calc(33.33% - 1.6px), rgba(255,236,200,.38) 33.33%, transparent calc(33.33% + 1.6px)),
    linear-gradient(to right, transparent calc(33.33% - 1px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + 1px)),
+   linear-gradient(to right, transparent calc(66.66% - 5px), rgba(236,150,60,.13) 66.66%, transparent calc(66.66% + 5px)),
+   linear-gradient(to right, transparent calc(66.66% - 1.6px), rgba(255,236,200,.38) 66.66%, transparent calc(66.66% + 1.6px)),
    linear-gradient(to right, transparent calc(66.66% - 1px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + 1px)),
+   linear-gradient(to bottom, transparent calc(33.33% - 5px), rgba(236,150,60,.13) 33.33%, transparent calc(33.33% + 5px)),
+   linear-gradient(to bottom, transparent calc(33.33% - 1.6px), rgba(255,236,200,.38) 33.33%, transparent calc(33.33% + 1.6px)),
    linear-gradient(to bottom, transparent calc(33.33% - 1px), rgba(255,255,255,1) 33.33%, transparent calc(33.33% + 1px)),
-   linear-gradient(to bottom, transparent calc(66.66% - 1px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + 1px));
-  transition:opacity .3s var(--ease)}
+   linear-gradient(to bottom, transparent calc(66.66% - 5px), rgba(236,150,60,.13) 66.66%, transparent calc(66.66% + 5px)),
+   linear-gradient(to bottom, transparent calc(66.66% - 1.6px), rgba(255,236,200,.38) 66.66%, transparent calc(66.66% + 1.6px)),
+   linear-gradient(to bottom, transparent calc(66.66% - 1px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + 1px))}
 body.cocked.f-grid #lockgrid{opacity:1;animation:lockin .5s cubic-bezier(.16,.9,.22,1) both}
-@keyframes lockin{0%{transform:scale(1.2);opacity:0;filter:blur(2px)}
-                  55%{opacity:1;filter:blur(0)}
-                  72%{transform:scale(.992)}
-                  100%{transform:none;opacity:1;filter:blur(0)}}
+@keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
-@keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9);filter:blur(1.5px)}}
+@keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
 /* tension: corner marks that draw in when the shutter is cocked */
 #tension{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .28s var(--ease)}
 #tension i{position:absolute;width:20px;height:20px;border:2px solid rgba(255,255,255,.95)}
@@ -394,9 +398,8 @@ body:not(.cocked) #shutter{opacity:.38}
    moves is the thing to press. The label breathes on a long cycle, the border
    with it, both faint. It is not a blink; it is a pulse you notice after a
    moment of looking. */
-body:not(.cocked) #wind b{animation:askglow 4.6s ease-in-out infinite}
-@keyframes askglow{0%,100%{opacity:.5;text-shadow:none}
-                   50%{opacity:.95;text-shadow:0 0 8px rgba(229,180,90,.45)}}
+body:not(.cocked) #wind b{animation:askglow 4.6s ease-in-out infinite;text-shadow:0 0 8px rgba(229,180,90,.35)}
+@keyframes askglow{0%,100%{opacity:.5}50%{opacity:.95}}
 body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 @keyframes askring{0%,100%{opacity:.7}50%{opacity:1}}
 @keyframes nudge{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
@@ -660,9 +663,10 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
       <div id="lockgrid"></div>
-      <div id="sparkle"></div>
+      <div id="sparkle"><i></i><i></i><i></i><i></i></div>
       <div id="tension"><i></i><i></i><i></i><i></i></div>
       <div id="flash"></div>
+      <div id="dim"></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
   </div>
@@ -798,7 +802,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 112;                     /* bump with every ship; lands in EXIF */
+const BUILD = 113;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -921,7 +925,7 @@ function fitAura() {
 }
 addEventListener("resize", fitAura);
 addEventListener("orientationchange", () => setTimeout(fitAura, 120));
-setTimeout(fitAura, 60); setTimeout(fitAura, 700); setInterval(fitAura, 2500);
+setTimeout(fitAura, 60); setTimeout(fitAura, 700); setTimeout(fitAura, 2500);   /* boot only; resize and orientation cover the rest */
 worker.onmessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
   if (ready !== undefined) {
@@ -1497,6 +1501,9 @@ function lightValue() {
 }
 /* the back panel reads out what the camera is actually set to */
 function backLCD() {
+  /* nothing to read when the page is hidden or the gallery is up: the video
+     sample and canvas readback are the only recurring CPU cost on the back */
+  if (document.hidden || $("print").classList.contains("on")) return;
   try {
     $("lcdlens").textContent = String(Math.round((typeof GLASS === "object" && GLASS.mm) || 33));
     const shown = Math.min((frameNo || 0) + 1, ROLL_LEN);
@@ -1615,7 +1622,7 @@ function powerOn() {
     $("backlcd").classList.add("selftest");
   } catch (e) {}
   setTimeout(() => { $("backlcd").classList.remove("selftest"); backLCD(); cock(cocked); }, 620);
-  setInterval(backLCD, 240);               /* the needle wants a steady hand: ~4 Hz */
+  setInterval(backLCD, 400);               /* 2.5 Hz is steady enough for a needle */
 }
 powerOn();
 $("windwrap").onclick = () => {
@@ -1639,6 +1646,21 @@ $("windwrap").addEventListener("pointerdown", () => {
 });
 ["pointerup","pointercancel","pointerleave"].forEach(ev =>
   $("windwrap").addEventListener(ev, () => clearTimeout(windHold)));
+/* AUTO-OFF. Two minutes untouched and the camera sleeps: finder dims, back
+   fades, hum stops. Any touch wakes it. (Restored in b113: it was lost in 107
+   when a removal sliced to a shared anchor.) */
+let sleepTimer = 0, asleep = false;
+function wake() {
+  if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); }
+  clearTimeout(sleepTimer);
+  sleepTimer = setTimeout(() => { asleep = true; document.body.classList.add("sleep"); humStop(); }, 120000);
+}
+["pointerdown", "keydown", "touchstart"].forEach(ev => addEventListener(ev, wake, { passive: true, capture: true }));
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { humStop(); clearTimeout(sleepTimer); }
+  else { wake(); backLCD(); }
+});
+wake();
 function release() {                        /* the frame is taken: let go */
   cock(false);
   document.body.classList.add("released");
