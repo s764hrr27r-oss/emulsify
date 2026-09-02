@@ -371,13 +371,17 @@ body.cocked #wind b{color:var(--ready)}
    the eye comes to the eyepiece; firing, they shrink back with the hole. */
 #scopes{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:1;transform-origin:50% 50%;overflow:hidden;
   transition:opacity .42s var(--ease), transform .58s cubic-bezier(.16,.9,.22,1)}
-body.cocked #scopes,body.curtain #scopes{opacity:0;transform:scale(1.55)}
+/* the approach: the instruments lean toward the eye by 2% and fade. 2% is the
+   most the outer cards can grow before their corners would reach the gate,
+   given the 12px the layout keeps inside the frame lines; it is chosen so that no state, mid-
+   transition or otherwise, can put an instrument pixel outside the black. */
+body.cocked #scopes,body.curtain #scopes{opacity:0;transform:scale(1.02)}
 body.curtain:not(.cocked) #scopes{transform:none;transition:opacity .45s var(--ease) .1s}
 body.released #scopes{transition:opacity .26s var(--ease), transform .24s cubic-bezier(.5,0,.9,.4)}
 body.sleep #scopes{opacity:0}
 #scopes .slot{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:hidden}
 #scopes .slot.top,#scopes .slot.bottom{flex-direction:row;align-items:flex-end}
-#scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto}
+#scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto;padding:2px;box-sizing:border-box;overflow:hidden}
 #scopes .card.on{display:flex}
 /* THE HOUSING. Black-painted steel that has been used: the paint is worn
    through to bare metal along the edges and at the corners where fingers go,
@@ -421,6 +425,7 @@ body.sleep #scopes{opacity:0}
 #scopes .card.vec .screw{display:none}
 /* the nameplate: engraved into the steel below the face */
 #scopes .lbl{font:6.5px ui-monospace,Menlo,monospace;letter-spacing:.22em;color:#8b8f95;opacity:.9;
+  max-width:100%;white-space:nowrap;overflow:hidden;
   text-shadow:0 -1px 0 rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.12)}
 /* the glass: a soft curved specular across the upper face; the lamp: a warm
    glow along the top inside edge of the bezel, lighting the dial from above */
@@ -901,7 +906,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 126;                     /* bump with every ship; lands in EXIF */
+const BUILD = 128;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1734,16 +1739,21 @@ $("lensveil").addEventListener("click", closeScopeMenu);
 function fitScopes() {
   const g = $("glass"); const W = g.clientWidth, H = g.clientHeight; if (!W || !H) return;
   const fw = W * 0.26, fh = H * 0.26, fx = (W - fw) / 2, fy = (H - fh) / 2;
-  const e = Math.min(W, H) * 0.03, m = Math.min(W, H) * 0.035, gap = 4;
-  const topH = fy - m - e, botY = fy + fh + m, botH = H - botY - e;
+  /* THE FRAME LINES. The rangefinder brackets sit at 7% of each dimension with
+     2px arms; the rectangle they imply is the instruments' whole world. Every
+     housing, border included, stays 14px inside that line, which also leaves
+     room for the 2% lean toward the eye without a corner ever reaching it. */
+  const ex = W * 0.07 + 2 + 14, ey = H * 0.07 + 2 + 14;
+  const m = Math.min(W, H) * 0.04, gap = 4;
+  const topH = fy - m - ey, botY = fy + fh + m, botH = H - botY - ey;
   const midY = fy - m + gap, midH = fh + 2 * m - 2 * gap;
   const boxes = {
-    top:    [e, e, W - 2 * e, topH],
-    bottom: [e, botY, W - 2 * e, botH],
-    left:   [e, midY, fx - m - e, midH],
-    right:  [fx + fw + m, midY, W - (fx + fw + m) - e, midH],
+    top:    [ex, ey, W - 2 * ex, topH],
+    bottom: [ex, botY, W - 2 * ex, botH],
+    left:   [ex, midY, fx - m - ex, midH],
+    right:  [fx + fw + m, midY, W - (fx + fw + m) - ex, midH],
   };
-  const LBL = 13, PADF = 10, CGAP = 10;
+  const LBL = 13, PADF = 14, CGAP = 10;   /* face padding 10 + card padding 4, so screws stay inside the card */
   for (const slot in boxes) {
     const el = $("scopes").querySelector("." + slot); const [x, y, w, h] = boxes[slot];
     el.style.left = x + "px"; el.style.top = y + "px"; el.style.width = Math.max(0, w) + "px"; el.style.height = Math.max(0, h) + "px";
@@ -1756,7 +1766,8 @@ function fitScopes() {
       const total = ws.reduce((a, b) => a + b, 0) + CGAP * (cards.length - 1);
       const avail = w - PADF - 2;
       if (total > avail) { const k = (avail - CGAP * (cards.length - 1)) / (total - CGAP * (cards.length - 1)); ws = ws.map(v => v * k); ch *= k; }
-      cards.forEach(([k], i) => { scopeEls[k].cv.style.width = Math.round(ws[i]) + "px"; scopeEls[k].cv.style.height = Math.round(ch) + "px"; });
+      cards.forEach(([k], i) => { scopeEls[k].cv.style.width = Math.round(ws[i]) + "px"; scopeEls[k].cv.style.height = Math.round(ch) + "px";
+                                  scopeEls[k].card.style.width = Math.round(ws[i] + PADF) + "px"; });
     } else {
       /* a column: as wide as the column allows, capped by its share of the height */
       const share = (h - CGAP * (cards.length - 1)) / cards.length;
@@ -1764,6 +1775,7 @@ function fitScopes() {
         let cw = w - PADF - 2, ch = cw / asp;
         if (ch > share - LBL - PADF - 2) { ch = Math.max(20, share - LBL - PADF - 2); cw = ch * asp; }
         scopeEls[k].cv.style.width = Math.round(cw) + "px"; scopeEls[k].cv.style.height = Math.round(ch) + "px";
+        scopeEls[k].card.style.width = Math.round(cw + PADF) + "px";
       }
     }
   }
