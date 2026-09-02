@@ -802,7 +802,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 113;                     /* bump with every ship; lands in EXIF */
+const BUILD = 115;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1375,7 +1375,8 @@ function windVoice() {
     const src = AC.createBufferSource();
     src.buffer = windBuffer();
     src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.03;   /* a lever, not a recording */
-    src.connect(AC.destination);
+    const g = AC.createGain(); g.gain.value = 0.32;                  /* the sample was cut hot; a lever is not loud */
+    src.connect(g); g.connect(AC.destination);
     src.start(AC.currentTime + (cold ? 0.06 : 0.001));
   } catch (e) {}
 }
@@ -1894,8 +1895,12 @@ async function paintChip() {
     if (cook) im.className = "step";
     im.src = u;
     chip.insertBefore(im, sc || dot);
+    /* the cleanup keeps whichever image is NEWEST at the time it fires, never
+       the one that scheduled it: a stale step cleanup used to delete the
+       finished thumbnail if the print landed inside its 2.6 s window */
     setTimeout(() => {
-      for (const o of chip.querySelectorAll("img")) if (o !== im) o.remove();
+      const all = chip.querySelectorAll("img"), keep = all[all.length - 1];
+      for (const o of all) if (o !== keep) o.remove();
     }, cook ? 2600 : 400);
   }
 }
