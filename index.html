@@ -224,7 +224,10 @@ body.cocked #screen{transform:none;border-radius:0}
 #screen::after{content:"";position:absolute;inset:0;pointer-events:none;
   box-shadow:inset 0 0 26px 6px rgba(0,0,0,.72), inset 0 0 4px rgba(0,0,0,.6);
   border-radius:inherit;opacity:1;transition:opacity .5s var(--ease)}
-body.cocked #screen::after{opacity:0}
+/* on the open finder the eyepiece is still there, just further away: a soft
+   edge only, never reaching the picture. It is an overlay on the LIVE VIEW and
+   is never part of a capture; the print is taken from the video, not the DOM. */
+body.cocked #screen::after{opacity:1;box-shadow:inset 0 0 34px 0 rgba(0,0,0,.30), inset 0 0 3px rgba(0,0,0,.35)}
 body.released #screen{transition:transform .24s cubic-bezier(.5,0,.9,.4)}
 #glass video.live{opacity:1}
 /* ---------- finder overlays ----------
@@ -349,28 +352,30 @@ body.rewinding #wind .perf{animation:filmback .5s linear infinite;transition:non
 body.cocked #wind{border-color:var(--ready);opacity:.72}
 body.cocked #wind b{color:var(--ready)}
 /* ---------- THE INSTRUMENTS ----------
-   Live scopes drawn from the camera into the black field around the small
-   finder, only while the shutter is not set. Off by default. Chosen from a
-   menu under the back panel. Each has a home: waveform above, histogram and
-   meter below, RGB parade left, colour temperature and vectorscope right.
-   All of it fades the instant you wind on; nothing competes with the picture. */
-#scopes{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:1;transition:opacity .35s var(--ease)}
-body.cocked #scopes,body.sleep #scopes{opacity:0}
-#scopes .slot{position:absolute;display:flex;flex-direction:column;gap:10px;justify-content:center}
-#scopes .top{left:8%;right:8%;top:4%;height:26%}
-#scopes .bottom{left:8%;right:8%;bottom:4%;height:26%}
-#scopes .left{left:3%;width:31%;top:33%;height:34%}
-#scopes .right{right:3%;width:31%;top:33%;height:34%}
-#scopes .card{display:none;flex-direction:column;gap:3px}
+   Real objects, not charts. Each is a small piece of equipment set into the
+   camera back: a machined bezel, a dark glass face, an etched graticule, and
+   an amber phosphor trace that decays instead of blinking. They live only in
+   the black field around the small finder. Winding on, they swell and fade as
+   the eye comes to the eyepiece; firing, they shrink back with the hole. */
+#scopes{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:1;transform-origin:50% 50%;
+  transition:opacity .42s var(--ease), transform .58s cubic-bezier(.16,.9,.22,1)}
+body.cocked #scopes{opacity:0;transform:scale(1.55)}
+body.released #scopes{transition:opacity .26s var(--ease), transform .24s cubic-bezier(.5,0,.9,.4)}
+body.sleep #scopes{opacity:0}
+#scopes .slot{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+#scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto}
 #scopes .card.on{display:flex}
-#scopes canvas{width:100%;display:block;border:1px solid rgba(255,255,255,.07);border-radius:3px}
-#scopes .lbl{font:7.5px ui-monospace,Menlo,monospace;letter-spacing:.16em;color:var(--mute);opacity:.7}
-#scopes .card.wave canvas{aspect-ratio:3/1}
-#scopes .card.hist canvas{aspect-ratio:3.4/1}
-#scopes .card.rgb canvas{aspect-ratio:1.5/1}
-#scopes .card.kelv canvas{aspect-ratio:1.5/1}
-#scopes .card.meter canvas{aspect-ratio:4.2/1}
-#scopes .card.vec canvas{aspect-ratio:1/1;border-radius:50%}
+#scopes .face{position:relative;border-radius:7px;padding:4px;
+  background:linear-gradient(160deg, #1a1916, #0d0d0b 45%, #141311);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07), inset 0 -1px 0 rgba(0,0,0,.8), 0 1px 2px rgba(0,0,0,.9)}
+#scopes .face::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(135deg, rgba(214,214,208,.32), rgba(96,96,92,.12) 40%, rgba(40,40,38,.16) 60%, rgba(196,196,190,.24));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);mask-composite:exclude}
+#scopes canvas{display:block;border-radius:4px;background:radial-gradient(ellipse at 50% 40%, #0a0906, #040403 85%);
+  box-shadow:inset 0 0 10px rgba(0,0,0,.95), inset 0 0 1px rgba(255,255,255,.05)}
+#scopes .card.vec canvas,#scopes .card.vec .face{border-radius:50%}
+#scopes .lbl{font:7px ui-monospace,Menlo,monospace;letter-spacing:.2em;color:#8a8478;opacity:.8;text-shadow:0 1px 0 rgba(0,0,0,.9)}
 /* THE TINY FINDER. Between frames the camera has only a small bright window
    of the scene, sharp and real, sitting in the middle of the dark. Winding on
    enlarges it to the full gate over exactly the length of the lever stroke, so
@@ -837,7 +842,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 118;                     /* bump with every ship; lands in EXIF */
+const BUILD = 119;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1524,6 +1529,7 @@ function cock(on) {
   const st = $("lcdstate");
   if (st) st.textContent = cocked ? "SHUTTER SET" : "WIND ON";
   if (cocked) humStart(); else humStop();
+  if (!cocked && !scopeRAF) scopeLoop();
 }
 /* THE LIGHT READING. The camera measures the scene rather than quoting a film
    speed at you: a 32x32 sample of the live view, mean luminance in linear
@@ -1549,26 +1555,29 @@ function lightValue() {
   } catch (e) { return null; }
 }
 /* ---------- THE INSTRUMENTS ----------
-   One 96x72 sample of the live view per meter tick feeds every scope. Each
-   scope is a small canvas in its home slot; drawing them costs less than the
-   sample. Nothing runs when the shutter is set, the tab is hidden, or the
-   gallery is open, and nothing runs at all if none are chosen. */
+   Five pieces of equipment fed by one 96x72 sample of the live view, drawn at
+   about 14 Hz from their own loop, only while the shutter is not set, the tab
+   is visible, the gallery is closed, and at least one is switched on. The
+   phosphor traces persist: each frame the face is dimmed rather than cleared,
+   so what was just measured fades instead of vanishing. */
 const SCOPES = [
-  ["wave",  "WAVEFORM",     "top"],
-  ["hist",  "HISTOGRAM",    "bottom"],
-  ["meter", "METER",        "bottom"],
-  ["rgb",   "RGB PARADE",   "left"],
-  ["kelv",  "COLOUR TEMP",  "right"],
-  ["vec",   "VECTORSCOPE",  "right"],
+  ["hist",  "HISTOGRAM",   "bottom", 3.2],
+  ["meter", "METER",       "bottom", 2.6],
+  ["rgb",   "RGB PARADE",  "left",   1.35],
+  ["kelv",  "COLOUR TEMP", "right",  1.5],
+  ["vec",   "VECTORSCOPE", "right",  1.0],
 ];
+const AMBER = "rgba(240,168,64,", PHOS = "rgba(236,190,110,";
 let scopesOn = new Set();
 try { scopesOn = new Set(JSON.parse(localStorage.scopes || "[]").filter(k => SCOPES.some(sc => sc[0] === k))); } catch (e) {}
 const scopeEls = {};
 (function buildScopes() {
   for (const [k, label, slot] of SCOPES) {
     const card = document.createElement("div"); card.className = "card " + k;
-    const cv = document.createElement("canvas"); const lb = document.createElement("div"); lb.className = "lbl"; lb.textContent = label;
-    card.appendChild(cv); card.appendChild(lb);
+    const face = document.createElement("div"); face.className = "face";
+    const cv = document.createElement("canvas"); face.appendChild(cv);
+    const lb = document.createElement("div"); lb.className = "lbl"; lb.textContent = label;
+    card.appendChild(face); card.appendChild(lb);
     $("scopes").querySelector("." + slot).appendChild(card);
     scopeEls[k] = { card, cv };
   }
@@ -1577,7 +1586,7 @@ const scopeEls = {};
 function paintScopeCards() {
   for (const k in scopeEls) scopeEls[k].card.classList.toggle("on", scopesOn.has(k));
   const m = $("scopemenu"); m.innerHTML = "";
-  const h = document.createElement("div"); h.className = "hint"; h.textContent = "INSTRUMENTS  ·  choose any"; m.appendChild(h);
+  const h = document.createElement("div"); h.className = "hint"; h.textContent = "INSTRUMENTS  \u00b7  choose any"; m.appendChild(h);
   for (const [k, label] of SCOPES) {
     const b = document.createElement("button"); b.textContent = label;
     b.classList.toggle("cur", scopesOn.has(k));
@@ -1586,10 +1595,11 @@ function paintScopeCards() {
     b.onclick = () => {
       if (scopesOn.has(k)) scopesOn.delete(k); else scopesOn.add(k);
       try { localStorage.scopes = JSON.stringify([...scopesOn]); } catch (e) {}
-      paintScopeCards(); drawScopes(true);
+      paintScopeCards(); fitScopes(); scopeLoop();
     };
     m.appendChild(b);
   }
+  fitScopes();
 }
 function closeScopeMenu() { $("scopemenu").classList.remove("on"); $("lensveil").classList.remove("on"); }
 $("hapb").addEventListener("click", () => {
@@ -1597,10 +1607,39 @@ $("hapb").addEventListener("click", () => {
   const on = $("scopemenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 });
-/* the veil closes it like the others */
 $("lensveil").addEventListener("click", closeScopeMenu);
 
-let scCanvas = null, lvHistory = [];
+/* LAYOUT. The slots hug the small finder, which sits at 26% scale in the
+   centre of the glass: above, below, left, right, each inset so nothing ever
+   touches the hole or leaves the gate, in either orientation. Every card is
+   sized to fit its share of its slot at its own aspect. */
+function fitScopes() {
+  const g = $("glass"); const W = g.clientWidth, H = g.clientHeight; if (!W || !H) return;
+  const fw = W * 0.26, fh = H * 0.26, fx = (W - fw) / 2, fy = (H - fh) / 2, m = Math.min(W, H) * 0.035, e = Math.min(W, H) * 0.03;
+  const boxes = {
+    top:    [e, e, W - 2 * e, fy - m - e],
+    bottom: [e, fy + fh + m, W - 2 * e, H - (fy + fh + m) - e],
+    left:   [e, fy - fh * 0.35, fx - m - e, fh * 1.7],
+    right:  [fx + fw + m, fy - fh * 0.35, W - (fx + fw + m) - e, fh * 1.7],
+  };
+  for (const slot in boxes) {
+    const el = $("scopes").querySelector("." + slot); const [x, y, w, h] = boxes[slot];
+    el.style.left = x + "px"; el.style.top = y + "px"; el.style.width = Math.max(0, w) + "px"; el.style.height = Math.max(0, h) + "px";
+    const cards = SCOPES.filter(sc => sc[2] === slot && scopesOn.has(sc[0]));
+    const share = cards.length ? (h - 8 * (cards.length - 1)) / cards.length : 0;
+    for (const [k, , , asp] of cards) {
+      const cv = scopeEls[k].cv, lblH = 12, pad = 10;
+      let cw = w - pad, ch = cw / asp;
+      if (ch > share - lblH - pad) { ch = Math.max(24, share - lblH - pad); cw = ch * asp; }
+      cw = Math.min(cw, w - pad);
+      cv.style.width = Math.round(cw) + "px"; cv.style.height = Math.round(ch) + "px";
+    }
+  }
+}
+addEventListener("resize", fitScopes); addEventListener("orientationchange", () => setTimeout(fitScopes, 140));
+setTimeout(fitScopes, 80); setTimeout(fitScopes, 800);
+
+let scCanvas = null, lvHistory = [], scopeRAF = 0, lastScope = 0;
 function sampleFrame() {
   const v = $("video"); if (!v || !v.videoWidth) return null;
   scCanvas = scCanvas || Object.assign(document.createElement("canvas"), { width: 96, height: 72 });
@@ -1608,97 +1647,125 @@ function sampleFrame() {
   g.drawImage(v, 0, 0, 96, 72);
   return g.getImageData(0, 0, 96, 72).data;
 }
-function ctx2d(cv) {
-  const dpr = Math.min(2, devicePixelRatio || 1), w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
+function face(cv, persist) {
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
+  const g = cv.getContext("2d");
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-  const g = cv.getContext("2d"); g.clearRect(0, 0, w, h); return [g, w, h, dpr];
+  else if (persist) { g.fillStyle = "rgba(4,4,3," + persist + ")"; g.fillRect(0, 0, w, h); }   /* phosphor decay */
+  else g.clearRect(0, 0, w, h);
+  return [g, w, h, dpr];
+}
+function graticule(g, w, h, nx, ny) {
+  g.strokeStyle = "rgba(240,168,64,.10)"; g.lineWidth = 1; g.beginPath();
+  for (let i = 1; i < nx; i++) { const x = Math.round(w * i / nx) + .5; g.moveTo(x, 0); g.lineTo(x, h); }
+  for (let i = 1; i < ny; i++) { const y = Math.round(h * i / ny) + .5; g.moveTo(0, y); g.lineTo(w, y); }
+  g.stroke();
+}
+function trace(g, pts, col, width) {          /* a glowing line: wide faint pass, then the core */
+  for (const [lw, a] of [[width * 3.2, .10], [width * 1.6, .22], [width, .95]]) {
+    g.strokeStyle = col + a + ")"; g.lineWidth = lw; g.lineJoin = "round"; g.beginPath();
+    pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
+  }
+}
+function needle(g, cx, cy, r, ang, col) {      /* a gauge needle with a hub */
+  const x = cx + r * Math.cos(ang), y = cy - r * Math.sin(ang);
+  g.strokeStyle = "rgba(0,0,0,.6)"; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke();
+  g.strokeStyle = col; g.lineWidth = 1.4; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke();
+  g.fillStyle = "rgba(200,196,186,.9)"; g.beginPath(); g.arc(cx, cy, 2.2, 0, 7); g.fill();
+}
+function arcScale(g, cx, cy, r, a0, a1, n, big) {
+  g.strokeStyle = "rgba(200,190,170,.55)"; g.lineWidth = 1;
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + (a1 - a0) * i / n, L = (i % big === 0) ? 7 : 4;
+    g.beginPath(); g.moveTo(cx + (r - L) * Math.cos(a), cy - (r - L) * Math.sin(a)); g.lineTo(cx + r * Math.cos(a), cy - r * Math.sin(a)); g.stroke();
+  }
+  g.strokeStyle = "rgba(200,190,170,.35)"; g.beginPath(); g.arc(cx, cy, r, -a1, -a0); g.stroke();
 }
 const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
-function drawScopes(force) {
-  if (!scopesOn.size || (cocked && !force)) return;
+const smooth = {};                              /* needle inertia per instrument */
+function ease(k, target, rate) { smooth[k] = smooth[k] === undefined ? target : smooth[k] + (target - smooth[k]) * rate; return smooth[k]; }
+
+function drawScopes() {
   const d = sampleFrame(); if (!d) return;
   const N = d.length / 4;
-  if (scopesOn.has("wave")) {
-    const [g, w, h] = ctx2d(scopeEls.wave.cv);
-    const img = g.createImageData(96, 24); const px = img.data;
-    for (let i = 0; i < N; i++) {
-      const x = i % 96, y = 23 - Math.min(23, Math.floor(lum(d[4*i], d[4*i+1], d[4*i+2]) / 255 * 24));
-      const o = 4 * (y * 96 + x); px[o] = 214; px[o+1] = 216; px[o+2] = 222; px[o+3] = Math.min(255, px[o+3] + 70);
-    }
-    const tmp = Object.assign(document.createElement("canvas"), { width: 96, height: 24 }); tmp.getContext("2d").putImageData(img, 0, 0);
-    g.imageSmoothingEnabled = true; g.drawImage(tmp, 0, 0, w, h);
-    g.strokeStyle = "rgba(255,255,255,.08)"; g.lineWidth = 1; [0.5].forEach(f => { g.beginPath(); g.moveTo(0, h * f); g.lineTo(w, h * f); g.stroke(); });
-  }
-  if (scopesOn.has("hist") || scopesOn.has("rgb")) {
-    const hl = new Float32Array(32), hr = new Float32Array(32), hg = new Float32Array(32), hb = new Float32Array(32);
-    let clipH = 0, clipS = 0;
+  let hl = null, hr, hg, hb, clipH = 0, clipS = 0, R = 0, G = 0, B = 0;
+  if (scopesOn.has("hist") || scopesOn.has("rgb") || scopesOn.has("kelv")) {
+    hl = new Float32Array(32); hr = new Float32Array(32); hg = new Float32Array(32); hb = new Float32Array(32);
     for (let i = 0; i < N; i++) {
       const r = d[4*i], gg = d[4*i+1], b = d[4*i+2], Y = lum(r, gg, b);
       hl[Math.min(31, Y / 8 | 0)]++; hr[Math.min(31, r >> 3)]++; hg[Math.min(31, gg >> 3)]++; hb[Math.min(31, b >> 3)]++;
-      if (Y > 250) clipH++; if (Y < 5) clipS++;
-    }
-    if (scopesOn.has("hist")) {
-      const [g, w, h, dpr] = ctx2d(scopeEls.hist.cv); const mx = Math.max(1, ...hl);
-      g.fillStyle = "rgba(214,216,222,.75)";
-      for (let i = 0; i < 32; i++) { const bh = (hl[i] / mx) * (h - 14 * dpr); g.fillRect(i * w / 32, h - 12 * dpr - bh, w / 32 - 1, bh); }
-      g.font = `${7 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(138,138,134,.9)";
-      g.fillText(`${(100 * clipS / N).toFixed(1)}% black`, 3 * dpr, h - 3 * dpr);
-      const ch = 100 * clipH / N; g.fillStyle = ch > 1 ? "rgba(236,150,60,.95)" : "rgba(138,138,134,.9)";
-      const t = `${ch.toFixed(1)}% clipped`; g.fillText(t, w - g.measureText(t).width - 3 * dpr, h - 3 * dpr);
-    }
-    if (scopesOn.has("rgb")) {
-      const [g, w, h] = ctx2d(scopeEls.rgb.cv); const rows = [[hr, "rgba(224,90,90,.6)"], [hg, "rgba(90,200,122,.6)"], [hb, "rgba(90,138,224,.6)"]];
-      rows.forEach(([hh, col], r) => { const mx = Math.max(1, ...hh), y0 = r * h / 3, rh = h / 3 - 3;
-        g.fillStyle = col; for (let i = 0; i < 32; i++) { const bh = (hh[i] / mx) * rh; g.fillRect(i * w / 32, y0 + rh - bh, w / 32 - 1, bh); } });
+      R += r; G += gg; B += b; if (Y > 250) clipH++; if (Y < 5) clipS++;
     }
   }
-  if (scopesOn.has("kelv") || scopesOn.has("vec")) {
-    let R = 0, G = 0, B = 0, satSum = 0;
-    for (let i = 0; i < N; i++) { const r = d[4*i], g = d[4*i+1], b = d[4*i+2]; R += r; G += g; B += b;
-      const mx = Math.max(r, g, b), mn = Math.min(r, g, b); satSum += mx ? (mx - mn) / mx : 0; }
-    if (scopesOn.has("kelv")) {
-      const [g, w, h, dpr] = ctx2d(scopeEls.kelv.cv);
-      const rb = (R + 1) / (B + 1); const K = Math.round(Math.max(2500, Math.min(9500, 6500 * Math.pow(rb, -0.9))) / 50) * 50;
-      g.font = `${15 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(207,205,199,.95)"; g.textAlign = "center";
-      g.fillText(K + "", w / 2, h * 0.46); g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(138,138,134,.9)"; g.fillText("KELVIN", w / 2, h * 0.62);
-      const bx = w * 0.15, bw = w * 0.7, by = h * 0.76, grad = g.createLinearGradient(bx, 0, bx + bw, 0);
-      grad.addColorStop(0, "rgba(236,150,60,.7)"); grad.addColorStop(0.5, "rgba(230,230,226,.5)"); grad.addColorStop(1, "rgba(96,138,224,.7)");
-      g.fillStyle = grad; g.fillRect(bx, by, bw, 3 * dpr);
-      const nx = bx + bw * (K - 2500) / 7000; g.fillStyle = "rgba(229,180,90,.95)"; g.fillRect(nx - dpr, by - 4 * dpr, 2 * dpr, 11 * dpr);
-      g.textAlign = "left";
-    }
-    if (scopesOn.has("vec")) {
-      const [g, w, h] = ctx2d(scopeEls.vec.cv); const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 2;
-      g.strokeStyle = "rgba(255,255,255,.07)"; g.lineWidth = 1;
-      for (let a = 0; a < 360; a += 30) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + r * Math.cos(a * Math.PI / 180), cy - r * Math.sin(a * Math.PI / 180)); g.stroke(); }
-      g.beginPath(); g.arc(cx, cy, r * 0.5, 0, 7); g.stroke();
-      for (let i = 0; i < N; i += 3) {
-        const rr = d[4*i] / 255, gg = d[4*i+1] / 255, bb = d[4*i+2] / 255, mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb), sat = mx ? (mx - mn) / mx : 0;
-        if (sat < 0.04) continue;
-        let hue; const dl = mx - mn;
-        if (mx === rr) hue = ((gg - bb) / dl) % 6; else if (mx === gg) hue = (bb - rr) / dl + 2; else hue = (rr - gg) / dl + 4;
-        const th = hue * Math.PI / 3; g.fillStyle = `hsla(${(hue * 60 + 360) % 360},85%,60%,.35)`;
-        g.fillRect(cx + r * sat * Math.cos(th) - 1, cy - r * sat * Math.sin(th) - 1, 2, 2);
-      }
+  if (scopesOn.has("hist")) {
+    const [g, w, h, dpr] = face(scopeEls.hist.cv, .45); graticule(g, w, h, 8, 3);
+    const mx = Math.max(1, ...hl), base = h - 11 * dpr, pts = [];
+    for (let i = 0; i < 32; i++) pts.push([w * (i + .5) / 32, base - (hl[i] / mx) * (base - 4 * dpr)]);
+    g.fillStyle = AMBER + ".16)"; g.beginPath(); g.moveTo(pts[0][0], base); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(pts[31][0], base); g.closePath(); g.fill();
+    trace(g, pts, AMBER, 1.2 * dpr);
+    g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(200,190,170,.7)";
+    g.fillText((100 * clipS / N).toFixed(0) + "% BLK", 4 * dpr, h - 3 * dpr);
+    const ch = 100 * clipH / N; g.fillStyle = ch > 1 ? AMBER + ".95)" : "rgba(200,190,170,.7)";
+    const t = ch.toFixed(0) + "% CLIP"; g.fillText(t, w - g.measureText(t).width - 4 * dpr, h - 3 * dpr);
+  }
+  if (scopesOn.has("rgb")) {
+    const [g, w, h, dpr] = face(scopeEls.rgb.cv, .45); graticule(g, w, h, 8, 3);
+    [[hr, "rgba(232,96,80,"], [hg, "rgba(120,214,120,"], [hb, "rgba(110,150,240,"]].forEach(([hh, col], r) => {
+      const mx = Math.max(1, ...hh), y0 = r * h / 3 + 3 * dpr, rh = h / 3 - 5 * dpr, pts = [];
+      for (let i = 0; i < 32; i++) pts.push([w * (i + .5) / 32, y0 + rh - (hh[i] / mx) * rh]);
+      g.fillStyle = col + ".12)"; g.beginPath(); g.moveTo(pts[0][0], y0 + rh); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(pts[31][0], y0 + rh); g.closePath(); g.fill();
+      trace(g, pts, col, 1.0 * dpr);
+    });
+  }
+  if (scopesOn.has("kelv")) {
+    const [g, w, h, dpr] = face(scopeEls.kelv.cv, 0);
+    const rb = (R + 1) / (B + 1), K = ease("kelv", Math.max(2500, Math.min(9500, 6500 * Math.pow(rb, -0.9))), .18);
+    const cx = w / 2, cy = h * 0.92, r = Math.min(w * 0.44, h * 0.8), a0 = Math.PI * 0.9, a1 = Math.PI * 0.1;
+    arcScale(g, cx, cy, r, a0, a1, 14, 7);
+    const grad = g.createLinearGradient(cx - r, 0, cx + r, 0);
+    grad.addColorStop(0, "rgba(236,150,60,.55)"); grad.addColorStop(.5, "rgba(230,230,226,.35)"); grad.addColorStop(1, "rgba(96,138,224,.55)");
+    g.strokeStyle = grad; g.lineWidth = 3 * dpr; g.beginPath(); g.arc(cx, cy, r - 10 * dpr, -a1, -a0, true); g.stroke();
+    g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(200,190,170,.7)"; g.textAlign = "center";
+    g.fillText("2500", cx + (r + 9 * dpr) * Math.cos(a0), cy - (r + 9 * dpr) * Math.sin(a0) + 2 * dpr);
+    g.fillText("9500", cx + (r + 9 * dpr) * Math.cos(a1), cy - (r + 9 * dpr) * Math.sin(a1) + 2 * dpr);
+    g.font = `${8 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = PHOS + ".9)"; g.fillText(Math.round(K / 50) * 50 + " K", cx, cy - r * 0.42);
+    g.textAlign = "left";
+    needle(g, cx, cy, r - 2, a0 + (a1 - a0) * (K - 2500) / 7000, AMBER + ".95)");
+  }
+  if (scopesOn.has("vec")) {
+    const [g, w, h] = face(scopeEls.vec.cv, .30);
+    const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 3;
+    g.strokeStyle = AMBER + ".12)"; g.lineWidth = 1;
+    for (let a = 0; a < 360; a += 30) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + r * Math.cos(a * Math.PI / 180), cy - r * Math.sin(a * Math.PI / 180)); g.stroke(); }
+    [0.33, 0.66, 1].forEach(f => { g.beginPath(); g.arc(cx, cy, r * f, 0, 7); g.stroke(); });
+    for (let i = 0; i < N; i += 2) {
+      const rr = d[4*i] / 255, gg = d[4*i+1] / 255, bb = d[4*i+2] / 255, mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb), sat = mx ? (mx - mn) / mx : 0;
+      if (sat < 0.05) continue;
+      const dl = mx - mn; let hue = mx === rr ? ((gg - bb) / dl) % 6 : mx === gg ? (bb - rr) / dl + 2 : (rr - gg) / dl + 4;
+      const th = hue * Math.PI / 3;
+      g.fillStyle = `hsla(${(hue * 60 + 360) % 360},70%,62%,.30)`;
+      g.fillRect(cx + r * sat * Math.cos(th) - 1, cy - r * sat * Math.sin(th) - 1, 2, 2);
     }
   }
   if (scopesOn.has("meter")) {
-    const [g, w, h, dpr] = ctx2d(scopeEls.meter.cv);
-    lvHistory.push(meterNeedle); if (lvHistory.length > 60) lvHistory.shift();
-    const x0 = w * 0.06, x1 = w * 0.94, y0 = h * 0.42;
-    g.strokeStyle = "rgba(255,255,255,.14)"; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y0); g.stroke();
-    g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(138,138,134,.9)"; g.textAlign = "center";
-    for (let i = 0; i <= 12; i++) { const x = x0 + (x1 - x0) * i / 12, big = i % 3 === 0; g.fillRect(x, y0 - (big ? 6 : 3) * dpr, 1, (big ? 6 : 3) * dpr); if (big) g.fillText(String(i + 2), x, y0 + 9 * dpr); }
-    const nx = x0 + (x1 - x0) * (Math.max(2, Math.min(14, meterNeedle)) - 2) / 12;
-    g.fillStyle = "rgba(229,180,90,.95)"; g.fillRect(nx - dpr, y0 - 12 * dpr, 2 * dpr, 16 * dpr);
-    if (lvHistory.length > 2) {
-      const mn = Math.min(...lvHistory), mx = Math.max(...lvHistory), span = Math.max(0.5, mx - mn);
-      g.strokeStyle = "rgba(214,216,222,.55)"; g.beginPath();
-      lvHistory.forEach((v, i) => { const x = x0 + (x1 - x0) * i / 59, y = h * 0.95 - (v - mn) / span * h * 0.28; i ? g.lineTo(x, y) : g.moveTo(x, y); });
-      g.stroke();
-    }
+    const [g, w, h, dpr] = face(scopeEls.meter.cv, 0);
+    const cx = w / 2, cy = h * 0.96, r = Math.min(w * 0.46, h * 0.86), a0 = Math.PI * 0.88, a1 = Math.PI * 0.12;
+    arcScale(g, cx, cy, r, a0, a1, 12, 3);
+    g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = "rgba(200,190,170,.7)"; g.textAlign = "center";
+    for (let i = 0; i <= 12; i += 3) { const a = a0 + (a1 - a0) * i / 12; g.fillText(String(i + 2), cx + (r + 8 * dpr) * Math.cos(a), cy - (r + 8 * dpr) * Math.sin(a) + 2 * dpr); }
     g.textAlign = "left";
+    const lv = ease("meter", meterNeedle, .22);
+    needle(g, cx, cy, r - 2, a0 + (a1 - a0) * (Math.max(2, Math.min(14, lv)) - 2) / 12, AMBER + ".95)");
+    g.font = `${6.5 * dpr}px ui-monospace,Menlo,monospace`; g.fillStyle = PHOS + ".85)"; g.fillText("LV " + lv.toFixed(1), 5 * dpr, h - 4 * dpr);
   }
+}
+/* the loop: ~14 Hz, and only while there is something to show and someone to see it */
+function scopeLoop(now) {
+  scopeRAF = 0;
+  if (!scopesOn.size || cocked || document.hidden || $("print").classList.contains("on") || asleep) return;
+  if (!now || now - lastScope >= 70) { lastScope = now || performance.now(); drawScopes(); }
+  scopeRAF = requestAnimationFrame(scopeLoop);
 }
 /* the back panel reads out what the camera is actually set to */
 function backLCD() {
@@ -1717,7 +1784,7 @@ function backLCD() {
     $("lcdroll").textContent = ROLL;
     document.documentElement.style.setProperty("--film", String(frameNo || 0));     /* 2. the film moves */
     const raw = lightValue();
-    drawScopes(false);
+    if (!scopeRAF) scopeLoop();
     /* a meter needle overshoots nothing and flickers nothing: the reading is
        smoothed toward the scene, fast when the change is large, slow when it
        is small, and the display only moves when a whole step has been crossed */
