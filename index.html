@@ -363,7 +363,8 @@ body.cocked #wind b{color:var(--ready)}
 body.cocked #scopes{opacity:0;transform:scale(1.55)}
 body.released #scopes{transition:opacity .26s var(--ease), transform .24s cubic-bezier(.5,0,.9,.4)}
 body.sleep #scopes{opacity:0}
-#scopes .slot{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+#scopes .slot{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;overflow:hidden}
+#scopes .slot.top,#scopes .slot.bottom{flex-direction:row;align-items:flex-end}
 #scopes .card{display:none;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto}
 #scopes .card.on{display:flex}
 #scopes .face{position:relative;border-radius:7px;padding:4px;
@@ -855,7 +856,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 121;                     /* bump with every ship; lands in EXIF */
+const BUILD = 122;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1575,10 +1576,10 @@ function lightValue() {
    so what was just measured fades instead of vanishing. */
 const SCOPES = [
   ["hist",  "HISTOGRAM",   "top",    3.2],
+  ["vec",   "VECTORSCOPE", "top",    1.0],
   ["meter", "METER",       "bottom", 2.6],
   ["rgb",   "RGB PARADE",  "left",   1.35],
   ["kelv",  "COLOUR TEMP", "right",  1.5],
-  ["vec",   "VECTORSCOPE", "right",  1.0],
 ];
 const AMBER = "rgba(240,168,64,", PHOS = "rgba(236,190,110,";
 let scopesOn = new Set();
@@ -1635,30 +1636,46 @@ $("hapb").addEventListener("click", () => {
 });
 $("lensveil").addEventListener("click", closeScopeMenu);
 
-/* LAYOUT. The slots hug the small finder, which sits at 26% scale in the
-   centre of the glass: above, below, left, right, each inset so nothing ever
-   touches the hole or leaves the gate, in either orientation. Every card is
-   sized to fit its share of its slot at its own aspect. */
+/* LAYOUT. The gate is cut into three rows: a band above the finder, a band
+   below it, and the middle row split into a column each side of the hole. The
+   regions are disjoint by construction, with a margin between every pair, so
+   nothing can overlap and nothing can reach the finder or the gate edge in any
+   orientation. Bands lay their cards out side by side; columns stack. Every
+   slot also clips, as a hard guarantee. */
 function fitScopes() {
   const g = $("glass"); const W = g.clientWidth, H = g.clientHeight; if (!W || !H) return;
-  const fw = W * 0.26, fh = H * 0.26, fx = (W - fw) / 2, fy = (H - fh) / 2, m = Math.min(W, H) * 0.035, e = Math.min(W, H) * 0.03;
+  const fw = W * 0.26, fh = H * 0.26, fx = (W - fw) / 2, fy = (H - fh) / 2;
+  const e = Math.min(W, H) * 0.03, m = Math.min(W, H) * 0.035, gap = 4;
+  const topH = fy - m - e, botY = fy + fh + m, botH = H - botY - e;
+  const midY = fy - m + gap, midH = fh + 2 * m - 2 * gap;
   const boxes = {
-    top:    [e, e, W - 2 * e, fy - m - e],
-    bottom: [e, fy + fh + m, W - 2 * e, H - (fy + fh + m) - e],
-    left:   [e, fy - fh * 0.35, fx - m - e, fh * 1.7],
-    right:  [fx + fw + m, fy - fh * 0.35, W - (fx + fw + m) - e, fh * 1.7],
+    top:    [e, e, W - 2 * e, topH],
+    bottom: [e, botY, W - 2 * e, botH],
+    left:   [e, midY, fx - m - e, midH],
+    right:  [fx + fw + m, midY, W - (fx + fw + m) - e, midH],
   };
+  const LBL = 12, PADF = 8, CGAP = 10;
   for (const slot in boxes) {
     const el = $("scopes").querySelector("." + slot); const [x, y, w, h] = boxes[slot];
     el.style.left = x + "px"; el.style.top = y + "px"; el.style.width = Math.max(0, w) + "px"; el.style.height = Math.max(0, h) + "px";
     const cards = SCOPES.filter(sc => sc[2] === slot && scopesOn.has(sc[0]));
-    const share = cards.length ? (h - 8 * (cards.length - 1)) / cards.length : 0;
-    for (const [k, , , asp] of cards) {
-      const cv = scopeEls[k].cv, lblH = 12, pad = 10;
-      let cw = w - pad, ch = cw / asp;
-      if (ch > share - lblH - pad) { ch = Math.max(24, share - lblH - pad); cw = ch * asp; }
-      cw = Math.min(cw, w - pad);
-      cv.style.width = Math.round(cw) + "px"; cv.style.height = Math.round(ch) + "px";
+    if (!cards.length) continue;
+    if (slot === "top" || slot === "bottom") {
+      /* a row: every card as tall as the band allows, widths by aspect, then
+         scaled down together if the row would be wider than the band */
+      let ch = h - LBL - PADF - 2, ws = cards.map(([, , , asp]) => ch * asp);
+      const total = ws.reduce((a, b) => a + b, 0) + CGAP * (cards.length - 1);
+      const avail = w - PADF - 2;
+      if (total > avail) { const k = (avail - CGAP * (cards.length - 1)) / (total - CGAP * (cards.length - 1)); ws = ws.map(v => v * k); ch *= k; }
+      cards.forEach(([k], i) => { scopeEls[k].cv.style.width = Math.round(ws[i]) + "px"; scopeEls[k].cv.style.height = Math.round(ch) + "px"; });
+    } else {
+      /* a column: as wide as the column allows, capped by its share of the height */
+      const share = (h - CGAP * (cards.length - 1)) / cards.length;
+      for (const [k, , , asp] of cards) {
+        let cw = w - PADF - 2, ch = cw / asp;
+        if (ch > share - LBL - PADF - 2) { ch = Math.max(20, share - LBL - PADF - 2); cw = ch * asp; }
+        scopeEls[k].cv.style.width = Math.round(cw) + "px"; scopeEls[k].cv.style.height = Math.round(ch) + "px";
+      }
     }
   }
 }
