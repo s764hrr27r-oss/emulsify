@@ -54,19 +54,21 @@ body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
      shadow. Five coloured shadows, each pushed a little toward one corner, so
      the seam is emerald here, ruby there, and never the same twice. */
   box-shadow:
-    -22px -8px 44px 4px rgba(31,160,105,.13),
-     24px -12px 44px 4px rgba(200,40,62,.10),
-     20px 18px 44px 4px rgba(96,82,214,.12),
-    -18px 22px 44px 4px rgba(229,180,90,.14),
-      0 0 28px 1px rgba(226,226,222,.05);
+    -20px -8px 46px 5px rgba(229,180,90,.12),
+     22px -10px 46px 5px rgba(229,180,90,.10),
+     18px 20px 46px 5px rgba(229,180,90,.12),
+    -18px 22px 46px 5px rgba(229,180,90,.11),
+      0 0 30px 2px rgba(240,205,130,.05);
   transition:opacity 1.4s var(--ease)}
 body.cocked #aura{opacity:1;animation:seamdrift 14s ease-in-out infinite alternate, seambreathe 3.4s ease-in-out infinite}
-/* the colours trade corners very slowly, so the seam never settles */
+/* one colour, the gold of the lines. The four lobes still trade corners so the
+   warmth is never perfectly even around the gate, but it is never anything
+   other than gold. */
 @keyframes seamdrift{
-  0%{box-shadow:-22px -8px 44px 4px rgba(31,160,105,.13), 24px -12px 44px 4px rgba(200,40,62,.10),
-                20px 18px 44px 4px rgba(96,82,214,.12), -18px 22px 44px 4px rgba(229,180,90,.14), 0 0 28px 1px rgba(226,226,222,.05)}
-  100%{box-shadow:-12px 20px 44px 4px rgba(31,160,105,.12), -24px -10px 44px 4px rgba(200,40,62,.10),
-                 22px -16px 44px 4px rgba(96,82,214,.12), 18px 20px 44px 4px rgba(229,180,90,.13), 0 0 30px 1px rgba(226,226,222,.05)}}
+  0%{box-shadow:-20px -8px 46px 5px rgba(229,180,90,.12), 22px -10px 46px 5px rgba(229,180,90,.10),
+                18px 20px 46px 5px rgba(229,180,90,.12), -18px 22px 46px 5px rgba(229,180,90,.11), 0 0 30px 2px rgba(240,205,130,.05)}
+  100%{box-shadow:-12px 20px 46px 5px rgba(229,180,90,.11), -22px -10px 46px 5px rgba(229,180,90,.12),
+                 20px -16px 46px 5px rgba(229,180,90,.10), 18px 18px 46px 5px rgba(229,180,90,.12), 0 0 32px 2px rgba(240,205,130,.05)}}
 @keyframes seambreathe{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.15)}}
 body.released #aura{transition:opacity .4s var(--ease);opacity:0;animation:none}
 #glass{position:relative;z-index:1}
@@ -252,7 +254,7 @@ body.cocked #wind b{color:var(--ready)}
 body:not(.cocked) #glass{filter:brightness(.9) saturate(.9) contrast(.98)}
 body:not(.cocked) #grid,body:not(.cocked) #quad{opacity:.10}
 body:not(.cocked) #rf,body:not(.cocked) #spot,body:not(.cocked) #cross{opacity:.2}
-body.cocked #glass{filter:brightness(1.04) saturate(1.06) contrast(1.02)}
+body.cocked #glass{filter:brightness(1.04) saturate(1.05) contrast(1.02) sepia(.04)}
 body:not(.cocked) .deck{opacity:.6;transition:opacity .3s var(--ease)}
 /* LOCK IN: the grid goes from a grey suggestion to a hard white frame line.
    Idle it is barely there; set, it is the brightest thing on the glass. */
@@ -684,7 +686,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 96;                     /* bump with every ship; lands in EXIF */
+const BUILD = 97;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
