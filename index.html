@@ -116,6 +116,47 @@ body.f-rf #rf{display:block}
 #rf b{position:absolute;left:50%;top:50%;width:17%;aspect-ratio:5/3;
       translate:-50% -50%;border:1px solid rgba(59,130,246,.75)}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
+/* ---------- THE ADVANCE ----------
+   A camera will not fire until the film is wound on. The strip below the
+   finder is that wind: pressing it drags one frame of perforations past and
+   cocks the shutter. The finder tightens while cocked and lets go when the
+   frame is taken, which is the whole tension of shooting film. */
+#wind{display:block;width:calc(100% - 32px);margin:10px 16px 0;height:34px;position:relative;
+  background:none;border:1px solid var(--hair);border-radius:8px;overflow:hidden;padding:0;
+  -webkit-tap-highlight-color:transparent}
+#wind .perf{position:absolute;inset:0;
+  background-image:radial-gradient(circle at 10px 50%, var(--hair) 0 3.2px, transparent 3.3px);
+  background-size:20px 100%;background-repeat:repeat-x;opacity:.85;
+  transform:translateX(0);transition:none}
+#wind b{position:absolute;inset:0;display:grid;place-items:center;
+  font:9px ui-monospace,Menlo,monospace;letter-spacing:.22em;color:var(--mute);opacity:.8}
+#wind:active{border-color:var(--dot)}
+#wind.winding .perf{transition:transform .42s cubic-bezier(.22,.9,.3,1);transform:translateX(-60px)}
+#wind.winding b{opacity:.25}
+body.cocked #wind{border-color:var(--dot);opacity:.55}
+body.cocked #wind b{color:var(--dot)}
+/* tension: corner marks that draw in when the shutter is cocked */
+#tension{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .28s var(--ease)}
+#tension i{position:absolute;width:16px;height:16px;border:1.5px solid rgba(244,242,237,.75)}
+#tension i:nth-child(1){top:10px;left:10px;border-right:0;border-bottom:0}
+#tension i:nth-child(2){top:10px;right:10px;border-left:0;border-bottom:0}
+#tension i:nth-child(3){bottom:10px;left:10px;border-right:0;border-top:0}
+#tension i:nth-child(4){bottom:10px;right:10px;border-left:0;border-top:0}
+body.cocked #tension{opacity:1}
+body.cocked #tension i{animation:drawin .34s var(--ease) both}
+@keyframes drawin{from{transform:translate(var(--dx,0),var(--dy,0)) scale(1.9);opacity:0}
+                  to{transform:none;opacity:1}}
+/* the finder itself leans in while cocked, and lets go on release */
+#glass{transition:transform .3s var(--ease), filter .3s var(--ease)}
+body.cocked #glass{transform:scale(1.012)}
+body.cocked #grid,body.cocked #quad{opacity:.85}
+body.released #glass{animation:letgo .42s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes letgo{0%{transform:scale(1.012)}45%{transform:scale(.994)}100%{transform:none}}
+/* shutter sits dark until the film is wound */
+#shutter{transition:opacity .25s var(--ease)}
+body:not(.cocked) #shutter{opacity:.38}
+#wind.nudge{animation:nudge .3s}
+@keyframes nudge{0%,100%{transform:none}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 #denied{position:absolute;inset:0;display:none;place-items:center;
         font-size:13px;color:var(--mute);text-align:center;padding:40px}
 .deck{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
@@ -326,10 +367,12 @@ body.f-rf #rf{display:block}
       <div id="spot"><i></i><i></i><i></i><i></i></div>
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div></div>
+      <div id="tension"><i></i><i></i><i></i><i></i></div>
       <div id="flash"></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
   </div>
+  <button id="wind" aria-label="Advance the film"><span class="perf"></span><b>ADVANCE</b></button>
   <div class="deck">
     <div id="chips">
       <button id="chip" aria-label="Prints"><span class="dot"></span></button>
@@ -461,7 +504,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 81;                     /* bump with every ship; lands in EXIF */
+const BUILD = 82;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -994,9 +1037,46 @@ hapEl.addEventListener("pointercancel", unpress);
 /* shutter: crop the sensor to the exact 4:5 the frame shows (cover-centered)
    The develop never interrupts: the chip carries the news; the easel waits
    inside the print's first opening. */
+/* THE ADVANCE. cocked is the shutter being ready. The wind sets it, the frame
+   spends it. If anything in here ever throws, cock() is what unblocks the
+   camera, so the failure mode is a camera that always fires, never one that
+   cannot. */
+let cocked = false;
+function cock(on) {
+  cocked = !!on;
+  document.body.classList.toggle("cocked", cocked);
+}
+$("wind").onclick = () => {
+  if (cocked) return;                       /* already wound: no double stroke */
+  const w = $("wind");
+  w.classList.add("winding");
+  try { navigator.vibrate && navigator.vibrate([6, 24, 10]); } catch (e) {}
+  setTimeout(() => {
+    w.classList.remove("winding");
+    w.querySelector(".perf").style.transform = "";
+    cock(true);
+  }, 420);
+};
+let windHold = 0;
+$("wind").addEventListener("pointerdown", () => {
+  windHold = setTimeout(() => { cock(false); try { navigator.vibrate && navigator.vibrate(14); } catch (e) {} }, 700);
+});
+["pointerup","pointercancel","pointerleave"].forEach(ev =>
+  $("wind").addEventListener(ev, () => clearTimeout(windHold)));
+function release() {                        /* the frame is taken: let go */
+  cock(false);
+  document.body.classList.add("released");
+  setTimeout(() => document.body.classList.remove("released"), 440);
+}
 $("shutterwrap").onclick = async () => {
   const v = $("video");
-  if (!v.videoWidth || restarting || pending > 2) return;
+  if (!cocked) {                            /* wind on first, like film */
+    const w = $("wind");
+    w.classList.remove("nudge"); void w.offsetWidth; w.classList.add("nudge");
+    try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
+    return;
+  }
+  if (!v.videoWidth || restarting || pending > 2) return;   /* wind is kept, not spent */
   if (anaBlocked()) {                 /* the squeeze needs the wide gate */
     try { navigator.vibrate && navigator.vibrate([12, 60, 12]); } catch (e) {}
     return;
@@ -1033,6 +1113,7 @@ async function cook(c, voice, full) {
   } catch (e) {}
   closeLensMenu();
   if (voice) {
+    release();                              /* the tension goes with the frame */
     $("flash").style.opacity = 1;
     setTimeout(() => $("flash").style.opacity = 0, 110);
     shutterVoice();
