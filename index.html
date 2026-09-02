@@ -405,8 +405,8 @@ body:not(.cocked) #shutter{opacity:.38}
   #wind b{writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:.18em;font-size:8px}
   body.flip #windwrap{right:auto;left:calc(4px + env(safe-area-inset-left))}
   #chips,#shutterwrap,#rightstack{justify-self:center}
-  #rightstack{flex-direction:row;align-self:end}
-  #chips{align-self:start}
+  #rightstack{flex-direction:row;align-self:start}
+  #chips{align-self:end}
   /* clockwise turn: the phone's bottom edge is now on the LEFT, so the deck
      goes with it and the gate padding mirrors. The deck's INTERNAL layout does
      not mirror - b65: flipping align-self here without also flipping `order`
@@ -417,12 +417,11 @@ body:not(.cocked) #shutter{opacity:.38}
   body.flip #frame{padding:0 calc(43px + env(safe-area-inset-right))
                      0 calc(189px + env(safe-area-inset-left))}
   .deck::before{inset:16px 6px}
-  /* portrait reads chips, shutter, lens pair from left to right, so landscape
-     must read the same top to bottom. Before b89 the order was reversed and the
-     two orientations disagreed about where anything lived. */
-  #chips{order:0;flex-direction:column}
+  /* the original landscape order, restored in b93: lens pair at the top,
+     shutter in the middle, gallery and OFF at the bottom. b89 reversed this
+     under a mistaken reading of portrait and the owner caught it. */
   #shutterwrap{order:1}
-  #rightstack{order:2}
+  #chips{order:2;flex-direction:column}
   .spacer{display:none}
   #lensmenu,#anamenu,#findermenu{right:calc(env(safe-area-inset-right) + 190px);left:auto;
             bottom:auto;top:50%;translate:0 -50%}
@@ -675,7 +674,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 92;                     /* bump with every ship; lands in EXIF */
+const BUILD = 93;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
