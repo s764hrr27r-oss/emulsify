@@ -717,7 +717,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 101;                     /* bump with every ship; lands in EXIF */
+const BUILD = 102;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1030,32 +1030,33 @@ function paintLensMenu() {
   if (optOn()) {
     /* under glass, the mm menu belongs to the lens: its focal steps, labelled
        by what they resolve to on this phone's camera */
-    for (const z of (ANA.zooms || [1])) {
+    (ANA.zooms || [1]).forEach((z, zi) => {
       const b = document.createElement("button");
       b.textContent = zoomLabel(z);
       b.insertAdjacentHTML("beforeend",
         '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
       if (Math.abs(z - ZOOM) < 0.001) b.className = "cur";
-      b.onclick = () => { closeLensMenu(); ZOOM = z; applyOpticGlass(); paintLensMenu(); };
+      b.onclick = () => { galleryNote(7 + zi); closeLensMenu(); ZOOM = z; applyOpticGlass(); paintLensMenu(); };
       m.appendChild(b);
-    }
+    });
     return;
   }
-  for (const { k, F } of LADDER) {
+  LADDER.forEach(({ k, F }, li) => {
     const b = document.createElement("button");
     b.textContent = k;
     if (!realize(F) || !lensAllowed(F)) b.disabled = true;
     else b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
     if (F === GLASS.mm) b.className = "cur";
-    b.onclick = () => { closeLensMenu(); setGlass(F); };
+    b.onclick = () => { galleryNote(7 + li); closeLensMenu(); setGlass(F); };
     m.appendChild(b);
-  }
+  });
 }
 const closeLensMenu = () => {
   $("lensmenu").classList.remove("on"); $("lensveil").classList.remove("on");
 };
 $("lens").onclick = () => {
+  galleryNote(3);
   if (!phys.length) return;
   if (optOn() && (ANA.zooms || [1]).length < 2) return;   /* single-focal glass stays frozen */
   closeAnaMenu(); closeFinderMenu();
@@ -1131,22 +1132,22 @@ function setFinder(m) {
 }
 function paintFinderMenu() {
   const m = $("findermenu"); m.innerHTML = "";
-  for (const f of FINDERS) {
+  FINDERS.forEach((f, fi) => {
     const b = document.createElement("button");
     b.textContent = f.label;
     b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
     if (f.k === FINDER) b.className = "cur";
-    b.onclick = () => { closeFinderMenu(); setFinder(f.k); };
+    b.onclick = () => { galleryNote(5 + fi); closeFinderMenu(); setFinder(f.k); };
     m.appendChild(b);
-  }
+  });
 }
 function closeFinderMenu() {
   $("findermenu").classList.remove("on"); $("lensveil").classList.remove("on");
 }
 setFinder(FINDER);
 $("finder").addEventListener("click", () => {
-  closeLensMenu(); closeAnaMenu();
+  galleryNote(2); closeLensMenu(); closeAnaMenu();
   const on = $("findermenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 });
@@ -1571,15 +1572,15 @@ let ANA = (() => {
 })();
 function paintAnaMenu() {          /* the menu is text; the badge is the glass */
   const m = $("anamenu"); m.innerHTML = "";
-  for (const o of OPTICS) {
+  OPTICS.forEach((o, oi) => {
     const b = document.createElement("button");
     b.textContent = o.label;
     b.insertAdjacentHTML("beforeend",
       '<input type="checkbox" switch class="hapov" tabindex="-1" aria-hidden="true">');
     if (o.id === ANA.id) b.className = "cur";
-    b.onclick = () => { closeAnaMenu(); setOptic(o.id); };
+    b.onclick = () => { galleryNote(6 + oi); closeAnaMenu(); setOptic(o.id); };
     m.appendChild(b);
-  }
+  });
 }
 function paintAnaBadge() {
   const b = $("ana");
@@ -1619,7 +1620,7 @@ function closeAnaMenu() {
   $("anamenu").classList.remove("on"); $("lensveil").classList.remove("on");
 }
 $("ana").onclick = () => {
-  closeLensMenu(); closeFinderMenu();
+  galleryNote(1); closeLensMenu(); closeFinderMenu();
   const on = $("anamenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
 };
@@ -1667,7 +1668,7 @@ async function paintChip() {
   }
 }
 paintChip();
-$("chip").onclick = () => { const k = galleryIds()[0]; if (k) openItem(k); };
+$("chip").onclick = () => { const k = galleryIds()[0]; if (k) openItem(k); else galleryNote(4); };
 
 /* ---------- print view; long-press the print itself to save ---------- */
 let current = null, armedFile = null, watching = null, openTok = 0;
@@ -1687,13 +1688,15 @@ async function openPrint(id) {
   let negD = null;
   try { negD = await get("prints", id + ":neg"); } catch (e) {}
   if (tok !== openTok) return;
-  if (calmMotion) {                    /* stillness asked for: just the print */
+  const first = !!negD;                /* the maiden view gets the whole bath */
+  if (calmMotion || !first) {          /* stillness asked for, or already seen: just the print,
+                                          at once, so the strip can be played like keys */
     const img = document.createElement("img");
     img.src = u;
+    img.className = first ? "" : "in";
     stage.appendChild(img);
-    requestAnimationFrame(() => img.classList.add("in"));
+    if (first) requestAnimationFrame(() => img.classList.add("in"));
   } else {
-    const first = !!negD;              /* the maiden view gets the whole bath */
     let nimg = null;
     if (first) {
       nimg = document.createElement("img");
@@ -1801,7 +1804,7 @@ function paintWatched() {              /* a new stage landed while watching */
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
   }, 2600);
 }
-$("back").onclick = () => { $("print").classList.remove("on"); setPaged(false); if (cocked) humStart();
+$("back").onclick = () => { galleryNote(0); $("print").classList.remove("on"); setPaged(false); if (cocked) humStart();
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
