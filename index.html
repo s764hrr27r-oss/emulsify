@@ -91,6 +91,23 @@ body.cocked #aura::after{animation:seamB 14s ease-in-out infinite alternate}
 @keyframes seamB{from{opacity:0}to{opacity:1}}
 body.released #aura{transition:opacity .4s var(--ease);opacity:0;animation:none}
 #glass{position:relative;z-index:1}
+/* CAUSTICS. Two hairlines of light crossing the black field, each drifting on
+   its own slow cycle at a different angle: the light a crystal throws on a
+   wall. The crystal is never in frame. Transforms only. */
+#caustic{position:absolute;inset:-20%;pointer-events:none;z-index:2;opacity:0;transition:opacity 1.6s var(--ease)}
+#caustic i{position:absolute;left:-10%;right:-10%;top:50%;height:1px;
+  background:linear-gradient(90deg, transparent, rgba(240,226,190,.55) 30%, rgba(255,246,220,.8) 50%, rgba(240,226,190,.55) 70%, transparent)}
+#caustic i:nth-child(1){animation:caustic1 23s ease-in-out infinite alternate}
+#caustic i:nth-child(2){animation:caustic2 31s ease-in-out infinite alternate;opacity:.7}
+@keyframes caustic1{from{transform:rotate(-23deg) translateY(-110px)}to{transform:rotate(-19deg) translateY(90px)}}
+@keyframes caustic2{from{transform:rotate(31deg) translateY(120px)}to{transform:rotate(27deg) translateY(-100px)}}
+body.cocked #caustic{opacity:.035}
+/* LIT FROM BELOW. A three percent warmth rising from the bottom edge of the
+   gate: something golden beneath, out of frame. */
+#below{position:absolute;left:0;right:0;bottom:0;height:38%;pointer-events:none;z-index:2;opacity:0;transition:opacity 1.8s var(--ease);
+  background:linear-gradient(180deg, transparent, rgba(229,180,90,.06) 70%, rgba(229,180,90,.09))}
+body.cocked #below{opacity:.5}
+body.released #caustic,body.released #below{transition:opacity .3s var(--ease);opacity:0}
 /* SPARKLE. Twelve points in four groups, each group a static raster that
    twinkles on opacity with its own period, so no two groups peak together.
    No mask, no filter: nothing here repaints. Idle they do not exist. */
@@ -113,13 +130,12 @@ body.released #aura{transition:opacity .4s var(--ease);opacity:0;animation:none}
   radial-gradient(circle at 90% 96%, rgba(255,236,200,.85) 0 .5px, transparent 1.1px),
   radial-gradient(circle at 7% 30%, rgba(240,242,246,.8) 0 .4px, transparent 1px)}
 body.cocked #sparkle{opacity:1}
-body.cocked #sparkle i{animation:twinkle 6.2s ease-in-out infinite}
-body.cocked #sparkle i:nth-child(2){animation-duration:7.4s;animation-delay:-2.1s}
-body.cocked #sparkle i:nth-child(3){animation-duration:5.3s;animation-delay:-3.7s}
-body.cocked #sparkle i:nth-child(4){animation-duration:8.1s;animation-delay:-1.2s}
+#sparkle i:nth-child(3),#sparkle i:nth-child(4){display:none}      /* eight points, not twelve: dust, not gems */
+body.cocked #sparkle i{animation:twinkle 9.3s ease-in-out infinite}
+body.cocked #sparkle i:nth-child(2){animation-duration:11.1s;animation-delay:-3.1s}
 /* a change in the room: every point lights at once, then they go back to their own rhythms */
-body.cocked.glint #sparkle i{animation:none;opacity:1;transition:opacity .18s var(--ease)}
-@keyframes twinkle{0%,70%,100%{opacity:0}80%{opacity:1}88%{opacity:.2}}
+body.cocked.glint #sparkle i{animation:none;opacity:.6;transition:opacity .18s var(--ease)}
+@keyframes twinkle{0%,72%,100%{opacity:0}82%{opacity:.5}90%{opacity:.1}}
 body.released #sparkle{transition:opacity .3s var(--ease);opacity:0}
 /* the readouts turn gold and radiate when the shutter is set */
 #backlcd .seg{transition:color .6s var(--ease), text-shadow .6s var(--ease)}
@@ -215,7 +231,17 @@ body.cocked #tension{opacity:var(--room,1);transition:opacity 1.2s var(--ease)}
 @media (min-resolution: 2dppx){
   #rf b{border-width:.5px}
   .lensbtn::after,#chip::after,#wind::after,#backlcd::after{padding:.5px}
+  .deck::before{border-width:.5px}
+  #grid,#quad,#cross{opacity:.35}
 }
+/* RESTRAINT. Smaller type, wider tracking, less of it; one thing moves. */
+#backlcd .seg{font-size:11.5px;letter-spacing:.08em}
+#backlcd .lbl{font-size:6.5px;letter-spacing:.2em;opacity:.45}
+#backlcd .state{font-size:7.5px;letter-spacing:.2em;opacity:.6}
+#backlcd .more{font-size:0;width:4px;height:4px;border-radius:50%;background:var(--ready);opacity:.55;margin-left:10px}
+.lensbtn{font-size:10.5px;letter-spacing:.12em}
+body:not(.cocked) #wind b{animation-duration:6s}
+body:not(.cocked) #wind::after{animation-duration:6s}
 @keyframes bootin{from{opacity:0;transform:scale(.965)}}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}}
 #chips{animation:rise .5s var(--ease) both .08s}
@@ -336,7 +362,7 @@ body.curtain #curtains i{transform:none;transition:transform .14s cubic-bezier(.
 /* light through the gap: as the blinds part, a hairline of warm light at the
    meeting line for a few frames, before they have cleared */
 #curtains .leak{position:absolute;top:0;bottom:0;left:50%;width:3px;margin-left:-1.5px;opacity:0;pointer-events:none;
-  background:linear-gradient(180deg, rgba(255,232,190,0), rgba(255,236,200,.95) 30%, rgba(255,236,200,.95) 70%, rgba(255,232,190,0))}
+  background:linear-gradient(90deg, rgba(255,214,150,.9), rgba(255,246,226,.95) 50%, rgba(170,200,255,.85))}   /* light through a facet: warm edge, cool edge */
 body.reentry #curtains .leak{animation:leak .5s ease-out both}
 @keyframes leak{0%{opacity:0;transform:scaleX(1)}18%{opacity:.9;transform:scaleX(1.6)}100%{opacity:0;transform:scaleX(6)}}
 body.sleep #dim{opacity:.8;transition:opacity 1.6s var(--ease)}
@@ -791,6 +817,8 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="cross"></div>
       <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div><input type="checkbox" switch id="hapev" aria-hidden="true" tabindex="-1"><input type="checkbox" switch id="hapx" aria-hidden="true" tabindex="-1"></div>
       <div id="lockgrid"></div>
+      <div id="caustic"><i></i><i></i></div>
+      <div id="below"></div>
       <div id="sparkle"><i></i><i></i><i></i><i></i></div>
       <div id="scopes">
         <div class="slot top"></div><div class="slot left"></div><div class="slot right"></div><div class="slot bottom"></div>
@@ -934,7 +962,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 137;                     /* bump with every ship; lands in EXIF */
+const BUILD = 138;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1523,7 +1551,7 @@ function machine(name, gain) {
     const cold = AC.state === "suspended"; if (cold) AC.resume();
     const src = AC.createBufferSource(); src.buffer = clickBuffer(name);
     const g = AC.createGain(); g.gain.value = gain;
-    src.connect(g); g.connect(AC.destination); src.start(AC.currentTime + (cold ? 0.05 : 0.001));
+    src.connect(g); g.connect(roomIn()); src.start(AC.currentTime + (cold ? 0.05 : 0.001));
   } catch (e) {}
 }
 const SHUTTER_SR = 24000;
@@ -1563,7 +1591,7 @@ function windVoice() {
     src.buffer = windBuffer();
     src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.03;   /* a lever, not a recording */
     const g = AC.createGain(); g.gain.value = 0.32;                  /* the sample was cut hot; a lever is not loud */
-    src.connect(g); g.connect(AC.destination);
+    src.connect(g); g.connect(roomIn());
     src.start(AC.currentTime + (cold ? 0.06 : 0.001));
   } catch (e) {}
 }
@@ -1588,8 +1616,8 @@ function galleryNote(i) {
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.19, t + 0.008);
     out.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
-    out.connect(AC.destination);
-    [[1, 1.0, "sine"], [2, 0.28, "sine"], [3, 0.09, "triangle"]].forEach(([m, g, type]) => {
+    out.connect(roomIn());
+    [[1, 1.0, "sine"], [2, 0.28, "sine"], [3, 0.09, "triangle"], [1.5, 0.12, "sine"]].forEach(([m, g, type]) => {   /* 1.5: the fifth, whispered */
       const o = AC.createOscillator(), gg = AC.createGain();
       o.type = type; o.frequency.value = f * m;
       gg.gain.value = g;
@@ -1604,6 +1632,90 @@ function galleryNote(i) {
    phone volume it is a presence in the room, not a sound you would name. It
    fades up over a second when you wind, drops in half a second when you fire,
    and stays quiet while you are in the gallery. */
+/* THE ROOM. While the shutter is set the camera is in a stone chamber: a small
+   feedback delay, three taps, a second of tail, eight percent wet. Mechanical
+   sounds and the chime pass through it; at rest everything is dry. Built once. */
+let room = null;
+function roomIn() {                                  /* returns a node to connect a source to */
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (!room) {
+      const inp = AC.createGain(), wet = AC.createGain(), dry = AC.createGain();
+      wet.gain.value = 0; dry.gain.value = 1;
+      inp.connect(dry); dry.connect(AC.destination);
+      const hp = AC.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 180;
+      const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
+      inp.connect(hp); hp.connect(lp);
+      [[0.047, 0.42], [0.083, 0.36], [0.131, 0.30]].forEach(([t, fb]) => {
+        const d = AC.createDelay(0.5); d.delayTime.value = t;
+        const g = AC.createGain(); g.gain.value = fb;
+        lp.connect(d); d.connect(g); g.connect(d); d.connect(wet);
+      });
+      wet.connect(AC.destination);
+      room = { inp, wet };
+    }
+    return room.inp;
+  } catch (e) { return AC ? AC.destination : null; }
+}
+function roomWet(on) { try { if (room) { const t = AC.currentTime; room.wet.gain.cancelScheduledValues(t); room.wet.gain.setValueAtTime(room.wet.gain.value, t); room.wet.gain.linearRampToValueAtTime(on ? 0.08 : 0, t + (on ? 1.2 : 0.4)); } } catch (e) {} }
+
+/* THE DRONE. Under the hum, four sines at a third of its level: D3, A3, D4 and
+   the flattened second, E-flat 4, the note that gives the desert modes their
+   colour. Each wobbles on its own slow cycle. A mode held in another room. */
+let drone = null;
+function droneStart() {
+  if (drone || !cocked) return;
+  try {
+    const t = AC.currentTime, out = AC.createGain();
+    out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.0007, t + 2.2);
+    const nodes = [];
+    [[146.83, 1.0, 0.11], [220.0, 0.55, 0.07], [293.66, 0.45, 0.09], [311.13, 0.30, 0.05]].forEach(([f, g, lf]) => {
+      const o = AC.createOscillator(); o.type = "sine"; o.frequency.value = f;
+      const gg = AC.createGain(); gg.gain.value = g;
+      const lfo = AC.createOscillator(); lfo.frequency.value = lf; const lg = AC.createGain(); lg.gain.value = g * 0.35;
+      lfo.connect(lg); lg.connect(gg.gain);
+      o.connect(gg); gg.connect(out); o.start(t); lfo.start(t); nodes.push(o, lfo);
+    });
+    out.connect(roomIn()); drone = { out, nodes };
+  } catch (e) { drone = null; }
+}
+function droneStop() {
+  if (!drone) return;
+  try { const t = AC.currentTime, d = drone; drone = null;
+    d.out.gain.cancelScheduledValues(t); d.out.gain.setValueAtTime(Math.max(d.out.gain.value, 0.0001), t); d.out.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    setTimeout(() => { try { d.nodes.forEach(n => n.stop()); d.out.disconnect(); } catch (e) {} }, 700);
+  } catch (e) { drone = null; }
+}
+/* THE DOOR. One bell in D4 from the gallery's voice, at a sixth of its gain,
+   as the lock lands. Once per wind. */
+function door() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const f = 293.66, t = AC.currentTime + 0.01, out = AC.createGain();
+    out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.032, t + 0.012); out.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+    out.connect(roomIn());
+    [[1, 1.0, "sine"], [2, 0.22, "sine"], [3, 0.06, "triangle"]].forEach(([m, g, type]) => {
+      const o = AC.createOscillator(), gg = AC.createGain(); o.type = type; o.frequency.value = f * m; gg.gain.value = g;
+      if (m === 3) { gg.gain.setValueAtTime(g, t); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); }
+      o.connect(gg); gg.connect(out); o.start(t); o.stop(t + 2.5);
+    });
+  } catch (e) {}
+}
+/* THE REFUSAL. The shutter pressed with the film not wound: a dull, damped
+   thud, low and short, the sound of a release that has nothing to release.
+   Quiet: it is a correction, not an alarm. */
+function refusal() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const t = AC.currentTime + 0.005, o = AC.createOscillator(), g = AC.createGain(), lp = AC.createBiquadFilter();
+    o.type = "triangle"; o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(92, t + 0.09);
+    lp.type = "lowpass"; lp.frequency.value = 420;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+    o.connect(lp); lp.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 0.14);
+  } catch (e) {}
+}
 let hum = null;
 function humStart() {
   if (hum || !cocked || $("print").classList.contains("on")) return;
@@ -1617,12 +1729,16 @@ function humStart() {
     const lfo = AC.createOscillator(); lfo.frequency.value = 0.31;
     const lfoG = AC.createGain(); lfoG.gain.value = 70; lfo.connect(lfoG); lfoG.connect(lp.frequency);
     const mk = (type, f, g) => { const o = AC.createOscillator(), gg = AC.createGain(); o.type = type; o.frequency.value = f; gg.gain.value = g; o.connect(gg); gg.connect(lp); o.start(t); return o; };
-    const a = mk("sawtooth", 88.0, 0.40), b = mk("sawtooth", 90.4, 0.40), c = mk("sine", 176.0, 0.14), d = mk("sine", 44.0, 0.45);
+    /* in D: the fundamental is D2, 73.4 Hz, with its beating partner two cents
+       up, the octave D3 above, and D1 beneath. The gallery sings in the same key. */
+    const a = mk("sawtooth", 73.42, 0.40), b = mk("sawtooth", 75.4, 0.40), c = mk("sine", 146.83, 0.14), d = mk("sine", 36.71, 0.45);
     lfo.start(t); lp.connect(out); out.connect(AC.destination);
     hum = { out, nodes: [a, b, c, d, lfo] };
+    droneStart(); roomWet(true);
   } catch (e) { hum = null; }
 }
 function humStop() {
+  droneStop(); roomWet(false);
   if (!hum) return;
   try {
     const t = AC.currentTime, h = hum; hum = null;
@@ -1642,7 +1758,7 @@ function shutterVoice() {
     /* a slow shutter is a longer, lower kachunk. Ride the scene light: a dim
        room at LV 4 plays at .80, open sun at LV 13 at 1.05. */
     src.playbackRate.value = Math.max(0.80, Math.min(1.05, 0.80 + (lastLV - 4) * (0.25 / 9)));
-    src.connect(AC.destination);
+    src.connect(roomIn());
     src.start(AC.currentTime + (cold ? 0.06 : 0.001));
   } catch (e) {}
 }
@@ -2314,6 +2430,7 @@ $("windwrap").onclick = () => {
   windVoice();                              /* the ratchet; the switch gives the tick */
   cock(true);                               /* the picture grows WHILE the lever runs */
   setTimeout(haptic, 200);                  /* the throw, then the seat */
+  setTimeout(door, 480);                    /* the lock lands: the door */
   setTimeout(() => {                        /* the perforations reset once stopped */
     w.classList.remove("winding");
     w.querySelector(".perf").style.transform = "";
@@ -2370,6 +2487,7 @@ function release() {                        /* the frame is taken: let go */
 $("shutterwrap").onclick = async () => {
   const v = $("video");
   if (!cocked) {                            /* wind on first, like film */
+    refusal();
     const w = $("wind");
     w.classList.remove("nudge"); void w.offsetWidth; w.classList.add("nudge");
     return;
