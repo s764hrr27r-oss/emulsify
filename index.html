@@ -1251,7 +1251,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 170;                     /* bump with every ship; lands in EXIF */
+const BUILD = 171;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2132,7 +2132,7 @@ hapEl.addEventListener("pointerdown", () => $("shutter").classList.add("pressed"
 /* DOUBLE EXPOSURE. Film let you expose twice by not winding. Hold the unwound
    shutter for 700 ms and the next frame is added onto the last negative in
    linear light, each at half exposure, developed as one print. */
-let doubleArm = false, lastNeg = null, lastNegSize = [0, 0], dblHold = 0;
+let doubleArm = false, lastNeg = null, dblHold = 0;
 hapEl.addEventListener("pointerdown", () => {
   clearTimeout(dblHold);
   if (!cocked && lastNeg && !doubleArm) dblHold = setTimeout(() => {
@@ -2145,7 +2145,8 @@ async function sumExposures(c) {            /* the previous negative plus this o
   try {
     const bm = await createImageBitmap(lastNeg);
     const pc = Object.assign(document.createElement("canvas"), { width: c.width, height: c.height });
-    pc.getContext("2d").drawImage(bm, 0, 0, c.width, c.height); bm.close && bm.close();
+    const k = Math.max(c.width / bm.width, c.height / bm.height), dw = bm.width * k, dh = bm.height * k;
+    pc.getContext("2d").drawImage(bm, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh); bm.close && bm.close();
     const a = pc.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
     const g = c.getContext("2d", { willReadFrequently: true }), img = g.getImageData(0, 0, c.width, c.height), b = img.data;
     const lin = new Float32Array(256), enc = new Uint8ClampedArray(4096);
@@ -2157,7 +2158,7 @@ async function sumExposures(c) {            /* the previous negative plus this o
       b[i + 2] = enc[Math.min(4095, ((lin[a[i + 2]] + lin[b[i + 2]]) * 0.5 * 4095) | 0)];
     }
     g.putImageData(img, 0, 0);
-  } catch (e) {}
+  } catch (e) { flashState("DOUBLE FAILED"); }
 }
 const unpress = () => $("shutter").classList.remove("pressed");
 hapEl.addEventListener("pointerup", unpress);
@@ -3031,8 +3032,12 @@ $("shutterwrap").onclick = async () => {
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
-  if (doubleArm && lastNeg && lastNegSize[0] === c.width && lastNegSize[1] === c.height) { await sumExposures(c); doubleArm = false; }
-  else doubleArm = false;
+  /* b171: the size veto is gone. It silently turned every double into a plain
+     shot whenever the frame changed between exposures - and the frame changes
+     with orientation (4:5 / 5:4), lens crop, and the anamorphic gate. The sum
+     now fits the first negative over the new gate itself. */
+  if (doubleArm && lastNeg) await sumExposures(c);
+  doubleArm = false;
   await cook(c, true, false);
 };
 /* Everything after a negative exists: latent thumb, develop, file it away.
@@ -3080,7 +3085,7 @@ async function cook(c, voice, full) {
   const blob = await new Promise(r => { let done = false; const stall = setTimeout(() => { if (!done) flashState("ENCODE STALL"); }, 4000);
                                         c.toBlob(b => { done = true; clearTimeout(stall); r(b); }, "image/jpeg", 0.93); });
   if (!blob) { flagError("NEGATIVE FAILED"); c.width = c.height = 0; return; }   /* toBlob can hand back null under memory pressure */
-  if (voice) { lastNeg = blob; lastNegSize = [c.width, c.height]; }              /* the double's memory: the same bytes, no second encode */
+  if (voice) { lastNeg = blob; }              /* the double's memory: the same bytes, no second encode */
   c.width = c.height = 0;
   pending++; cooking.add(id);
   try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
