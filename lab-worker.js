@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.13";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.14";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -910,6 +910,56 @@ def _leader_leak(lin, amount):
     fog = prof[None, :] * sway[:, None]
     tint = np.array([1.0, 0.55, 0.28])                        # through the base: red-orange
     return lin + fog[..., None] * tint[None, None, :] * (0.55 + 0.45 * np.clip(lin.mean(axis=-1, keepdims=True), 0, 1))
+
+# ---- v3.14 THE GROWN LEAK ----
+# A real leak is light creeping past a seal: it enters somewhere along one edge,
+# diffuses sideways, advances unevenly, and streaks where the seal is worst. It
+# is grown row by row on a coarse grid from the print's own seed, so the same
+# print always leaks the same way and no two rolls leak alike; a quarter of them
+# leak at a second seam. Hotter and whiter at the source, red-orange through the
+# base further in. Falls back to the v3.10 profile if anything here fails.
+_leader_leak_v310 = _leader_leak
+def _leader_leak(lin, amount):
+    if amount <= 0.0:
+        return lin
+    try:
+        import scipy.ndimage as _ndi
+        h, w = lin.shape[0], lin.shape[1]
+        seed = int(globals().get("_SEED_NOW", 0) or 0)
+        rng = np.random.default_rng((seed * 1000003 + 977) % 4294967296)
+        along, deep = 96, 48
+        def one(side, u, sig, reach, amt):
+            t = (np.arange(along) + 0.5) / along
+            src = np.exp(-0.5 * ((t - u) / sig) ** 2) * (0.7 + 0.3 * _ndi.gaussian_filter1d(rng.standard_normal(along), 3.0))
+            src = np.clip(src / max(src.max(), 1e-6), 0, 1)
+            streak = 1.0 + 0.7 * _ndi.gaussian_filter1d((rng.uniform(size=along) < 0.07).astype(float), 0.8) * 3.0
+            g = np.zeros((deep, along)); g[0] = src
+            decay = np.exp(-1.0 / (deep * reach * 0.5))
+            for k in range(1, deep):
+                gain = 0.5 + 0.5 * np.clip(0.5 + 0.5 * _ndi.gaussian_filter1d(rng.standard_normal(along), 1.6), 0, 1)
+                g[k] = _ndi.gaussian_filter1d(g[k - 1], 0.55) * gain * streak ** (6.0 / deep) * decay
+            g = np.clip(_ndi.gaussian_filter(g, 0.6), 0, 1) ** 0.8 * amt
+            a = g.T if side < 2 else g
+            fog = _ndi.zoom(a, (h / a.shape[0], w / a.shape[1]), order=1)[:h, :w]
+            fog = np.pad(fog, ((0, h - fog.shape[0]), (0, w - fog.shape[1])), mode="edge")
+            if side == 1:
+                fog = fog[:, ::-1]
+            if side == 3:
+                fog = fog[::-1, :]
+            return fog
+        side = int(rng.integers(0, 4))
+        fog = one(side, rng.uniform(0.12, 0.88), rng.uniform(0.08, 0.28), rng.uniform(0.16, 0.40), amount)
+        if rng.uniform() < 0.25:
+            fog = np.maximum(fog, one((side + int(rng.integers(1, 4))) % 4, rng.uniform(0.15, 0.85), rng.uniform(0.06, 0.18), rng.uniform(0.10, 0.22), amount * 0.55))
+        grain = 1.0 + 0.10 * _ndi.zoom(_ndi.gaussian_filter(rng.standard_normal((12, 10)), 0.8), (h / 12, w / 10), order=1)[:h, :w]
+        grain = np.pad(grain, ((0, h - grain.shape[0]), (0, w - grain.shape[1])), mode="edge")
+        fog = np.clip(fog * grain, 0, amount)
+        tint = np.array([1.0, 0.40 + 0.14 * rng.uniform(), 0.14 + 0.14 * rng.uniform()])
+        core = np.clip(fog / max(amount, 1e-6), 0, 1) ** 1.5
+        col = tint[None, None, :] * (1 - 0.45 * core[..., None]) + np.array([1.0, 0.82, 0.48])[None, None, :] * (0.45 * core[..., None])
+        return lin + fog[..., None] * col * (0.55 + 0.45 * np.clip(lin.mean(axis=-1, keepdims=True), 0, 1))
+    except Exception:
+        return _leader_leak_v310(lin, amount)
 
 _expand_v39 = _expand
 def _expand(lin, kmax=2.2):
