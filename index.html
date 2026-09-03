@@ -1054,7 +1054,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 146;                     /* bump with every ship; lands in EXIF */
+const BUILD = 147;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1694,7 +1694,7 @@ function windVoice() {
     const src = AC.createBufferSource();
     src.buffer = windBuffer();
     src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.03;   /* a lever, not a recording */
-    const g = AC.createGain(); g.gain.value = 0.32;                  /* the sample was cut hot; a lever is not loud */
+    const g = AC.createGain(); g.gain.value = 0.22;                  /* the sample was cut hot; a lever is not loud */
     src.connect(g); g.connect(roomIn());
     src.start(AC.currentTime + (cold ? 0.06 : 0.001));
   } catch (e) {}
