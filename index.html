@@ -1164,6 +1164,12 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 
 <script type="module">
 const $ = id => document.getElementById(id);
+/* ERROR RING (b175): the last forty things the page threw, kept for the deep
+   log. Registered first so nothing escapes it. */
+const errRing = [];
+const ringPush = (kind, msg, where) => { errRing.push({ t: Math.round(performance.now()), kind, msg: String(msg).slice(0, 300), where: String(where || "").slice(0, 120) }); if (errRing.length > 40) errRing.shift(); };
+addEventListener("error", e => ringPush("error", e.message || e, (e.filename || "") + ":" + (e.lineno || 0) + ":" + (e.colno || 0)));
+addEventListener("unhandledrejection", e => ringPush("rejection", (e.reason && (e.reason.stack || e.reason.message)) || e.reason));
 const MAX_NEG = 2200;
 const aspect = () => matchMedia("(orientation: landscape)").matches ? 5/4 : 4/5;
 const calmMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1258,7 +1264,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 174;                     /* bump with every ship; lands in EXIF */
+const BUILD = 175;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1807,6 +1813,63 @@ function layoutReport() {
     r("windwrap"), r("chips"), r("chip"), r("ana"), r("shutterwrap"), r("rightstack"), r("finder"), r("lens"), r("lastframe"),
     "print.on=" + $("print").classList.contains("on") + "  asleep=" + asleep + "  pending=" + pending + "  FINDER=" + FINDER + "  GLASS=" + JSON.stringify(GLASS)].join("\n");
 }
+/* DEEP LOG (b175): everything the page knows about itself, in one copyable
+   text - build and worker, device and viewport, camera and glass, camera
+   state, audio, the lab's rung and memory record, storage, every thrown error,
+   the lab log and the layout report. Each field is read defensively: an
+   unknown reads "?" rather than stopping the report. */
+async function deepLog() {
+  const kv = (k, f) => { try { const x = f(); return k + ": " + (typeof x === "string" ? x : JSON.stringify(x)); } catch (e) { return k + ": ?"; } };
+  const L = [];
+  const H = t => L.push("", "== " + t + " ==");
+  L.push("EMULSIFY DEEP LOG  b" + BUILD + "  " + new Date().toISOString() + "  " + (Intl.DateTimeFormat().resolvedOptions().timeZone || ""));
+  H("BUILD & LAB");
+  L.push(kv("build", () => BUILD), kv("worker", () => workerVer), kv("labState", () => labState), kv("labLastError", () => labLastError),
+         kv("labRespawns", () => labRespawns), kv("labStage", () => labStage), kv("pending", () => pending), kv("cooking", () => [...cooking]),
+         kv("pendingBuild", () => pendingBuild), kv("lastUpdateCheck age s", () => lastUpdateCheck ? Math.round((Date.now() - lastUpdateCheck) / 1000) : null),
+         kv("href", () => location.href));
+  H("DEVICE & VIEWPORT");
+  L.push(kv("ua", () => navigator.userAgent), kv("platform", () => navigator.platform), kv("language", () => navigator.language),
+         kv("standalone", () => ({ navigator: !!navigator.standalone, displayMode: matchMedia("(display-mode: standalone)").matches })),
+         kv("online", () => navigator.onLine), kv("deviceMemory GB", () => navigator.deviceMemory), kv("cores", () => navigator.hardwareConcurrency),
+         kv("touchPoints", () => navigator.maxTouchPoints), kv("dpr", () => devicePixelRatio),
+         kv("screen", () => screen.width + "x" + screen.height), kv("inner", () => innerWidth + "x" + innerHeight),
+         kv("visualViewport", () => visualViewport ? visualViewport.width + "x" + visualViewport.height + " scale=" + visualViewport.scale + " off=" + visualViewport.offsetLeft + "," + visualViewport.offsetTop : null),
+         kv("orientation", () => (screen.orientation && screen.orientation.type) + " angle=" + turnAngle() + " media=" + (matchMedia("(orientation: landscape)").matches ? "landscape" : "portrait")),
+         kv("safeArea", () => { const c = getComputedStyle(inpr); return { top: c.paddingTop, right: c.paddingRight, bottom: c.paddingBottom, left: c.paddingLeft }; }),
+         kv("reducedMotion", () => matchMedia("(prefers-reduced-motion: reduce)").matches),
+         kv("uptime s", () => Math.round(performance.now() / 1000)), kv("visible", () => !document.hidden));
+  H("CAMERA & GLASS");
+  L.push(kv("video", () => { const v = $("video"); return v ? v.videoWidth + "x" + v.videoHeight + " ready=" + v.readyState + " paused=" + v.paused : null; }),
+         kv("aspect", () => aspect()), kv("GLASS", () => GLASS), kv("ZOOM", () => ZOOM),
+         kv("ANA", () => ({ id: ANA.id, label: ANA.label, kind: ANA.kind, s: ANA.s, crop: ANA.crop, m: ANA.m })),
+         kv("phys", () => phys.map(p => ({ e: p.e, id: String(p.id).slice(0, 8) }))), kv("restarting", () => restarting),
+         kv("tracks", () => stream ? stream.getVideoTracks().map(t => ({ state: t.readyState, muted: t.muted, settings: t.getSettings() })) : null));
+  H("STATE");
+  L.push(kv("cocked", () => cocked), kv("doubleArm", () => doubleArm), kv("lastNeg bytes", () => lastNeg ? lastNeg.size : null),
+         kv("frameNo", () => frameNo), kv("ROLL", () => ROLL), kv("ROLL_LEN", () => ROLL_LEN), kv("prints", () => prints.length),
+         kv("gallery", () => galleryIds().length), kv("current", () => current), kv("watching", () => watching),
+         kv("asleep", () => asleep), kv("FINDER", () => FINDER), kv("scopesOn", () => [...scopesOn]), kv("meterNeedle", () => meterNeedle),
+         kv("lastLV", () => lastLV), kv("EVD", () => EVD), kv("body", () => document.body.className),
+         kv("print.on", () => $("print").classList.contains("on")), kv("contact.on", () => { const c = $("contact"); return !!(c && c.classList.contains("on")); }));
+  H("AUDIO");
+  L.push(kv("AC", () => AC ? { state: AC.state, rate: AC.sampleRate, baseLatency: AC.baseLatency } : null), kv("hum", () => !!hum), kv("silent", () => silent()));
+  H("LAB RUNG & MEMORY");
+  L.push(kv("rung", () => rung), kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size));
+  H("LOCALSTORAGE (key: chars)");
+  try { const ks = Object.keys(localStorage).sort(); L.push("keys: " + ks.length); for (const k of ks) { const v = String(localStorage[k]); L.push("  " + k + ": " + (v.length > 60 ? v.length + " chars" : JSON.stringify(v))); } } catch (e) { L.push("localStorage: ?"); }
+  H("STORAGE");
+  try { const e = await navigator.storage.estimate(); L.push("usage MB: " + (e.usage / 1048576).toFixed(1) + "  quota MB: " + (e.quota / 1048576).toFixed(0)); } catch (e) { L.push("estimate: ?"); }
+  try { const p = await navigator.permissions.query({ name: "camera" }); L.push("camera permission: " + p.state); } catch (e) { L.push("camera permission: ?"); }
+  H("ERRORS (" + errRing.length + ")");
+  for (const e of errRing) L.push("  +" + e.t + "ms " + e.kind + " " + e.msg + (e.where ? "  @" + e.where : ""));
+  if (!errRing.length) L.push("  none this session");
+  H("LAB LOG");
+  L.push(labLog || "  (empty)");
+  H("LAYOUT");
+  try { L.push(layoutReport()); } catch (e) { L.push("layout: " + e); }
+  return L.join("\n");
+}
 function paintServiceMenu() {
   const m = $("servicemenu"); m.innerHTML = "";
   const ib = document.createElement("button"); ib.textContent = "INSTRUMENTS \u2026";
@@ -1823,6 +1886,15 @@ function paintServiceMenu() {
   const ly = document.createElement("button"); ly.textContent = "LAYOUT REPORT"; ly.style.color = "var(--mute)";
   ly.onclick = () => { machine("click", 0.18); closeServiceMenu(); try { showReport(layoutReport()); } catch (e) { showReport("LAYOUT REPORT failed: " + e); } };
   m.appendChild(ly);
+  const dl = document.createElement("button"); dl.textContent = "COPY DEEP LOG"; dl.style.color = "var(--mute)";
+  dl.onclick = async () => {
+    machine("click", 0.18); closeServiceMenu();
+    let text; try { text = await deepLog(); } catch (e) { text = "DEEP LOG failed: " + e; }
+    let copied = false; try { await navigator.clipboard.writeText(text); copied = true; } catch (e) {}
+    flashState(copied ? "LOG COPIED" : "COPY FAILED: SELECT FROM BOX");
+    showReport(text);
+  };
+  m.appendChild(dl);
   const lb = document.createElement("button"); lb.textContent = "RESTART LAB";
   lb.style.color = "var(--mute)";
   const lsw = document.createElement("input"); lsw.type = "checkbox"; lsw.setAttribute("switch", ""); lsw.className = "hapov"; lsw.tabIndex = -1;
