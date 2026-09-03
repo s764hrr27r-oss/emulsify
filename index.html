@@ -619,6 +619,44 @@ body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-be
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
+/* ---------- THE TURN (b179): rotation as one continuous motion ----------
+   iOS cuts a PWA from one layout to the other. The body turns in from where it
+   was (1), overshoots and settles (3); the world under it counter-rotates so
+   the scene holds still (2, 17). The blinds meet, the turn happens on the
+   body, the blinds part with the leak along the new seam (6). The deck rides
+   its rail (13), the finder grows into its gate (15), the panel re-contacts
+   (7), the caustics stay with the room's light (12), the sheet turns as one
+   (18), the strip hangs in landscape (19), the squeeze plate leans (20).
+   All transform/opacity; the rest is in turnChoreo(). */
+@keyframes bodyturn{0%{transform:rotate(var(--turnfrom,0deg))}78%{transform:rotate(calc(var(--turnfrom,0deg) * -0.0133))}100%{transform:rotate(0deg)}}
+@keyframes worldstay{0%{transform:rotate(var(--turnback,0deg))}78%{transform:rotate(calc(var(--turnback,0deg) * -0.0133))}100%{transform:rotate(0deg)}}
+body.turning #camera,body.turning #contact.on,body.turning #print.on{animation:bodyturn .5s cubic-bezier(.16,.9,.22,1) both}
+body.turning #video,body.turning #stage img.in{animation:worldstay .5s cubic-bezier(.16,.9,.22,1) both}
+@keyframes deckride{from{transform:translate(var(--deckx,0),var(--decky,0))}to{transform:none}}
+body.turning .deck{animation:deckride .45s cubic-bezier(.16,.9,.22,1) .05s both;--deckx:34%;--decky:-40%}
+@keyframes gategrow{from{transform:scale(.97)}to{transform:scale(1)}}
+body.turning #glass{animation:gategrow .4s cubic-bezier(.16,.9,.22,1) .26s both}
+#backlcd.recontact .seg,#backlcd.recontact .state{animation:segflicker .6s steps(1) both}
+@keyframes lean{0%{transform:rotate(0)}40%{transform:rotate(4deg)}100%{transform:rotate(0)}}
+#anawarn.lean{animation:lean .9s cubic-bezier(.3,.7,.2,1) both}
+@keyframes leakY{0%{opacity:0;transform:scaleY(1)}18%{opacity:.9;transform:scaleY(1.6)}100%{opacity:0;transform:scaleY(6)}}
+@media (orientation: landscape){
+  body.turning .deck{--deckx:-40%;--decky:34%}
+  #caustic{transform:rotate(-90deg)}
+  body.flip #caustic{transform:rotate(90deg)}
+  /* the blinds hang top and bottom for a horizontal gate; the seam is horizontal */
+  #curtains i{top:auto;bottom:auto;left:0;right:0;width:100%;height:51%;background:linear-gradient(90deg,#0c0c0c,#060606 50%,#0b0b0b)}
+  #curtains .l{top:0;transform:translateY(-102%);box-shadow:inset 0 -4px 8px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.10)}
+  #curtains .r{bottom:0;transform:translateY(102%);box-shadow:inset 0 4px 8px rgba(0,0,0,.95), 0 -1px 0 rgba(255,255,255,.10)}
+  #curtains .leak{left:0;right:0;top:50%;bottom:auto;width:auto;height:3px;margin:-1.5px 0 0 0;
+    background:linear-gradient(180deg, var(--lka, rgba(255,214,150,.9)), var(--lkm, rgba(255,246,226,.95)) 50%, var(--lkb, rgba(170,200,255,.85)))}
+  body.reentry #curtains .leak{animation:leakY .5s ease-out both}
+  /* the strip hangs to dry down the right side */
+  #print .foot{left:auto;right:0;top:calc(44px + env(safe-area-inset-top));bottom:0;width:110px;flex-direction:column;justify-content:flex-start;
+    padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(90deg, transparent, rgba(10,10,10,.55))}
+  #strip{flex-direction:column;overflow-y:auto;overflow-x:hidden;max-width:none;max-height:100%;padding:22px 0;touch-action:pan-y;align-items:center}
+  #stage{margin:0 110px 0 16px}
+}
 /* ---------- FIFTEEN (b176): alive, caused, opacity/transform only ----------
    1 the dust drifts and one point is mostly away. 2 the writing and the line
    warm in the hand. 3 the counter tires near the end of its travel. 4 the hand
@@ -1311,7 +1349,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 178;                     /* bump with every ship; lands in EXIF */
+const BUILD = 179;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2011,8 +2049,48 @@ addEventListener("orientationchange", alignSoon);
    that was already covered. All that is needed on a turn is to re-read which
    edge the grip is on and clear any stale stage transform. */
 addEventListener("resize", alignSoon);
+/* ---------- THE TURN (b179) ---------- */
+let lastTurnAngle = turnAngle(), turning = 0;
+function turnChoreo() {
+  const body = document.body, now = turnAngle(), old = lastTurnAngle; lastTurnAngle = now;
+  if (now < 0 || old < 0) return;
+  const delta = (((now - old) % 360) + 540) % 360 - 180;      /* the device's turn, -180..180 */
+  if (!delta) return;
+  body.style.setProperty("--turnfrom", (-delta) + "deg");    /* the body comes in from where it was */
+  body.style.setProperty("--turnback", delta + "deg");       /* the world under it holds still */
+  clearTimeout(turning);
+  body.classList.remove("turning"); void body.offsetWidth; body.classList.add("turning");
+  body.classList.add("curtain");                             /* the blinds meet */
+  setTimeout(haptic, 140);
+  if (hum) try {                                             /* 16: the hum bends through the air */
+    const t = AC.currentTime;
+    hum.nodes.slice(0, 2).forEach(o => { const f0 = o.frequency.value; o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(f0, t);
+      o.frequency.linearRampToValueAtTime(f0 + 0.5, t + 0.3); o.frequency.linearRampToValueAtTime(f0, t + 0.9); });
+  } catch (e) {}
+  setTimeout(() => {                                         /* the blinds part; light along the new seam */
+    body.classList.add("reentry"); body.classList.remove("curtain");
+    setTimeout(() => body.classList.remove("reentry"), 1300);
+    try { $("lcdlv").textContent = "--"; } catch (e) {}      /* 8: the light is read again */
+    try { const lcd = $("backlcd"); lcd.classList.remove("recontact"); void lcd.offsetWidth; lcd.classList.add("recontact"); setTimeout(() => lcd.classList.remove("recontact"), 700); } catch (e) {}   /* 7 */
+    if (cocked) {                                            /* 9 10 11: marks are made for a gate */
+      for (const id of ["lockline", "lockgrid", "lockquad", "lockcross"]) {
+        const el = $(id); if (!el) continue;
+        const tgt = id === "lockline" ? el.querySelector("rect") : el; if (!tgt) continue;
+        tgt.style.animation = "none"; void tgt.offsetWidth; tgt.style.animation = "";
+      }
+      const bl = $("below"); if (bl) { bl.style.opacity = "0"; setTimeout(() => { bl.style.opacity = ""; }, 250); }
+    }
+    body.classList.remove("radiate"); void body.offsetWidth; body.classList.add("radiate"); setTimeout(() => body.classList.remove("radiate"), 600);   /* 14: the release re-seats */
+  }, 260);
+  turning = setTimeout(() => {                               /* 4 5 20: the detent, the note, the lean */
+    body.classList.remove("turning");
+    machine("lever", 0.12); haptic();
+    try { galleryNote(matchMedia("(orientation: landscape)").matches ? 5 : 0, 0.06, true); } catch (e) {}
+    try { const aw = $("anawarn"); if (aw && getComputedStyle(aw).display !== "none") { aw.classList.remove("lean"); void aw.offsetWidth; aw.classList.add("lean"); } } catch (e) {}
+  }, 520);
+}
 function onTurn() {
-  alignSoon(); anaGuard();
+  turnChoreo(); alignSoon(); anaGuard();
   const si = $("stage").querySelector("img");
   if (si) si.style.transform = "";
 }
@@ -3665,16 +3743,20 @@ async function openPrint(id) {
 let chartOrder = false, holdStrip = 0;
 (function stripDrag() {
   const st = $("strip"); let x0 = 0, sl = 0, dragged = false, down = false, vx = 0, lastX = 0, lastT = 0, coast = 0;
+  /* 19: in landscape the strip hangs, so the scroll axis follows the orientation */
+  const V = () => matchMedia("(orientation: landscape)").matches, P = e => V() ? e.clientY : e.clientX;
+  const S = v => { if (v === undefined) return V() ? st.scrollTop : st.scrollLeft; if (V()) st.scrollTop = v; else st.scrollLeft = v; };
+  const M = () => V() ? st.scrollHeight - st.clientHeight : st.scrollWidth - st.clientWidth;
   st.addEventListener("pointerdown", e => {
-    down = true; dragged = false; x0 = lastX = e.clientX; sl = st.scrollLeft; lastT = performance.now(); vx = 0; cancelAnimationFrame(coast);
+    down = true; dragged = false; x0 = lastX = P(e); sl = S(); lastT = performance.now(); vx = 0; cancelAnimationFrame(coast);
     /* RICHTER: hold the strip still for six tenths of a second and it re-sorts by hue */
     clearTimeout(holdStrip); holdStrip = setTimeout(() => { if (down && !dragged) { chartOrder = !chartOrder; haptic(); buildStrip(current || watching); } }, 600);
   }, { passive: true });
   st.addEventListener("pointermove", e => {
     if (!down) return;
-    const dx = e.clientX - x0, now = performance.now();
+    const dx = P(e) - x0, now = performance.now();
     if (!dragged && Math.abs(dx) > 6) { dragged = true; st.classList.add("dragging"); clearTimeout(holdStrip); }
-    if (dragged) { st.scrollLeft = sl - dx; const dt = Math.max(1, now - lastT); vx = 0.8 * vx + 0.2 * ((e.clientX - lastX) / dt); lastX = e.clientX; lastT = now; }
+    if (dragged) { S(sl - dx); const dt = Math.max(1, now - lastT); vx = 0.8 * vx + 0.2 * ((P(e) - lastX) / dt); lastX = P(e); lastT = now; }
   }, { passive: true });
   /* CALDER: let go and the strip coasts, slows, and settles with one soft overshoot */
   const up = () => {
@@ -3684,9 +3766,9 @@ let chartOrder = false, holdStrip = 0;
     const step = (t) => {
       const dt = Math.min(40, t - last); last = t;
       /* 12: more mass, softer stop - the drag eases as the spool slows */
-      st.scrollLeft += v * dt / 16; v *= Math.pow(0.955 + 0.02 * (1 - Math.min(1, Math.abs(v) / 24)), dt / 16);
-      const max = st.scrollWidth - st.clientWidth;
-      if (st.scrollLeft <= 0 || st.scrollLeft >= max) v *= -0.22;   /* the soft bounce at the ends */
+      S(S() + v * dt / 16); v *= Math.pow(0.955 + 0.02 * (1 - Math.min(1, Math.abs(v) / 24)), dt / 16);
+      const max = M();
+      if (S() <= 0 || S() >= max) v *= -0.22;   /* the soft bounce at the ends */
       if (Math.abs(v) > 0.08) coast = requestAnimationFrame(step);
     };
     coast = requestAnimationFrame(step);
