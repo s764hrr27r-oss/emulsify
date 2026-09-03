@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.11";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.12";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -869,7 +869,7 @@ def _provenance(ex, seed, profile, secs, long_edge):
     """UserComment takes the lens and the bath. ImageUniqueID keeps the batch,
     so prints from one coating still group together."""
     try:
-        ex[0x9286] = b"ASCII\x00\x00\x00" + _recipe(seed, profile, secs, long_edge, globals().get("_SHOT_NOW", "")).encode("ascii", "replace")
+        ex[0x9286] = b"ASCII\\x00\\x00\\x00" + _recipe(seed, profile, secs, long_edge, globals().get("_SHOT_NOW", "")).encode("ascii", "replace")
         ex[0xA420] = _batch_name(seed) + "-%06d" % (int(seed) % 1000000)
         taken = str(globals().get("_TAKEN_NOW", "") or "")
         if taken:
