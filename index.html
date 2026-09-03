@@ -651,11 +651,6 @@ body.turning #glass{animation:gategrow .4s cubic-bezier(.16,.9,.22,1) .26s both}
   #curtains .leak{left:0;right:0;top:50%;bottom:auto;width:auto;height:3px;margin:-1.5px 0 0 0;
     background:linear-gradient(180deg, var(--lka, rgba(255,214,150,.9)), var(--lkm, rgba(255,246,226,.95)) 50%, var(--lkb, rgba(170,200,255,.85)))}
   body.reentry #curtains .leak{animation:leakY .5s ease-out both}
-  /* the strip hangs to dry down the right side */
-  #print .foot{left:auto;right:0;top:calc(44px + env(safe-area-inset-top));bottom:0;width:110px;flex-direction:column;justify-content:flex-start;
-    padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(90deg, transparent, rgba(10,10,10,.55))}
-  #strip{flex-direction:column;overflow-y:auto;overflow-x:hidden;max-width:none;max-height:100%;padding:22px 0;touch-action:pan-y;align-items:center}
-  #stage{margin:0 110px 0 16px}
 }
 /* ---------- FIFTEEN (b176): alive, caused, opacity/transform only ----------
    1 the dust drifts and one point is mostly away. 2 the writing and the line
@@ -995,7 +990,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 /* the edge code: roll letter and frame, the way they are printed along the
    film's rebate. Gold, small, beside the back button. */
 #edgecode{margin-left:14px;font:500 10px var(--ui);letter-spacing:.14em;color:#c9a862;opacity:.85}
-#stage{flex:1;position:relative;min-height:0;margin:0 16px}
+#stage{flex:1;position:relative;min-height:0;margin:0 16px calc(70px + env(safe-area-inset-bottom))}   /* b182: the foot is absolute; leave its height so the print centres above it */
 /* REMBRANDT. The print is the only lit object in the room: a soft light from
    the upper left, and the field falling to true black at the edges. */
 #print{background:#050506}
@@ -1060,6 +1055,12 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 #strip button.cook{display:grid;place-items:center}
 @media (orientation: landscape){
   #print{padding-top:0}
+  /* the strip hangs to dry down the right side (b182: placed after the base
+     rules - written earlier, left:0 from the base won and hung it on the left) */
+  #print .foot{left:auto;right:0;top:calc(44px + env(safe-area-inset-top));bottom:0;width:110px;flex-direction:column;justify-content:flex-start;
+    padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(90deg, transparent, rgba(10,10,10,.55))}
+  #strip{flex-direction:column;overflow-y:auto;overflow-x:hidden;max-width:none;max-height:100%;padding:22px 0;touch-action:pan-y;align-items:center}
+  #stage{margin:0 calc(110px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left))}
   #print .bar{position:absolute;top:0;left:0;right:0;z-index:2;
               padding:calc(6px + env(safe-area-inset-top)) 14px 6px}
 }
@@ -1349,7 +1350,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 181;                     /* bump with every ship; lands in EXIF */
+const BUILD = 182;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
