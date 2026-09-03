@@ -677,6 +677,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 #contact .head .tabs button{font:600 10px var(--ui);letter-spacing:.12em;color:var(--mute);border:1px solid var(--hair);border-radius:999px;padding:7px 11px;white-space:nowrap}
 #contact .head .tabs button.cur{color:#c9a862;border-color:rgba(201,168,98,.55)}
 #contact .head .of{color:var(--mute);font-size:9px;flex:0 0 auto}
+#contact .head .share{font:600 10px var(--ui);letter-spacing:.14em;color:#c9a862;border:1px solid rgba(201,168,98,.4);border-radius:999px;padding:7px 12px;flex:0 0 auto}
 #contact .frames .hint{grid-column:1 / -1;text-align:center;padding:14px 0 4px;font:600 8px var(--ui);letter-spacing:.16em;color:var(--mute);opacity:.6}
 #contact .frames{flex:1;display:grid;grid-template-columns:repeat(6, 1fr);gap:6px 6px;align-content:start;overflow:auto}
 #contact .cell{position:relative;aspect-ratio:5/4;background:#0d0e11;border:1px solid var(--hair);border-radius:2px;overflow:hidden;
@@ -1092,7 +1093,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 150;                     /* bump with every ship; lands in EXIF */
+const BUILD = 151;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1256,6 +1257,7 @@ const labDevelop = (buf, seed, fid, full) => {
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
                          build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
                          mm: GLASS.mm,
+                         leak: (frameNo === 0) ? 0.9 : 0,   /* THE LOADING LEAK: the first frame of a roll */
                          optic: ANA.id === "none" ? "" : ANA.label,
                          tint:  ANA.tint ? ANA.tint.join(",") : "",
                          tintS: ANA.tint ? (ANA.tintS || 0) : 0,
@@ -1742,7 +1744,7 @@ function windVoice() {
    wrapping after three. Root D3. A bell tone: fundamental, a soft octave, a
    quick third partial for the strike, exponential decay. */
 const EGYPT = [0, 2, 5, 7, 10];
-function galleryNote(i) {
+function galleryNote(i, gain) {
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === "suspended") AC.resume();
@@ -1756,7 +1758,7 @@ function galleryNote(i) {
     const f = 146.83 * Math.pow(2, semis / 12);
     const t = AC.currentTime + 0.004, out = AC.createGain();
     out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(0.19, t + 0.008);
+    out.gain.exponentialRampToValueAtTime(gain || 0.19, t + 0.008);
     out.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
     out.connect(roomIn());
     [[1, 1.0, "sine"], [2, 0.28, "sine"], [3, 0.09, "triangle"], [1.5, 0.12, "sine"]].forEach(([m, g, type]) => {   /* 1.5: the fifth, whispered */
@@ -1824,7 +1826,7 @@ function droneStart() {
       lfo.connect(lg); lg.connect(gg.gain);
       o.connect(gg); gg.connect(out); o.start(t); lfo.start(t); nodes.push(o, lfo);
     });
-    out.connect(roomIn()); drone = { out, nodes };
+    out.connect(roomIn()); drone = { out, nodes, oscs: nodes.filter((n, i) => i % 2 === 0) };
   } catch (e) { drone = null; }
 }
 function droneStop(cut) {
@@ -1903,6 +1905,33 @@ function shutterVoice() {
 }
 const hapEl = $("hap");
 hapEl.addEventListener("pointerdown", () => $("shutter").classList.add("pressed"));
+/* DOUBLE EXPOSURE. Film let you expose twice by not winding. Hold the unwound
+   shutter for 700 ms and the next frame is added onto the last negative in
+   linear light, each at half exposure, developed as one print. */
+let doubleArm = false, lastNeg = null, dblHold = 0;
+hapEl.addEventListener("pointerdown", () => {
+  clearTimeout(dblHold);
+  if (!cocked && lastNeg && !doubleArm) dblHold = setTimeout(() => {
+    doubleArm = true; haptic(); setTimeout(haptic, 120); machine("toggle", 0.2);
+    $("lcdstate").textContent = "DOUBLE"; $("wind").querySelector("b").textContent = "WIND FOR 2ND";
+  }, 700);
+});
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => hapEl.addEventListener(ev, () => clearTimeout(dblHold)));
+function sumExposures(c) {                  /* the previous negative plus this one, in linear light, half each */
+  try {
+    const a = lastNeg.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
+    const g = c.getContext("2d", { willReadFrequently: true }), img = g.getImageData(0, 0, c.width, c.height), b = img.data;
+    const lin = new Float32Array(256), enc = new Uint8ClampedArray(4096);
+    for (let i = 0; i < 256; i++) { const x = i / 255; lin[i] = x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }
+    for (let i = 0; i < 4096; i++) { const x = i / 4095; enc[i] = Math.round(255 * (x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055)); }
+    for (let i = 0; i < b.length; i += 4) {
+      b[i] = enc[Math.min(4095, ((lin[a[i]] + lin[b[i]]) * 0.5 * 4095) | 0)];
+      b[i + 1] = enc[Math.min(4095, ((lin[a[i + 1]] + lin[b[i + 1]]) * 0.5 * 4095) | 0)];
+      b[i + 2] = enc[Math.min(4095, ((lin[a[i + 2]] + lin[b[i + 2]]) * 0.5 * 4095) | 0)];
+    }
+    g.putImageData(img, 0, 0);
+  } catch (e) {}
+}
 const unpress = () => $("shutter").classList.remove("pressed");
 hapEl.addEventListener("pointerup", unpress);
 hapEl.addEventListener("pointercancel", unpress);
@@ -1919,7 +1948,7 @@ function cock(on) {
   cocked = !!on;
   document.body.classList.toggle("cocked", cocked);
   const b = $("wind").querySelector("b");
-  if (b) b.textContent = cocked ? "READY" : "TAP TO READY";
+  if (b) b.textContent = cocked ? (doubleArm ? "2ND EXPOSURE" : "READY") : (doubleArm ? "WIND FOR 2ND" : "TAP TO READY");
   const st = $("lcdstate");
   if (st) st.textContent = cocked ? "SHUTTER SET" : "WIND ON";
   if (cocked) humStart(); else humStop();
@@ -2077,7 +2106,18 @@ function sweep(k, restV, fullV, target, dt) {           /* a needle waking: driv
   return spring(k, target, dt);
 }
 function closeScopeMenu() { $("scopemenu").classList.remove("on"); $("lensveil").classList.remove("on"); }
+/* REWIND EARLY. A real camera lets you rewind mid-roll. Hold the panel for
+   nine tenths of a second and it asks; tap it again within three seconds to
+   rewind and load a fresh roll, with the whole sequence. */
+let panelHold = 0, rewindAsk = 0, panelHeld = false;
+$("hapb").addEventListener("pointerdown", () => {
+  panelHeld = false; clearTimeout(panelHold);
+  if (frameNo > 0 && !cocked) panelHold = setTimeout(() => { panelHeld = true; haptic(); rewindAsk = performance.now(); flashState("REWIND? TAP AGAIN"); }, 900);
+});
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => $("hapb").addEventListener(ev, () => clearTimeout(panelHold)));
 $("hapb").addEventListener("click", () => {
+  if (panelHeld) { panelHeld = false; return; }
+  if (rewindAsk && performance.now() - rewindAsk < 3000) { rewindAsk = 0; haptic(); rollOver(); return; }
   closeLensMenu(); closeAnaMenu(); closeFinderMenu();
   const on = $("scopemenu").classList.toggle("on");
   $("lensveil").classList.toggle("on", on);
@@ -2396,7 +2436,7 @@ async function checkUpdate(manual) {
 function flashState(text) {
   const st = $("lcdstate"); if (!st) return;
   const prev = st.textContent; st.textContent = text; st.classList.add("flash");
-  setTimeout(() => { st.classList.remove("flash"); st.textContent = cocked ? "SHUTTER SET" : "WIND ON"; }, 1800);
+  setTimeout(() => { st.classList.remove("flash"); st.textContent = cocked ? "SHUTTER SET" : "WIND ON"; }, text.startsWith("REWIND?") ? 3000 : 1800);
 }
 function applyUpdate() {
   if (!pendingBuild) { checkUpdate(true); return; }
@@ -2417,6 +2457,22 @@ function goldByHour() {
 goldByHour(); setInterval(goldByHour, 600000);
 setTimeout(() => checkUpdate(false), 3000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(false); });
+function sceneHue() {                       /* dominant hue of the live view, chroma weighted, or null */
+  const v = $("video"); if (!v || !v.videoWidth) return null;
+  try {
+    lvCanvas = lvCanvas || Object.assign(document.createElement("canvas"), { width: 32, height: 32 });
+    const g = lvCanvas.getContext("2d", { willReadFrequently: true }); g.drawImage(v, 0, 0, 32, 32);
+    const d = g.getImageData(0, 0, 32, 32).data; let sx = 0, sy = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i] / 255, gg = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), dl = mx - mn;
+      if (dl < 0.05) continue;
+      let h = mx === r ? ((gg - b) / dl) % 6 : mx === gg ? (b - r) / dl + 2 : (r - gg) / dl + 4;
+      const a = h * Math.PI / 3; sx += Math.cos(a) * dl; sy += Math.sin(a) * dl;
+    }
+    if (Math.hypot(sx, sy) < 0.5) return null;
+    return (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360;
+  } catch (e) { return null; }
+}
 function sceneMean() {
   const v = $("video"); if (!v || !v.videoWidth) return null;
   try {
@@ -2440,7 +2496,8 @@ function backLCD() {
       fe.textContent = String(shown).padStart(3, "0");
       fe.classList.remove("tick"); void fe.offsetWidth; fe.classList.add("tick");   /* 5. odometer */
     }
-    fe.classList.toggle("late", shown >= ROLL_LEN - 2);                             /* 3. last frames */
+    fe.classList.toggle("late", shown >= 36 - 2);                                   /* 3. last frames */
+    if (shown === 37 && !cocked && $("lcdstate").textContent === "WIND ON") $("lcdstate").textContent = "BONUS FRAME";
     $("lcdroll").textContent = ROLL;
     document.documentElement.style.setProperty("--film", String(frameNo || 0));     /* 2. the film moves */
     const raw = lightValue();
@@ -2475,6 +2532,16 @@ function backLCD() {
       document.documentElement.style.setProperty("--room", (0.6 + 0.4 * Math.max(0, Math.min(1, (lv - 3) / 10))).toFixed(3));
       document.documentElement.style.setProperty("--pearl", (0.12 + 0.55 * Math.max(0, Math.min(1, (lv - 3) / 10))).toFixed(3));
       lastLV = lv;
+      /* THE DRONE FOLLOWS THE COLOUR: the scene's dominant hue picks the degree
+         of the scale the drone's root sits on, and the four voices glide there */
+      if (drone && cocked) {
+        try {
+          const m = sceneHue(); if (m !== null) {
+            const deg = EGYPT[Math.floor(m / 360 * 5) % 5], root = 146.83 * Math.pow(2, deg / 12), t = AC.currentTime;
+            [1, 1.5, 2, 2.1189].forEach((r, i) => { const o = drone.oscs[i]; if (o) o.frequency.setTargetAtTime(root * r, t, 1.4); });
+          }
+        } catch (e) {}
+      }
       /* a camera shows a shake warning when the shutter will be slow; ours
          is the LIGHT label itself turning to SLOW and going amber at LV 4 and under */
       const lbl = $("lcdlv").nextElementSibling;
@@ -2508,7 +2575,15 @@ try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; ROLL = localStor
 /* THE ROLL. Thirty six frames, then the film is out: a rewind, a beat of
    dark while the back is open, and a new roll on the counter. Prints carry
    the roll letter and frame in their names so a roll can be found together. */
-const ROLL_LEN = 36;
+/* FRAME 37. Carefully loaded film sometimes gave a bonus frame. One roll in
+   four runs to 37, decided when the roll is loaded and remembered with it. */
+let ROLL_LEN = 36;
+try { const rl = parseInt(localStorage["rollLen" + (localStorage.roll || "A")] || "0", 10); if (rl) ROLL_LEN = rl; } catch (e) {}
+function loadRollLength(letter) {
+  let n = 36; try { n = parseInt(localStorage["rollLen" + letter] || "0", 10) || 0; } catch (e) {}
+  if (!n) { n = Math.random() < 0.25 ? 37 : 36; try { localStorage["rollLen" + letter] = String(n); } catch (e) {} }
+  ROLL_LEN = n; return n;
+}
 function rewindVoice() {
   /* THE SPOOL. A tone climbing as the spool spins up, softened to mostly sine,
      a little breath over it, a slow wobble in its level, and a low stop at the
@@ -2555,7 +2630,7 @@ function rollOver() {
   setTimeout(spin, 120);
   setTimeout(() => {
     ROLL = String.fromCharCode(((ROLL.charCodeAt(0) - 65 + 1) % 26) + 65);
-    frameNo = 0;
+    frameNo = 0; loadRollLength(ROLL);
     try { localStorage.roll = ROLL; localStorage.frameNo = "0"; } catch (e) {}
     re.classList.remove("flip"); void re.offsetWidth; re.classList.add("flip");
     setTimeout(() => { re.textContent = ROLL; }, 260);
@@ -2612,7 +2687,7 @@ $("windwrap").addEventListener("pointerdown", () => {
 /* AUTO-OFF. Two minutes untouched and the camera sleeps: finder dims, back
    fades, hum stops. Any touch wakes it. (Restored in b113: it was lost in 107
    when a removal sliced to a shared anchor.) */
-let sleepTimer = 0, asleep = false;
+let sleepTimer = 0, asleep = false, shelfTimer = 0;
 function wake() {
   if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); warmUp();
     document.body.classList.add("scan"); setTimeout(() => document.body.classList.remove("scan"), 700); }
@@ -2621,6 +2696,15 @@ function wake() {
     asleep = true; humStop();
     try { const im = $("chip").querySelector("img"); if (im && im.src) $("lastframe").src = im.src; } catch (e) {}
     document.body.classList.add("sleep");
+    /* THE SHELF: every twenty seconds the next print, under the same light */
+    let idx = 0; clearInterval(shelfTimer);
+    shelfTimer = setInterval(async () => {
+      if (!asleep) { clearInterval(shelfTimer); return; }
+      const ids = galleryIds(); if (ids.length < 2) return;
+      idx = (idx + 1) % ids.length; const u = await thumbURL(ids[idx]); if (!u) return;
+      const lf = $("lastframe"); lf.style.opacity = "0";
+      setTimeout(() => { lf.src = u; lf.style.opacity = ""; }, 1600);
+    }, 20000);
   }, 120000);
 }
 ["pointerdown", "keydown", "touchstart"].forEach(ev => addEventListener(ev, wake, { passive: true, capture: true }));
@@ -2667,6 +2751,7 @@ function release() {                        /* the frame is taken: let go */
 $("shutterwrap").onclick = async () => {
   const v = $("video");
   if (!cocked) {                            /* wind on first, like film */
+    if (doubleArm) return;                  /* a hold on the unwound shutter armed a double; no refusal */
     refusal();
     const w = $("wind");
     w.classList.remove("nudge"); void w.offsetWidth; w.classList.add("nudge");
@@ -2692,6 +2777,9 @@ $("shutterwrap").onclick = async () => {
   const c = document.createElement("canvas");
   c.width = Math.round(cw * s); c.height = Math.round(ch * s);
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  if (doubleArm && lastNeg && lastNeg.width === c.width && lastNeg.height === c.height) { sumExposures(c); doubleArm = false; }
+  else doubleArm = false;
+  try { const keep = document.createElement("canvas"); keep.width = c.width; keep.height = c.height; keep.getContext("2d").drawImage(c, 0, 0); lastNeg = keep; } catch (e) {}
   await cook(c, true, false);
 };
 /* Everything after a negative exists: latent thumb, develop, file it away.
@@ -2994,8 +3082,9 @@ async function openContactSheet(roll) {
   let sheet = $("contact");
   if (!sheet) {
     sheet = document.createElement("div"); sheet.id = "contact";
-    sheet.innerHTML = '<div class="head"><button class="close">CLOSE</button><div class="tabs"></div><span class="of"></span></div><div class="frames"></div>';
+    sheet.innerHTML = '<div class="head"><button class="close">CLOSE</button><div class="tabs"></div><span class="of"></span><button class="share">SHARE</button></div><div class="frames"></div>';
     sheet.querySelector(".close").onclick = () => { machine("button", 0.16); haptic(); sheet.classList.remove("on"); };
+    sheet.querySelector(".share").onclick = () => { machine("button", 0.16); haptic(); shareRoll(contactRoll); };
     /* a swipe changes roll */
     let sx = 0, sy = 0;
     sheet.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; }, { passive: true });
@@ -3028,6 +3117,10 @@ async function openContactSheet(roll) {
   }
   if (rolls.length > 1) { const hint = document.createElement("div"); hint.className = "hint"; hint.textContent = "swipe for other rolls"; fr.appendChild(hint); }
   sheet.classList.add("on");
+  /* HEAR YOUR ROLL. Each taken frame plays its note in order as the wave
+     crosses the grid, at the level of the hum: felt rather than heard. */
+  const frames = Object.keys(onRoll).map(Number).sort((a, b) => a - b);
+  frames.forEach((f, i) => setTimeout(() => { if (sheet.classList.contains("on")) galleryNote(f - 1, 0.0022); }, 60 + i * 70));
 }
 
 /* ---------- print view; long-press the print itself to save ---------- */
@@ -3216,6 +3309,20 @@ $("back").onclick = () => { machine("button", 0.16); $("print").classList.remove
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
 let HOLD = null;
+/* PINCH FOR GLASS. Two fingers on the finder: spread to step up the ladder,
+   pinch to step down, one rung per 18 percent change, with the toggle sound. */
+(function pinchGlass() {
+  const g = $("glass"); let d0 = 0, base = 0;
+  const dist = e => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  g.addEventListener("touchstart", e => { if (e.touches.length === 2) { d0 = dist(e); base = LADDER.findIndex(l => l.F === GLASS.mm); if (base < 0) base = 2; } }, { passive: true });
+  g.addEventListener("touchmove", e => {
+    if (e.touches.length !== 2 || !d0) return;
+    const r = dist(e) / d0, steps = Math.round(Math.log(r) / Math.log(1.18));
+    const want = Math.max(0, Math.min(LADDER.length - 1, base + steps)), F = LADDER[want].F;
+    if (F !== GLASS.mm && lensAllowed(F)) { machine("toggle", 0.2); haptic(); setGlass(F); }
+  }, { passive: true });
+  g.addEventListener("touchend", () => { d0 = 0; }, { passive: true });
+})();
 $("stage").addEventListener("pointerdown", e => {
   HOLD = { t: performance.now(), x: e.clientX, y: e.clientY, moved: false };
 });
@@ -3224,14 +3331,69 @@ $("stage").addEventListener("pointermove", e => {
     HOLD.moved = true;
 });
 $("stage").addEventListener("pointercancel", () => { HOLD = null; });
+/* THE SHARE CARD. Not the bare file: the print on a dark mount, its edge code
+   and bath time set beneath in the app's face, the roll letter in the corner.
+   The plain print rides along as a second file. */
+async function shareCard() {
+  try {
+    if (!armedFile) return;
+    const im = new Image(); const url = URL.createObjectURL(armedFile);
+    await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = url; });
+    try { await document.fonts.load("600 40px 'Red Hat Display'"); } catch (e) {}
+    const mW = 1400, pad = 110, maxW = mW - 2 * pad, ar = im.naturalWidth / im.naturalHeight;
+    const pw = Math.min(maxW, im.naturalWidth * 1.0), ph = pw / ar, mH = Math.round(ph + pad * 2 + 130);
+    const c = Object.assign(document.createElement("canvas"), { width: mW, height: mH }), g = c.getContext("2d");
+    g.fillStyle = "#0a0b0e"; g.fillRect(0, 0, mW, mH);
+    const rg = g.createRadialGradient(mW * .24, mH * .1, 0, mW * .24, mH * .1, mW * 1.1); rg.addColorStop(0, "rgba(255,255,255,.05)"); rg.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = rg; g.fillRect(0, 0, mW, mH);
+    const px = (mW - pw) / 2, py = pad;
+    g.shadowColor = "rgba(0,0,0,.7)"; g.shadowBlur = 40; g.shadowOffsetY = 14; g.drawImage(im, px, py, pw, ph); g.shadowBlur = 0; g.shadowOffsetY = 0;
+    g.strokeStyle = "rgba(255,255,255,.08)"; g.lineWidth = 1; g.strokeRect(px + .5, py + .5, pw - 1, ph - 1);
+    const rf = localStorage["rf" + current] || "", secs = localStorage["t" + current] || "";
+    g.font = "600 30px 'Red Hat Display', system-ui, sans-serif"; g.fillStyle = "#c9a862"; g.textAlign = "left"; g.textBaseline = "alphabetic";
+    let code = rf ? rf[0] + "  \u00b7  " + rf.slice(1) : ""; if (secs) code += (code ? "  \u00b7  " : "") + secs + "s";
+    g.fillText(code, px, py + ph + 70);
+    g.font = "600 22px 'Red Hat Display', system-ui, sans-serif"; g.fillStyle = "#8b9099"; g.textAlign = "right";
+    g.fillText("E M U L S I F Y", px + pw, py + ph + 70);
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.92));
+    const card = new File([blob], (armedFile.name || "print").replace(/\.jpg$/, "") + "-card.jpg", { type: "image/jpeg" });
+    URL.revokeObjectURL(url);
+    const files = [card, armedFile];
+    if (navigator.canShare && navigator.canShare({ files })) await navigator.share({ files });
+    else if (navigator.canShare && navigator.canShare({ files: [card] })) await navigator.share({ files: [card] });
+  } catch (e) {}
+}
 $("stage").addEventListener("pointerup", () => {
   const h = HOLD; HOLD = null;
   if (!h || h.moved || watching || performance.now() - h.t < 550) return;
-  if (armedFile && navigator.canShare &&
-      navigator.canShare({ files: [armedFile] })) {
-    navigator.share({ files: [armedFile] }).catch(() => {});
-  }
+  shareCard();
 });
+/* THE ROLL AS ONE IMAGE: the contact sheet rendered to a single picture */
+async function shareRoll(letter) {
+  try {
+    const onRoll = {};
+    for (const k of prints) { try { const rf = localStorage["rf" + k] || ""; if (rf && rf[0] === letter) onRoll[parseInt(rf.slice(1), 10)] = k; } catch (e) {} }
+    try { await document.fonts.load("600 40px 'Red Hat Display'"); } catch (e) {}
+    const cols = 6, len = Math.max(36, ...Object.keys(onRoll).map(Number), 36), rows = Math.ceil(len / cols);
+    const cw = 220, ch = 176, gap = 12, pad = 70, W = pad * 2 + cols * cw + (cols - 1) * gap, H = pad * 2 + 90 + rows * ch + (rows - 1) * gap;
+    const c = Object.assign(document.createElement("canvas"), { width: W, height: H }), g = c.getContext("2d");
+    g.fillStyle = "#0a0b0e"; g.fillRect(0, 0, W, H);
+    g.font = "600 30px 'Red Hat Display', system-ui, sans-serif"; g.fillStyle = "#c9a862"; g.fillText("ROLL " + letter, pad, pad + 24);
+    g.font = "600 20px 'Red Hat Display', system-ui, sans-serif"; g.fillStyle = "#8b9099"; g.textAlign = "right"; g.fillText(Object.keys(onRoll).length + " OF " + len + "   \u00b7   E M U L S I F Y", W - pad, pad + 24); g.textAlign = "left";
+    for (let i = 1; i <= len; i++) {
+      const x = pad + ((i - 1) % cols) * (cw + gap), y = pad + 90 + Math.floor((i - 1) / cols) * (ch + gap);
+      g.fillStyle = "#0d0e11"; g.fillRect(x, y, cw, ch); g.strokeStyle = "#22242a"; g.strokeRect(x + .5, y + .5, cw - 1, ch - 1);
+      const id = onRoll[i];
+      if (id) { const u = await thumbURL(id); if (u) { const im = new Image(); await new Promise(res => { im.onload = res; im.onerror = res; im.src = u; });
+        const ar = im.naturalWidth / Math.max(1, im.naturalHeight); let w = cw, h = w / ar; if (h > ch) { h = ch; w = h * ar; }
+        g.drawImage(im, x + (cw - w) / 2, y + (ch - h) / 2, w, h); } }
+      g.font = "600 13px 'Red Hat Display', system-ui, sans-serif"; g.fillStyle = "#c9a862"; g.fillText(letter + String(i).padStart(2, "0"), x + 8, y + ch - 8);
+    }
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.9));
+    const file = new File([blob], "EMULSIFY-ROLL-" + letter + ".jpg", { type: "image/jpeg" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file] });
+  } catch (e) {}
+}
 </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
-// lab-worker.js — v3.8. Verbatim canon; JPEG prints
+// lab-worker.js — v3.10. Verbatim canon; JPEG prints
+// v3.10: the loading leak (flagged first frames only), v3.9: provenance + STOCK metadata. Golden v12 cff518ecfbeda947 holds.
 // v3.8: STRATA LIGHT. Seeded 64 band hue scramble (+-5.6 deg) on the scene light
 // at the _expand seam; chemistry untouched. Golden moves: v11 5ea19a4ea48e310f -> v12 cff518ecfbeda947.
 // v3.7: _expand computes its highlight power only where it can act.
@@ -102,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.8";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.10";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -421,11 +422,13 @@ def bake(jpg_bytes, w, t, secs):
     try:
         ex = Image.Exif()
         ex[0x010F] = "EMULSIFY"
-        ex[0x0110] = "HONEY 70 - 222"
+        ex[0x0110] = "STOCK"
         ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)
         _lens_tags(ex)
-        ex[0x8827] = 222
+        if globals().get("_ISO_NOW", 0):
+            ex[0x8827] = int(globals()["_ISO_NOW"])   # the ISO the picture was taken at
         ex[0x829A] = (int(round(float(secs)*100)) or 1, 100)
+        _provenance(ex, globals().get("_SEED_NOW", 0), "honey", float(secs), globals().get("_RUNG_NOW", 0))
         img.save(buf, "JPEG", quality=93, exif=ex)
     except Exception:
         buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
@@ -462,11 +465,14 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     try:
         ex = Image.Exif()
         ex[0x010F] = "EMULSIFY"                 # Make
-        ex[0x0110] = "HONEY 70 - 222"           # Model
+        ex[0x0110] = "STOCK"           # Model
         ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)             # Software
         _lens_tags(ex)
-        ex[0x8827] = 222                        # ISO (film speed)
+        if globals().get("_ISO_NOW", 0):
+            ex[0x8827] = int(globals()["_ISO_NOW"])   # the ISO the picture was taken at
         ex[0x829A] = (int(round(secs*100)), 100)   # ExposureTime = develop seconds
+        if not _DC_INNER[0]:
+            _provenance(ex, globals().get("_SEED_NOW", seed), profile, secs, globals().get("_RUNG_NOW", long_edge))
         img.save(buf, "JPEG", quality=93, exif=ex)
     except Exception:
         buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
@@ -634,6 +640,25 @@ _DC_XO = (0.055, 0.050, 0.045)          # R sits lowest in the pack, crosses las
 _DC_SHARE = 0.55
 _canon_develop_v22 = develop
 def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
+    # provenance records what the OWNER asked for. The fast coat below runs at a
+    # derived seed and a smaller rung; those are the lab's business, not the print's.
+    globals()["_SEED_NOW"] = int(seed)
+    globals()["_RUNG_NOW"] = int(long_edge)
+    globals()["_PROF_NOW"] = str(profile or "honey")
+    globals()["_SHOT_NOW"] = _shot_settings(neg_bytes)
+    try:
+        _sx = Image.open(io.BytesIO(bytes(neg_bytes)))._getexif() or {}
+        _iso = _sx.get(0x8827)
+        if isinstance(_iso, (tuple, list)):
+            _iso = _iso[0]
+        globals()["_ISO_NOW"] = int(_iso) if _iso else 0
+    except Exception:
+        globals()["_ISO_NOW"] = 0
+    try:
+        _sx = Image.open(io.BytesIO(bytes(neg_bytes)))._getexif() or {}
+        globals()["_TAKEN_NOW"] = _sx.get(0x9003) or _sx.get(0x0132) or ""
+    except Exception:
+        globals()["_TAKEN_NOW"] = ""
     cap = {}
     _d0 = globals()["_dodge"]                # keep the slow print in linear
     def _cap(pos, strength=0.25):            # light: no extra JPEG generation
@@ -705,11 +730,13 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         try:
             ex = Image.Exif()
             ex[0x010F] = "EMULSIFY"
-            ex[0x0110] = "HONEY 70 - 222"
+            ex[0x0110] = "STOCK"
             ex[0x0131] = "EMULSIFY LAB b%d" % int(_BUILD or 0)
             _lens_tags(ex)
-            ex[0x8827] = 222
+            if globals().get("_ISO_NOW", 0):
+                ex[0x8827] = int(globals()["_ISO_NOW"])   # the ISO the picture was taken at
             ex[0x829A] = (int(round(secs*100)), 100)
+            _provenance(ex, globals().get("_SEED_NOW", 0), globals().get("_PROF_NOW", "honey"), secs, globals().get("_RUNG_NOW", 0))
             img.save(buf, "JPEG", quality=93, exif=ex)
         except Exception:
             buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
@@ -730,6 +757,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
 # mechanism, present as a mood. Amplitude 0.0 reproduces v3.7 bit for bit.
 _SCR_AMP = 5.6
 _SCR_NB = 64
+_SCR_PHASE = 0.0        # the shipped behaviour; the band offset experiment that set 2.8125 was abandoned
 _SCR_SEED = [99]
 _OK_M1 = np.array([[0.4122214708, 0.5363325363, 0.0514459929],
                    [0.2119034982, 0.6806995451, 0.1073969566],
@@ -748,7 +776,7 @@ def _scramble_light(lin, amp, seed):
     C = np.hypot(a, b)
     h = np.degrees(np.arctan2(b, a)) % 360.0
     pat = np.random.RandomState(int(seed) % 4294967296).uniform(-1.0, 1.0, _SCR_NB) * amp
-    dh = pat[(np.floor(h / 360.0 * _SCR_NB).astype(int)) % _SCR_NB]
+    dh = pat[(np.floor(((h - _SCR_PHASE) % 360.0) / 360.0 * _SCR_NB).astype(int)) % _SCR_NB]
     h2 = np.radians(h + dh)
     lab2 = np.stack([L, C * np.cos(h2), C * np.sin(h2)], -1)
     return np.maximum(((lab2 @ _OK_M2i.T) ** 3) @ _OK_M1i.T, 0.0)
@@ -761,6 +789,116 @@ _canon_develop_v22_pre_scr = _canon_develop_v22
 def _canon_develop_v22(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     _SCR_SEED[0] = int(seed)          # each coat scrambles with its own seed, like grain
     return _canon_develop_v22_pre_scr(neg_bytes, profile, seed, long_edge)
+
+# ---- v3.9 PROVENANCE: every print carries the recipe that made it ----
+# A print should be re-developable from itself. The EXIF UserComment records
+# every parameter the lab chose, so the same negative and the same recipe give
+# the same print years from now. The emulsion batch is named from the seed, so
+# two prints from one coating can be recognised as siblings.
+_B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"      # Crockford, no I L O U
+
+def _batch_name(seed):
+    n = (int(seed) * 2654435761) % (32 ** 3)
+    return "".join(_B32[(n // (32 ** i)) % 32] for i in (2, 1, 0))
+
+
+def _shot_settings(neg_bytes):
+    """Read the capture settings off the negative. The camera that took the
+    picture knew its shutter, aperture and ISO; the print should not forget
+    them just because it went through a bath."""
+    out = []
+    try:
+        ex = Image.open(io.BytesIO(bytes(neg_bytes)))._getexif() or {}
+    except Exception:
+        return ""
+    try:
+        t = ex.get(0x829A)                      # ExposureTime
+        if t:
+            v = float(t[0])/float(t[1]) if isinstance(t, tuple) else float(t)
+            out.append(("1/%d" % round(1.0/v)) if 0 < v < 1 else ("%.1fs" % v))
+    except Exception:
+        pass
+    try:
+        f = ex.get(0x829D)                      # FNumber
+        if f:
+            v = float(f[0])/float(f[1]) if isinstance(f, tuple) else float(f)
+            if v > 0:
+                out.append("f/%g" % round(v, 1))
+    except Exception:
+        pass
+    try:
+        iso = ex.get(0x8827)                    # ISOSpeedRatings
+        if isinstance(iso, (tuple, list)):
+            iso = iso[0]
+        if iso:
+            out.append("ISO %d" % int(iso))
+    except Exception:
+        pass
+    try:
+        fl = ex.get(0x920A)                     # FocalLength, the taking lens
+        if fl:
+            v = float(fl[0])/float(fl[1]) if isinstance(fl, tuple) else float(fl)
+            if v > 0:
+                out.append("%gmm taken" % round(v, 1))
+    except Exception:
+        pass
+    return "  ".join(out)
+
+def _recipe(seed, profile, secs, long_edge, shot=""):
+    """What the print carries: the glass and the bath. Everything else the lab
+    chose is its own business."""
+    parts = []
+    try:
+        mm = float(_LENS_MM or 0)
+        q = float(_ANA or 1.0)
+        if mm > 0:
+            parts.append("%dmm" % round(mm))
+            if q > 1.001:
+                parts.append("%.2fx squeeze" % q)
+        opt = str(globals().get("_OPTIC", "") or "").strip()
+        if opt:
+            parts.append(opt)
+    except Exception:
+        pass
+    parts.append("%.1fs bath" % float(secs))
+    if shot:
+        parts.append("| " + shot)
+    return "  ".join(parts)          # two spaces: survives ASCII EXIF cleanly
+
+def _provenance(ex, seed, profile, secs, long_edge):
+    """UserComment takes the lens and the bath. ImageUniqueID keeps the batch,
+    so prints from one coating still group together."""
+    try:
+        ex[0x9286] = b"ASCII\x00\x00\x00" + _recipe(seed, profile, secs, long_edge, globals().get("_SHOT_NOW", "")).encode("ascii", "replace")
+        ex[0xA420] = _batch_name(seed) + "-%06d" % (int(seed) % 1000000)
+        taken = str(globals().get("_TAKEN_NOW", "") or "")
+        if taken:
+            ex[0x0132] = taken                 # DateTime = when the picture was taken
+    except Exception:
+        pass
+
+# ---- v3.10 THE LOADING LEAK ----
+# Loading film exposes the leader, and the first frame of a real roll carries
+# that light at its edge: a soft fog from the film-gate side, warm because it
+# came through the base. Applied to the scene light at the _expand seam, only
+# when the app flags a first frame (_LEAK > 0). The golden never sets it.
+_LEAK = 0.0
+def _leader_leak(lin, amount):
+    if amount <= 0.0:
+        return lin
+    h, w = lin.shape[0], lin.shape[1]
+    x = np.arange(w, dtype=np.float64) / max(w - 1, 1)
+    prof = np.exp(-x / 0.11) * amount                        # dies within about a third of the frame
+    y = np.arange(h, dtype=np.float64) / max(h - 1, 1)
+    sway = 0.85 + 0.15 * np.cos(y * np.pi * 1.3 + 0.4)       # uneven along the edge, as a real leak is
+    fog = prof[None, :] * sway[:, None]
+    tint = np.array([1.0, 0.55, 0.28])                        # through the base: red-orange
+    return lin + fog[..., None] * tint[None, None, :] * (0.55 + 0.45 * np.clip(lin.mean(axis=-1, keepdims=True), 0, 1))
+
+_expand_v39 = _expand
+def _expand(lin, kmax=2.2):
+    out = _expand_v39(lin, kmax)
+    return _leader_leak(out, float(_LEAK or 0.0))
 
 `);
   develop = pyodide.globals.get("develop");
@@ -792,6 +930,7 @@ onmessage = async (e) => {
     pyodide.globals.set("_ANA", e.data.ana || 1);
     pyodide.globals.set("_LENS_MM", e.data.mm || 0);
     pyodide.globals.set("_OPTIC", e.data.optic || "");
+    pyodide.globals.set("_LEAK", e.data.leak || 0);        /* first frame of a roll: the leader's light */
     pyodide.globals.set("_TINT", e.data.tint || "");
     pyodide.globals.set("_TINT_S", e.data.tintS || 0);
     if (e.data.dc !== undefined) pyodide.globals.set("_DC_ON", !!e.data.dc);
