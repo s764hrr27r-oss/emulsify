@@ -962,7 +962,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 138;                     /* bump with every ship; lands in EXIF */
+const BUILD = 139;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1685,22 +1685,6 @@ function droneStop() {
     d.out.gain.cancelScheduledValues(t); d.out.gain.setValueAtTime(Math.max(d.out.gain.value, 0.0001), t); d.out.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
     setTimeout(() => { try { d.nodes.forEach(n => n.stop()); d.out.disconnect(); } catch (e) {} }, 700);
   } catch (e) { drone = null; }
-}
-/* THE DOOR. One bell in D4 from the gallery's voice, at a sixth of its gain,
-   as the lock lands. Once per wind. */
-function door() {
-  try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
-    const f = 293.66, t = AC.currentTime + 0.01, out = AC.createGain();
-    out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.032, t + 0.012); out.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
-    out.connect(roomIn());
-    [[1, 1.0, "sine"], [2, 0.22, "sine"], [3, 0.06, "triangle"]].forEach(([m, g, type]) => {
-      const o = AC.createOscillator(), gg = AC.createGain(); o.type = type; o.frequency.value = f * m; gg.gain.value = g;
-      if (m === 3) { gg.gain.setValueAtTime(g, t); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); }
-      o.connect(gg); gg.connect(out); o.start(t); o.stop(t + 2.5);
-    });
-  } catch (e) {}
 }
 /* THE REFUSAL. The shutter pressed with the film not wound: a dull, damped
    thud, low and short, the sound of a release that has nothing to release.
@@ -2430,7 +2414,6 @@ $("windwrap").onclick = () => {
   windVoice();                              /* the ratchet; the switch gives the tick */
   cock(true);                               /* the picture grows WHILE the lever runs */
   setTimeout(haptic, 200);                  /* the throw, then the seat */
-  setTimeout(door, 480);                    /* the lock lands: the door */
   setTimeout(() => {                        /* the perforations reset once stopped */
     w.classList.remove("winding");
     w.querySelector(".perf").style.transform = "";
