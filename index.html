@@ -74,6 +74,7 @@ body.cocked #backlcd #lcdframe.late{color:#f0b060}
 @keyframes segflicker{0%{opacity:0}6%{opacity:.7}9%{opacity:.1}14%{opacity:.8}17%{opacity:.2}24%{opacity:.85}27%{opacity:.35}36%{opacity:.85}40%{opacity:.5}52%{opacity:.85}58%{opacity:.7}100%{opacity:.85}}
 /* on the narrowest portrait widths the build yields before anything wraps */
 @media (max-width: 420px) and (orientation: portrait){ #backlcd .build:not(.ready){display:none} }
+#backlcd .build.ready{display:inline !important}
 body.cocked #backlcd .state{color:var(--ready);opacity:1}
 body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px;position:relative}
@@ -1093,7 +1094,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 154;                     /* bump with every ship; lands in EXIF */
+const BUILD = 155;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1108,7 +1109,35 @@ if ("serviceWorker" in navigator) {
       .catch(() => {});           /* a failed registration must cost nothing */
   });
 }
-const worker = new Worker("lab-worker.js?v=" + BUILD);
+/* THE LAB, SUPERVISED. The worker is spawned by a function so it can be
+   respawned. Its progress shows on the badge while it loads. If it reports a
+   boot failure, errors, or says nothing for ninety seconds, the CDN cache is
+   purged (a corrupted cached Pyodide is the usual cause) and it is respawned
+   once; every waiting develop is failed cleanly so the shutter is never dead. */
+let worker = null, labBootTimer = 0, labRespawns = 0, labState = "";
+function labNote(t) { labState = t || ""; try { backLCD(); } catch (e) {} }
+async function purgeCDN() {
+  try { if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage("purge-cdn"); } catch (e) {}
+  try { for (const k of await caches.keys()) if (k.startsWith("emulsify-cdn-")) await caches.delete(k); } catch (e) {}
+}
+function failAllWaits(why) {
+  for (const [id, w] of waits) { try { w.rej(new Error(why)); } catch (e) {} }
+  waits.clear(); jobFrame.clear();
+}
+async function labFailed(why) {
+  clearTimeout(labBootTimer);
+  failAllWaits(why);
+  if (labRespawns < 1) { labRespawns++; labNote("LAB RESET"); await purgeCDN(); try { worker.terminate(); } catch (e) {} setTimeout(spawnWorker, 400); }
+  else { labNote("LAB FAILED"); try { flashState("LAB FAILED"); } catch (e) {} }
+}
+function spawnWorker() {
+  worker = new Worker("lab-worker.js?v=" + BUILD + "&r=" + labRespawns);
+  worker.onmessage = onLabMessage;
+  worker.onerror = e => { labFailed("LAB ERROR"); };
+  labNote("LAB LOADING");
+  clearTimeout(labBootTimer);
+  labBootTimer = setTimeout(() => { if (!workerVer) labFailed("LAB SILENT"); }, 90000);
+}
 let msgId = 0; const waits = new Map();
 /* ---------- the lab sizes itself to the phone it is running on ----------
    Five rungs. The boot probe predicts this device's develop cost (measured:
@@ -1223,13 +1252,15 @@ function fitAura() {
 addEventListener("resize", fitAura);
 addEventListener("orientationchange", () => setTimeout(fitAura, 120));
 setTimeout(fitAura, 60); setTimeout(fitAura, 700); setTimeout(fitAura, 2500);   /* boot only; resize and orientation cover the rest */
-worker.onmessage = e => {
+const onLabMessage = e => {
   const { id, ok, result, secs, error, ready } = e.data;
   if (ready !== undefined) {
-    if (e.data.ver) { workerVer = e.data.ver; backLCD(); }
-    sizeFromProbe(e.data.probe); return;
+    clearTimeout(labBootTimer);
+    if (e.data.ver) { workerVer = e.data.ver; }
+    labNote(""); sizeFromProbe(e.data.probe); return;
   }
-  if (e.data.progress) return;
+  if (e.data.bootError) { labFailed("LAB BOOT: " + String(e.data.bootError).slice(0, 40)); return; }
+  if (e.data.progress) { labNote("LAB " + String(e.data.progress).toUpperCase().replace(/…/g, "")); return; }
   if (e.data.stage) {                 /* the bath, live: the negative forms */
     const f = jobFrame.get(id);
     if (f && cooking.has(f) && e.data.stage === "neg") {
@@ -1245,6 +1276,7 @@ worker.onmessage = e => {
   if (w.cook) noteCookEnd(!!ok);           /* bakes never set the flag */
   ok ? w.res({ jpg: result, secs }) : w.rej(new Error(error));
 };
+spawnWorker();
 const labDevelop = (buf, seed, fid, full) => {
   const id = ++msgId;
   /* a "full" redevelop asked for 1100 unconditionally - under a memory cap
@@ -1570,6 +1602,13 @@ function paintFinderMenu() {
   nb.appendChild(nsw);
   nb.onclick = () => { machine("click", 0.18); closeFinderMenu(); const on = document.body.classList.toggle("night"); try { localStorage.night = on ? "1" : ""; } catch (e) {} paintFinderMenu(); };
   m.appendChild(nb);
+  /* the lab, by hand: purge the chemistry cache and respawn the worker */
+  const lb = document.createElement("button"); lb.textContent = "RESTART LAB";
+  lb.style.color = "var(--mute)";
+  const lsw = document.createElement("input"); lsw.type = "checkbox"; lsw.setAttribute("switch", ""); lsw.className = "hapov"; lsw.tabIndex = -1;
+  lb.appendChild(lsw);
+  lb.onclick = async () => { machine("click", 0.18); closeFinderMenu(); labRespawns = 0; workerVer = ""; labNote("LAB RESET"); await purgeCDN(); try { worker.terminate(); } catch (e) {} failAllWaits("LAB RESTARTED"); setTimeout(spawnWorker, 300); };
+  m.appendChild(lb);
   /* updates: a fresh load is all an update ever needs */
   const ub = document.createElement("button");
   ub.textContent = pendingBuild ? "UPDATE TO b" + pendingBuild : "CHECK FOR UPDATES";
@@ -2560,7 +2599,7 @@ function backLCD() {
     }
     const bt = $("lcdbuild");
     if (pendingBuild) { bt.textContent = "b" + pendingBuild + " READY"; bt.classList.add("ready"); }
-    else { bt.textContent = "b" + BUILD + (workerVer ? " w" + workerVer : ""); bt.classList.remove("ready"); }
+    else { bt.textContent = labState ? labState : ("b" + BUILD + (workerVer ? " w" + workerVer : "")); bt.classList.toggle("ready", !!labState && labState !== "LAB FAILED"); }
   } catch (e) {}
 }
 let frameNo = 0, ROLL = "A", lastLV = 8, meterNeedle = 8, lightBand = null, lastLightClick = 0, glintTimer = 0;

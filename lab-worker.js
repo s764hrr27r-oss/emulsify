@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.10";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.11";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -906,7 +906,11 @@ def _expand(lin, kmax=2.2):
   let ms = 0;
   try { ms = pyodide.runPython("probe_ms()"); } catch (e) { ms = 0; }
   postMessage({ ready: true, probe: ms, ver: WORKER_VER });
-})();
+})().catch(err => {
+  /* a boot that fails used to fail silently: no ready, every develop waiting
+     forever, the shutter dead after three. Now the page hears about it. */
+  try { postMessage({ bootError: String(err && err.message || err) }); } catch (e) {}
+});
 
 let CURJOB = null;
 self.postStage = (tag, b64) => {
