@@ -962,7 +962,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 139;                     /* bump with every ship; lands in EXIF */
+const BUILD = 141;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1646,18 +1646,24 @@ function roomIn() {                                  /* returns a node to connec
       const hp = AC.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 180;
       const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
       inp.connect(hp); hp.connect(lp);
-      [[0.047, 0.42], [0.083, 0.36], [0.131, 0.30]].forEach(([t, fb]) => {
+      [[0.047, 0.30], [0.083, 0.24], [0.131, 0.18]].forEach(([t, fb]) => {   /* a shorter tail: stone, not a cistern */
         const d = AC.createDelay(0.5); d.delayTime.value = t;
         const g = AC.createGain(); g.gain.value = fb;
         lp.connect(d); d.connect(g); g.connect(d); d.connect(wet);
       });
       wet.connect(AC.destination);
-      room = { inp, wet };
+      room = { inp, wet, wetIn: hp };                /* wetIn: into the chamber only, no dry path */
     }
     return room.inp;
   } catch (e) { return AC ? AC.destination : null; }
 }
-function roomWet(on) { try { if (room) { const t = AC.currentTime; room.wet.gain.cancelScheduledValues(t); room.wet.gain.setValueAtTime(room.wet.gain.value, t); room.wet.gain.linearRampToValueAtTime(on ? 0.08 : 0, t + (on ? 1.2 : 0.4)); } } catch (e) {} }
+/* a partial send: the source stays dry at full level and only a fraction of
+   it goes into the chamber. The shutter uses this at a fifth of the normal send. */
+function roomSend(src, amount) {
+  try { roomIn(); src.connect(AC.destination); if (room && room.wetIn) { const g = AC.createGain(); g.gain.value = amount; src.connect(g); g.connect(room.wetIn); } }
+  catch (e) { try { src.connect(AC.destination); } catch (e2) {} }
+}
+function roomWet(on) { try { if (room) { const t = AC.currentTime; room.wet.gain.cancelScheduledValues(t); room.wet.gain.setValueAtTime(room.wet.gain.value, t); room.wet.gain.linearRampToValueAtTime(on ? 0.025 : 0, t + (on ? 1.2 : 0.4)); } } catch (e) {} }
 
 /* THE DRONE. Under the hum, four sines at a third of its level: D3, A3, D4 and
    the flattened second, E-flat 4, the note that gives the desert modes their
@@ -1742,7 +1748,7 @@ function shutterVoice() {
     /* a slow shutter is a longer, lower kachunk. Ride the scene light: a dim
        room at LV 4 plays at .80, open sun at LV 13 at 1.05. */
     src.playbackRate.value = Math.max(0.80, Math.min(1.05, 0.80 + (lastLV - 4) * (0.25 / 9)));
-    src.connect(roomIn());
+    roomSend(src, 0.2);                              /* the shutter: dry, with a fifth of the room */
     src.start(AC.currentTime + (cold ? 0.06 : 0.001));
   } catch (e) {}
 }
