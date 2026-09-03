@@ -1349,7 +1349,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 179;                     /* bump with every ship; lands in EXIF */
+const BUILD = 180;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2084,8 +2084,8 @@ function turnChoreo() {
   }, 260);
   turning = setTimeout(() => {                               /* 4 5 20: the detent, the note, the lean */
     body.classList.remove("turning");
-    machine("lever", 0.12); haptic();
-    try { galleryNote(matchMedia("(orientation: landscape)").matches ? 5 : 0, 0.06, true); } catch (e) {}
+    machine("lever", 0.012); haptic();                     /* b180: the turn at a tenth of its voice */
+    try { galleryNote(matchMedia("(orientation: landscape)").matches ? 5 : 0, 0.006, true); } catch (e) {}
     try { const aw = $("anawarn"); if (aw && getComputedStyle(aw).display !== "none") { aw.classList.remove("lean"); void aw.offsetWidth; aw.classList.add("lean"); } } catch (e) {}
   }, 520);
 }
