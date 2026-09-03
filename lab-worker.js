@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.14";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.15";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -416,7 +416,7 @@ def bake(jpg_bytes, w, t, secs):
         sat = np.where(mx > 1e-4, (mx - mn)/np.maximum(mx, 1e-4), 0.0)
         k = 1.0 + w*(1.0 - sat)
         out = np.clip(Y + (out - Y)*k, 0.0, 1.0)
-    img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
+    img = Image.fromarray((E.linear_to_srgb(_stock_tint(out))*255).astype(np.uint8))
     img = _desqueeze(img)
     buf = io.BytesIO()
     try:
@@ -458,7 +458,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         out = HONEY70_CANON(_expand(lin), seed=int(seed))
     out = _final_fix(out)
     out = _dodge(out, 0.25)
-    img = Image.fromarray((E.linear_to_srgb(out)*255).astype(np.uint8))
+    img = Image.fromarray((E.linear_to_srgb(_stock_tint(out))*255).astype(np.uint8))
     img = _desqueeze(img)
     secs = max(_t.time() - _t0, 0.01)          # seconds, to hundredths
     buf = io.BytesIO()
@@ -647,6 +647,18 @@ E.emulsify2 = _emulsify2_watched
 # print if anything at all goes wrong. Canon: FROZEN.
 _DC_ON = True
 _DC_EV, _DC_RATIO, _DC_SEED = 1.2, 0.56, 4242
+# ---- v3.15 THE STOCK TINT ----
+# HONEY 70 is a magenta-biased stock. Magenta is minus green: the green record
+# is pulled down by _STOCK_M and red and blue lifted by half of it, so luminance
+# barely moves - an indoor fluorescent cast is corrected and a neutral frame
+# carries a faint magenta. Strictly the last pass: applied in linear light at
+# each of the three points where a print is encoded, after every other law, so
+# nothing upstream sees it and the chemistry is unchanged.
+_STOCK_M = 0.050                        # NB: _TINT is the per-lens tint, set per job - do not reuse that name
+def _stock_tint(lin):
+    g = np.array([1.0 + 0.5*_STOCK_M, 1.0 - _STOCK_M, 1.0 + 0.5*_STOCK_M])
+    return np.clip(np.asarray(lin, dtype=np.float64) * g[None, None, :], 0.0, 1.0)
+
 _DC_XO = (0.055, 0.050, 0.045)          # R sits lowest in the pack, crosses last
 _DC_SHARE = 0.55
 _canon_develop_v22 = develop
@@ -738,7 +750,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
                 del Ps, Bs
             except Exception:
                 pass
-        img = Image.fromarray((E.linear_to_srgb(np.clip(Ls, 0, 1))*255).astype(np.uint8))
+        img = Image.fromarray((E.linear_to_srgb(_stock_tint(np.clip(Ls, 0, 1)))*255).astype(np.uint8))
         img = _desqueeze(img)
         _note("print")
         secs = float(slow.get("secs", 0)) + float(fast.get("secs", 0)) or 0.01
