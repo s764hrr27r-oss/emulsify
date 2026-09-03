@@ -671,8 +671,13 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 #contact{position:fixed;inset:0;z-index:70;background:#050506;display:none;flex-direction:column;
   padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 16px)}
 #contact.on{display:flex}
-#contact .head{display:flex;justify-content:space-between;align-items:baseline;padding:6px 4px 14px;font:600 11px var(--ui);letter-spacing:.14em;color:#c9a862}
-#contact .head .of{color:var(--mute)}
+#contact .head{display:flex;align-items:center;gap:10px;padding:6px 0 14px;font:600 11px var(--ui);letter-spacing:.14em;color:#c9a862}
+#contact .head .close{font:600 10px var(--ui);letter-spacing:.14em;color:var(--silver);border:1px solid var(--hair);border-radius:999px;padding:7px 12px;flex:0 0 auto}
+#contact .head .tabs{display:flex;gap:6px;flex:1;overflow-x:auto;scrollbar-width:none}
+#contact .head .tabs button{font:600 10px var(--ui);letter-spacing:.12em;color:var(--mute);border:1px solid var(--hair);border-radius:999px;padding:7px 11px;white-space:nowrap}
+#contact .head .tabs button.cur{color:#c9a862;border-color:rgba(201,168,98,.55)}
+#contact .head .of{color:var(--mute);font-size:9px;flex:0 0 auto}
+#contact .frames .hint{grid-column:1 / -1;text-align:center;padding:14px 0 4px;font:600 8px var(--ui);letter-spacing:.16em;color:var(--mute);opacity:.6}
 #contact .frames{flex:1;display:grid;grid-template-columns:repeat(6, 1fr);gap:6px 6px;align-content:start;overflow:auto}
 #contact .cell{position:relative;aspect-ratio:5/4;background:#0d0e11;border:1px solid var(--hair);border-radius:2px;overflow:hidden;
   animation:cellwake .5s var(--ease) both}
@@ -1087,7 +1092,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 148;                     /* bump with every ship; lands in EXIF */
+const BUILD = 149;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2975,28 +2980,52 @@ $("chip").onclick = () => {
   if (chipHeld) { chipHeld = false; return; }
   machine("button", 0.16); const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
 };
-/* WESTON. The whole roll on one page: thirty six frames, the roll letter and
-   frame numbers along the rebate, untaken frames blank. Tap a frame to open it. */
-async function openContactSheet() {
+/* WESTON. The rolls, one page each: thirty six frames, the roll letter and
+   frame numbers along the rebate, untaken frames blank. Every roll that has a
+   print is a tab across the top; the current roll is there even if empty. A
+   CLOSE button on the left; swiping left or right also changes roll. */
+let contactRoll = null;
+function rollsWithPrints() {
+  const set = new Set([ROLL]);
+  for (const k of prints) { try { const rf = localStorage["rf" + k] || ""; if (rf) set.add(rf[0]); } catch (e) {} }
+  return [...set].sort();
+}
+async function openContactSheet(roll) {
   let sheet = $("contact");
   if (!sheet) {
     sheet = document.createElement("div"); sheet.id = "contact";
-    sheet.innerHTML = '<div class="head"><span class="rl"></span><span class="of"></span></div><div class="frames"></div>';
-    sheet.addEventListener("click", e => { if (e.target === sheet || e.target.closest(".head")) sheet.classList.remove("on"); });
+    sheet.innerHTML = '<div class="head"><button class="close">CLOSE</button><div class="tabs"></div><span class="of"></span></div><div class="frames"></div>';
+    sheet.querySelector(".close").onclick = () => { machine("button", 0.16); haptic(); sheet.classList.remove("on"); };
+    /* a swipe changes roll */
+    let sx = 0, sy = 0;
+    sheet.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; }, { passive: true });
+    sheet.addEventListener("pointerup", e => {
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.abs(dx) > 60 && Math.abs(dy) < 40) { const rs = rollsWithPrints(), i = rs.indexOf(contactRoll); const j = dx < 0 ? i + 1 : i - 1; if (rs[j]) { haptic(); openContactSheet(rs[j]); } }
+    }, { passive: true });
     document.body.appendChild(sheet);
+  }
+  contactRoll = roll || contactRoll || ROLL;
+  const rolls = rollsWithPrints(); if (!rolls.includes(contactRoll)) contactRoll = ROLL;
+  const tabs = sheet.querySelector(".tabs"); tabs.innerHTML = "";
+  for (const r of rolls) {
+    const t = document.createElement("button"); t.textContent = "ROLL " + r; t.classList.toggle("cur", r === contactRoll);
+    t.onclick = () => { if (r !== contactRoll) { machine("click", 0.18); haptic(); openContactSheet(r); } };
+    tabs.appendChild(t);
   }
   const fr = sheet.querySelector(".frames"); fr.innerHTML = "";
   const onRoll = {};
-  for (const k of prints) { try { const rf = localStorage["rf" + k] || ""; if (rf && rf[0] === ROLL) onRoll[parseInt(rf.slice(1), 10)] = k; } catch (e) {} }
+  for (const k of prints) { try { const rf = localStorage["rf" + k] || ""; if (rf && rf[0] === contactRoll) onRoll[parseInt(rf.slice(1), 10)] = k; } catch (e) {} }
   const taken = Object.keys(onRoll).length;
-  sheet.querySelector(".rl").textContent = "ROLL " + ROLL; sheet.querySelector(".of").textContent = taken + " OF " + ROLL_LEN;
+  sheet.querySelector(".of").textContent = taken + " OF " + ROLL_LEN;
   for (let i = 1; i <= ROLL_LEN; i++) {
     const cell = document.createElement("div"); cell.className = "cell"; const id = onRoll[i];
     if (id) { const im = document.createElement("img"); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im); cell.onclick = () => { sheet.classList.remove("on"); openItem(id); }; }
-    const n = document.createElement("b"); n.textContent = ROLL + String(i).padStart(2, "0"); cell.appendChild(n);
+    const n = document.createElement("b"); n.textContent = contactRoll + String(i).padStart(2, "0"); cell.appendChild(n);
     cell.style.animationDelay = (i * 16) + "ms";                        /* KUSAMA: a wave across the grid */
     fr.appendChild(cell);
   }
+  if (rolls.length > 1) { const hint = document.createElement("div"); hint.className = "hint"; hint.textContent = "swipe for other rolls"; fr.appendChild(hint); }
   sheet.classList.add("on");
 }
 
