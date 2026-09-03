@@ -64,8 +64,8 @@ body.cocked #backlcd #lcdframe.late{color:#f0b060}
 #backlcd .lbl{font-size:7.5px;letter-spacing:.14em;opacity:.55;margin-right:4px;flex:0 0 auto;transition:color .4s var(--ease),opacity .4s var(--ease)}
 #backlcd .lbl.warn{color:#e0a050;opacity:.95;animation:warnpulse 1.8s ease-in-out infinite}
 @keyframes warnpulse{0%,100%{opacity:.6}50%{opacity:1}}
-#backlcd .state{margin-left:auto;font-size:8.5px;letter-spacing:.14em;opacity:.75;flex:0 0 auto;white-space:nowrap}
-#backlcd .build{font-size:7.5px;letter-spacing:.04em;opacity:.3;margin-left:6px;flex:0 0 auto}
+#backlcd .state{margin-left:auto;font-size:8.5px;letter-spacing:.14em;opacity:.75;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#backlcd .build{font-size:7.5px;letter-spacing:.04em;opacity:.3;margin-left:6px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #backlcd .build.ready{color:var(--ready);opacity:1;animation:askring 2.4s ease-in-out infinite}
 #backlcd .state.flash{color:var(--ready);opacity:1}
 #backlcd .more{font-size:10px;color:var(--ready);opacity:.7;margin-left:8px;flex:0 0 auto;line-height:1;align-self:center}
@@ -75,7 +75,7 @@ body.cocked #backlcd #lcdframe.late{color:#f0b060}
 @keyframes segflicker{0%{opacity:0}6%{opacity:.7}9%{opacity:.1}14%{opacity:.8}17%{opacity:.2}24%{opacity:.85}27%{opacity:.35}36%{opacity:.85}40%{opacity:.5}52%{opacity:.85}58%{opacity:.7}100%{opacity:.85}}
 /* on the narrowest portrait widths the build yields before anything wraps */
 @media (max-width: 420px) and (orientation: portrait){ #backlcd .build:not(.ready){display:none} }
-#backlcd .build.ready{display:inline !important;white-space:normal;line-height:1.1;font-size:7px}
+#backlcd .build.ready{display:inline !important;white-space:nowrap;line-height:1.1;font-size:7px}
 body.cocked #backlcd .state{color:var(--ready);opacity:1}
 body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px;position:relative}
@@ -1172,7 +1172,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 163;                     /* bump with every ship; lands in EXIF */
+const BUILD = 164;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2567,7 +2567,7 @@ function scopeLoop() {
    and offers the reload from the GRID menu. It checks quietly on launch and
    whenever the app comes back to the foreground, at most every ten minutes,
    and never reloads while a print is in the bath. */
-async function checkUpdate(manual) {
+async function checkUpdate(manual, auto) {
   if (checkingUpdate) return;
   if (!manual && performance.now() - lastUpdateCheck < 600000) return;
   checkingUpdate = true; lastUpdateCheck = performance.now();
@@ -2577,7 +2577,19 @@ async function checkUpdate(manual) {
     const t = r.ok ? await r.text() : "";
     const m = /const BUILD = (\d+);/.exec(t);
     const found = m ? parseInt(m[1], 10) : 0;
-    if (found > BUILD) { pendingBuild = found; backLCD(); paintServiceMenu(); if (manual) flashState("b" + found + " READY"); }
+    if (found > BUILD) {
+      pendingBuild = found; backLCD(); paintServiceMenu();
+      if (manual) flashState("b" + found + " READY");
+      /* FIRMWARE AT POWER-ON. A camera loads new firmware when it starts, not
+         when a menu is found. Auto-apply only when it interrupts nothing -
+         shutter not set, nothing in the bath - and never twice toward the
+         same build in one session, so a stale CDN cannot cause a reload loop.
+         applyUpdate itself still waits out (or unwedges) a busy bath. */
+      else if (auto && !cocked && pending === 0 && !String(location.search).includes("v=" + found)) {
+        flashState("LOADING b" + found);
+        setTimeout(applyUpdate, 900);
+      }
+    }
     else if (manual) flashState(found ? "UP TO DATE" : "NO CONNECTION");
   } catch (e) { if (manual) flashState("NO CONNECTION"); }
   checkingUpdate = false;
@@ -2613,8 +2625,8 @@ function goldByHour() {
   document.documentElement.style.setProperty("--ready", `rgb(${c[0]},${c[1]},${c[2]})`);
 }
 goldByHour(); setInterval(goldByHour, 600000);
-setTimeout(() => checkUpdate(false), 3000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(false); });
+setTimeout(() => checkUpdate(false, true), 3000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(false, true); });
 function sceneHue() {                       /* dominant hue of the live view, chroma weighted, or null */
   const v = $("video"); if (!v || !v.videoWidth) return null;
   try {
