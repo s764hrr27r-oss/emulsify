@@ -1092,7 +1092,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 149;                     /* bump with every ship; lands in EXIF */
+const BUILD = 150;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2978,13 +2978,13 @@ $("chip").addEventListener("pointerdown", () => { chipHeld = false; clearTimeout
 ["pointerup", "pointercancel", "pointerleave"].forEach(ev => $("chip").addEventListener(ev, () => clearTimeout(chipHold)));
 $("chip").onclick = () => {
   if (chipHeld) { chipHeld = false; return; }
-  machine("button", 0.16); const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
+  machine("button", 0.16); fromSheet = null; const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
 };
 /* WESTON. The rolls, one page each: thirty six frames, the roll letter and
    frame numbers along the rebate, untaken frames blank. Every roll that has a
    print is a tab across the top; the current roll is there even if empty. A
    CLOSE button on the left; swiping left or right also changes roll. */
-let contactRoll = null;
+let contactRoll = null, fromSheet = null;      /* set when a print was opened from the sheet, so BACK returns there */
 function rollsWithPrints() {
   const set = new Set([ROLL]);
   for (const k of prints) { try { const rf = localStorage["rf" + k] || ""; if (rf) set.add(rf[0]); } catch (e) {} }
@@ -3020,7 +3020,8 @@ async function openContactSheet(roll) {
   sheet.querySelector(".of").textContent = taken + " OF " + ROLL_LEN;
   for (let i = 1; i <= ROLL_LEN; i++) {
     const cell = document.createElement("div"); cell.className = "cell"; const id = onRoll[i];
-    if (id) { const im = document.createElement("img"); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im); cell.onclick = () => { sheet.classList.remove("on"); openItem(id); }; }
+    if (id) { const im = document.createElement("img"); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im);
+      cell.onclick = () => { fromSheet = contactRoll; sheet.classList.remove("on"); openItem(id); }; }
     const n = document.createElement("b"); n.textContent = contactRoll + String(i).padStart(2, "0"); cell.appendChild(n);
     cell.style.animationDelay = (i * 16) + "ms";                        /* KUSAMA: a wave across the grid */
     fr.appendChild(cell);
@@ -3209,7 +3210,8 @@ function paintWatched() {              /* a new stage landed while watching */
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
   }, 2600);
 }
-$("back").onclick = () => { machine("button", 0.16); $("print").classList.remove("on"); setPaged(false); if (cocked) humStart();
+$("back").onclick = () => { machine("button", 0.16); $("print").classList.remove("on");
+  if (fromSheet) { const r = fromSheet; fromSheet = null; setTimeout(() => openContactSheet(r), 60); }   /* came from the rolls: return to them */ setPaged(false); if (cocked) humStart();
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
