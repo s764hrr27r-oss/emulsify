@@ -1172,7 +1172,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 162;                     /* bump with every ship; lands in EXIF */
+const BUILD = 163;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2266,9 +2266,9 @@ $("hapb").addEventListener("pointerdown", () => {
 $("hapb").addEventListener("click", () => {
   if (panelHeld) { panelHeld = false; return; }
   if (rewindAsk && performance.now() - rewindAsk < 3000) { rewindAsk = 0; haptic(); rollOver(); return; }
-  closeLensMenu(); closeAnaMenu(); closeFinderMenu(); closeScopeMenu(); closeServiceMenu();
+  closeLensMenu(); closeAnaMenu(); closeFinderMenu(); closeScopeMenu();
   paintServiceMenu();
-  const on = $("servicemenu").classList.toggle("on");
+  const on = $("servicemenu").classList.toggle("on");   /* never close what you toggle: the second tap must shut the door */
   $("lensveil").classList.toggle("on", on);
 });
 $("lensveil").addEventListener("click", closeScopeMenu);
