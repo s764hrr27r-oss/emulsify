@@ -35,7 +35,8 @@ body.paged #camera{transform:scale(.97)}
 /* the EV detent's haptic: a rendered but invisible switch that the drag handler
    toggles on every third-stop. iOS plays its Taptic on a switch toggle made
    inside a user input handler, which a pointermove is. */
-#hapev{position:absolute;left:-2px;top:0;width:2px;height:2px;margin:0;opacity:0;pointer-events:none;-webkit-appearance:auto}
+#hapev,#hapx{position:absolute;left:-2px;top:0;width:2px;height:2px;margin:0;opacity:0;pointer-events:none;-webkit-appearance:auto}
+#hapx{top:4px}
 #backlcd{flex:1;display:flex;align-items:baseline;gap:5px;flex-wrap:nowrap;overflow:hidden;
   font:11px ui-monospace,Menlo,monospace;color:var(--mute);
   border:1px solid var(--hair);border-radius:5px;padding:4px 9px;
@@ -58,6 +59,8 @@ body.cocked #backlcd #lcdframe.late{color:#f0b060}
 #backlcd .more{font-size:10px;color:var(--ready);opacity:.7;margin-left:8px;flex:0 0 auto;line-height:1;align-self:center}
 #scopemenu.on ~ * #backlcd .more{opacity:1}
 #backlcd.selftest .seg,#backlcd.selftest .state{color:#e6c37a;opacity:.85;text-shadow:0 0 6px rgba(229,180,90,.35)}
+#backlcd.selftest.overnight .seg,#backlcd.selftest.overnight .state{animation:segflicker 1.5s steps(1) both}
+@keyframes segflicker{0%{opacity:0}6%{opacity:.7}9%{opacity:.1}14%{opacity:.8}17%{opacity:.2}24%{opacity:.85}27%{opacity:.35}36%{opacity:.85}40%{opacity:.5}52%{opacity:.85}58%{opacity:.7}100%{opacity:.85}}
 /* on the narrowest portrait widths the build yields before anything wraps */
 @media (max-width: 420px) and (orientation: portrait){ #backlcd .build:not(.ready){display:none} }
 body.cocked #backlcd .state{color:var(--ready);opacity:1}
@@ -114,6 +117,8 @@ body.cocked #sparkle i{animation:twinkle 6.2s ease-in-out infinite}
 body.cocked #sparkle i:nth-child(2){animation-duration:7.4s;animation-delay:-2.1s}
 body.cocked #sparkle i:nth-child(3){animation-duration:5.3s;animation-delay:-3.7s}
 body.cocked #sparkle i:nth-child(4){animation-duration:8.1s;animation-delay:-1.2s}
+/* a change in the room: every point lights at once, then they go back to their own rhythms */
+body.cocked.glint #sparkle i{animation:none;opacity:1;transition:opacity .18s var(--ease)}
 @keyframes twinkle{0%,70%,100%{opacity:0}80%{opacity:1}88%{opacity:.2}}
 body.released #sparkle{transition:opacity .3s var(--ease);opacity:0}
 /* the readouts turn gold and radiate when the shutter is set */
@@ -205,6 +210,7 @@ body.cocked #rf i{border-color:rgba(255,236,206,.9);
 /* the tension corners: a static warmth */
 body.cocked #tension i{animation:drawin .34s var(--ease) both;border-color:rgba(255,240,205,.95);
   box-shadow:0 0 8px rgba(229,180,90,.30)}
+body.cocked #tension{opacity:var(--room,1);transition:opacity 1.2s var(--ease)}
 /* hairlines at device pixels: on a 3x screen a 1px line is three pixels wide */
 @media (min-resolution: 2dppx){
   #rf b{border-width:.5px}
@@ -327,7 +333,18 @@ body.f-rf #rf{display:block}
 #curtains .l{left:0;transform:translateX(-102%);box-shadow:inset -4px 0 8px rgba(0,0,0,.95), 1px 0 0 rgba(255,255,255,.10)}
 #curtains .r{right:0;transform:translateX(102%);box-shadow:inset 4px 0 8px rgba(0,0,0,.95), -1px 0 0 rgba(255,255,255,.10)}
 body.curtain #curtains i{transform:none;transition:transform .14s cubic-bezier(.4,0,1,1)}
+/* light through the gap: as the blinds part, a hairline of warm light at the
+   meeting line for a few frames, before they have cleared */
+#curtains .leak{position:absolute;top:0;bottom:0;left:50%;width:3px;margin-left:-1.5px;opacity:0;pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,232,190,0), rgba(255,236,200,.95) 30%, rgba(255,236,200,.95) 70%, rgba(255,232,190,0))}
+body.reentry #curtains .leak{animation:leak .5s ease-out both}
+@keyframes leak{0%{opacity:0;transform:scaleX(1)}18%{opacity:.9;transform:scaleX(1.6)}100%{opacity:0;transform:scaleX(6)}}
 body.sleep #dim{opacity:.8;transition:opacity 1.6s var(--ease)}
+/* asleep, the finder shows the last frame, faint, the way a camera shows its
+   last shot on the back; awake, the live view */
+#lastframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;pointer-events:none;
+  transition:opacity 1.6s var(--ease);z-index:5}
+body.sleep #lastframe[src]{opacity:.6}
 body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
 body.sleep #aura,body.sleep #sparkle{opacity:0 !important}
 /* the back is open: dark while the roll rewinds, the film running backwards */
@@ -473,7 +490,7 @@ body:not(.cocked) .deck{opacity:.6;transition:opacity .3s var(--ease)}
    linear-gradient(to bottom, transparent calc(66.66% - 5px), rgba(236,150,60,.13) 66.66%, transparent calc(66.66% + 5px)),
    linear-gradient(to bottom, transparent calc(66.66% - 1.6px), rgba(255,236,200,.38) 66.66%, transparent calc(66.66% + 1.6px)),
    linear-gradient(to bottom, transparent calc(66.66% - 1px), rgba(255,255,255,1) 66.66%, transparent calc(66.66% + 1px))}
-body.cocked.f-grid #lockgrid{opacity:1;animation:lockin .5s cubic-bezier(.16,.9,.22,1) both}
+body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-bezier(.16,.9,.22,1) both;transition:opacity 1.2s var(--ease)}
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
@@ -755,7 +772,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
   <div id="frame">
     <div id="aura"></div>
     <div id="glass">
-      <div id="screen"><video id="video" autoplay playsinline muted></video><div id="curtains"><i class="l"></i><i class="r"></i></div></div>
+      <div id="screen"><video id="video" autoplay playsinline muted></video><img id="lastframe" alt="" aria-hidden="true"><div id="curtains"><i class="l"></i><i class="r"></i><b class="leak"></b></div></div>
       <div id="anawarn">
         <svg viewBox="0 0 64 40" width="54" height="34" fill="none"
              stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
@@ -772,7 +789,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="quad"></div>
       <div id="spot"><i></i><i></i><i></i><i></i></div>
       <div id="cross"></div>
-      <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div><input type="checkbox" switch id="hapev" aria-hidden="true" tabindex="-1"></div>
+      <div id="evrow"><div class="track"><i class="tick"></i><i class="fill"></i><i class="thumb"></i><span class="val"></span></div><input type="checkbox" switch id="hapev" aria-hidden="true" tabindex="-1"><input type="checkbox" switch id="hapx" aria-hidden="true" tabindex="-1"></div>
       <div id="lockgrid"></div>
       <div id="sparkle"><i></i><i></i><i></i><i></i></div>
       <div id="scopes">
@@ -917,7 +934,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 136;                     /* bump with every ship; lands in EXIF */
+const BUILD = 137;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1023,6 +1040,10 @@ addEventListener("visibilitychange", () => {   /* iOS drops it on return */
 });
 const jobFrame = new Map();
 let workerVer = "";
+/* HAPTIC. iOS plays a Taptic when a switch is toggled inside a user input
+   handler, and for about a second after a touch. This flips a hidden switch;
+   inside that window the phone answers, outside it nothing happens. */
+function haptic() { try { $("hapx").click(); } catch (e) {} }
 /* the aura must hug the GLASS, not the frame: in landscape the frame is much
    wider than the gate, and a frame-sized glow stood fully exposed in the
    margins. Pin it to the glass's rectangle, bleeding 14% past each side. */
@@ -2159,6 +2180,23 @@ function backLCD() {
     const lvEl = $("lcdlv"), lvTxt = lv === null ? "--" : String(lv).padStart(2, "0");
     if (lvEl.textContent !== lvTxt) { lvEl.textContent = lvTxt; lvEl.classList.remove("tick"); void lvEl.offsetWidth; lvEl.classList.add("tick"); }
     if (lv !== null) {
+      /* THE LIGHT CLICKS. The needle crossing a major mark, 5, 8, 11, gives a
+         tick at half the detent's level and a haptic if a finger is on the
+         glass. Rate limited so a flickering room cannot chatter. */
+      const band = Math.floor((meterNeedle - 2) / 3);
+      if (lightBand !== null && band !== lightBand && performance.now() - lastLightClick > 600) {
+        lastLightClick = performance.now(); lightTick(); haptic();
+      }
+      lightBand = band;
+      /* THE GEMS ANSWER THE LIGHT: a jump of a stop and a half between readings
+         makes the sparkle glint together for a moment */
+      if (lastLV !== null && Math.abs(lv - lastLV) >= 1.5) {
+        document.body.classList.add("glint"); clearTimeout(glintTimer);
+        glintTimer = setTimeout(() => document.body.classList.remove("glint"), 900);
+      }
+      /* THE LOCK BREATHES WITH THE ROOM: corner marks and grid a little brighter
+         in a bright scene, dimmer in a dark one */
+      document.documentElement.style.setProperty("--room", (0.6 + 0.4 * Math.max(0, Math.min(1, (lv - 3) / 10))).toFixed(3));
       lastLV = lv;
       /* a camera shows a shake warning when the shutter will be slow; ours
          is the LIGHT label itself turning to SLOW and going amber at LV 4 and under */
@@ -2174,7 +2212,20 @@ function backLCD() {
     else { bt.textContent = "b" + BUILD + (workerVer ? " w" + workerVer : ""); bt.classList.remove("ready"); }
   } catch (e) {}
 }
-let frameNo = 0, ROLL = "A", lastLV = 8, meterNeedle = 8;
+let frameNo = 0, ROLL = "A", lastLV = 8, meterNeedle = 8, lightBand = null, lastLightClick = 0, glintTimer = 0;
+function lightTick() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const t = AC.currentTime, sr = AC.sampleRate, L = Math.ceil(0.0025 * sr);
+    const b = AC.createBuffer(1, L, sr), d = b.getChannelData(0);
+    for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 1.5);
+    const src = AC.createBufferSource(); src.buffer = b;
+    const bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 3800; bp.Q.value = 1.3;
+    const g = AC.createGain(); g.gain.value = 0.003;
+    src.connect(bp); bp.connect(g); g.connect(AC.destination); src.start(t);
+  } catch (e) {}
+}
 try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; ROLL = localStorage.roll || "A"; } catch (e) {}
 /* THE ROLL. Thirty six frames, then the film is out: a rewind, a beat of
    dark while the back is open, and a new roll on the counter. Prints carry
@@ -2220,6 +2271,7 @@ function rollOver() {
     n--; i++;
     fe.textContent = String(Math.max(n, 1)).padStart(3, "0");
     fe.classList.remove("tick", "down"); void fe.offsetWidth; fe.classList.add("down");
+    if (i % 4 === 0) haptic();                                          /* the motor, in the hand */
     if (n > 1) setTimeout(spin, 18 + 42 * Math.pow(i / total, 2.2));   /* slows as the spool fills */
   };
   setTimeout(spin, 120);
@@ -2235,17 +2287,23 @@ function rollOver() {
     setTimeout(() => { fe.textContent = "000"; backLCD(); }, 380);   /* 001 arrives from below */
   }, 1650);
 }
-function leaderVoice() { machine("lever", 0.30); }     /* the leader seats: the big lever off the machine */
+function leaderVoice() { machine("lever", 0.30); haptic(); setTimeout(haptic, 90); }   /* the leader seats: the lever, and a double tap */
 /* POWER ON. Every camera with a panel does this: for half a second the
    segments all light, 8 888 88 88, then the real numbers settle in. Once. */
 function powerOn() {
+  /* OVERNIGHT. Six hours in the bag and the panel takes longer to come up,
+     segments flickering as they light. Every launch after that is the quick one. */
+  let overnight = false;
+  try { const last = parseInt(localStorage.lastOpen || "0", 10); overnight = !last || Date.now() - last > 6 * 3600 * 1000; localStorage.lastOpen = String(Date.now()); } catch (e) {}
+  if (overnight) $("backlcd").classList.add("overnight");
+  const hold = overnight ? 1500 : 620;
   try {
     $("lcdroll").textContent = "8"; $("lcdframe").textContent = "888";
     $("lcdlens").textContent = "88"; $("lcdlv").textContent = "88";
     $("lcdstate").textContent = "\u2588\u2588\u2588\u2588\u2588\u2588\u2588";
     $("backlcd").classList.add("selftest");
   } catch (e) {}
-  setTimeout(() => { $("backlcd").classList.remove("selftest"); backLCD(); cock(cocked); }, 620);
+  setTimeout(() => { $("backlcd").classList.remove("selftest", "overnight"); backLCD(); cock(cocked); }, hold);
   setInterval(backLCD, 400);               /* 2.5 Hz is steady enough for a needle */
 }
 powerOn();
@@ -2255,6 +2313,7 @@ $("windwrap").onclick = () => {
   w.classList.add("winding");
   windVoice();                              /* the ratchet; the switch gives the tick */
   cock(true);                               /* the picture grows WHILE the lever runs */
+  setTimeout(haptic, 200);                  /* the throw, then the seat */
   setTimeout(() => {                        /* the perforations reset once stopped */
     w.classList.remove("winding");
     w.querySelector(".perf").style.transform = "";
@@ -2277,17 +2336,22 @@ let sleepTimer = 0, asleep = false;
 function wake() {
   if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); warmUp(); }
   clearTimeout(sleepTimer);
-  sleepTimer = setTimeout(() => { asleep = true; document.body.classList.add("sleep"); humStop(); }, 120000);
+  sleepTimer = setTimeout(() => {
+    asleep = true; humStop();
+    try { const im = $("chip").querySelector("img"); if (im && im.src) $("lastframe").src = im.src; } catch (e) {}
+    document.body.classList.add("sleep");
+  }, 120000);
 }
 ["pointerdown", "keydown", "touchstart"].forEach(ev => addEventListener(ev, wake, { passive: true, capture: true }));
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) { humStop(); clearTimeout(sleepTimer); }
-  else { wake(); backLCD(); }
+  else { wake(); backLCD(); try { localStorage.lastOpen = String(Date.now()); } catch (e) {} }
 });
 wake();
 function release() {                        /* the frame is taken: let go */
   const body = document.body;
   body.classList.add("curtain");            /* blinds meet across the picture: 140 ms */
+  setTimeout(haptic, 140);                  /* and you feel them stop */
   setTimeout(() => {
     cock(false);                            /* behind them the finder shrinks; the instruments stay dark */
     body.classList.add("released");
