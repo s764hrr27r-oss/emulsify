@@ -1030,8 +1030,8 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 .lid-rays i:nth-child(2){top:-45%;animation:lidray 5.6s linear .9s infinite;opacity:.22}
 @keyframes lidray{from{transform:rotate(-21deg) translateY(0)}to{transform:rotate(-21deg) translateY(1500%)}}
 /* the emulsion: silver grain, lightening only, coalescing toward the picture then drifting */
-.lid-grain{inset:-8%;background-image:var(--grain);mix-blend-mode:screen;animation:lidgrain .6s ease-out both, liddrift 4s ease-in-out infinite alternate}
-@keyframes lidgrain{from{opacity:.7}to{opacity:.16}}
+.lid-grain{inset:0;background-image:var(--grain);mix-blend-mode:screen;animation:lidgrain .6s ease-out both, liddrift 4s ease-in-out infinite alternate}
+@keyframes lidgrain{from{opacity:.45}to{opacity:.12}}
 @keyframes liddrift{from{transform:translate(0,0)}to{transform:translate(2px,-1.5px)}}
 /* the edge lights: the print as an object on the glass, then just a print */
 .lid-edge{border:1px solid rgba(255,236,206,.75);box-sizing:border-box;opacity:0;animation:lidedge 1.4s ease .45s both}
@@ -1251,7 +1251,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 169;                     /* bump with every ship; lands in EXIF */
+const BUILD = 170;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
