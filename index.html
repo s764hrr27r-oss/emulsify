@@ -253,8 +253,9 @@ body.cocked #rf i{border-color:rgba(255,236,206,.9);
 .lensbtn,#chip{background:rgba(255,255,255,.028);box-shadow:0 2px 3px rgba(0,0,0,.55), 0 6px 10px -4px rgba(0,0,0,.5)}
 #windwrap{filter:none}
 #wind{background:rgba(255,255,255,.02);box-shadow:0 2px 3px rgba(0,0,0,.5), 0 6px 10px -4px rgba(0,0,0,.45)}
-#shutterwrap::before{content:"";position:absolute;left:12%;right:12%;bottom:-5px;height:12px;border-radius:50%;pointer-events:none;
-  background:radial-gradient(ellipse at 50% 50%, rgba(0,0,0,.6), rgba(0,0,0,0) 70%)}
+/* IRWIN. A disc lit from four lamps floats on four faint shadows. */
+#shutterwrap::before{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  box-shadow:0 -7px 16px -8px rgba(0,0,0,.6), 0 7px 16px -8px rgba(0,0,0,.6), -7px 0 16px -8px rgba(0,0,0,.6), 7px 0 16px -8px rgba(0,0,0,.6)}
 /* the tension corners: a static warmth */
 body.cocked #tension i{animation:drawin .34s var(--ease) both;border-color:rgba(255,240,205,.95);
   box-shadow:0 0 8px rgba(229,180,90,.30)}
@@ -276,6 +277,13 @@ body.released #lockline{opacity:0;transition:opacity .25s var(--ease)}
   .deck::before{border-width:.5px}
   #grid,#quad,#cross{opacity:.35}
 }
+/* NIGHT: the blacked-out camera. Lines, labels and the deck at a quarter; the
+   gold withheld; the treasure kept behind the door. The finder stays bright. */
+body.night .deck,body.night #backlcd,body.night #windwrap{opacity:.28 !important}
+body.night #wind b{color:#7a7c82 !important;text-shadow:none !important}
+body.night #aura,body.night #caustic,body.night #below,body.night #sparkle,body.night #lockgrid,body.night #lockline,body.night #bokashi{display:none !important}
+body.night{--ready:#5c5f66}
+body.night #backlcd .seg,body.night #backlcd .lbl,body.night #backlcd .state{color:#6e7178 !important;text-shadow:none !important}
 /* RESTRAINT. Smaller type, wider tracking, less of it; one thing moves. */
 #backlcd .seg{font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--ink)}
 #backlcd .lbl{font-size:7px;font-weight:600;letter-spacing:.14em;opacity:.5;color:var(--silver)}
@@ -299,13 +307,8 @@ body:not(.cocked) #wind::after{animation-duration:6s}
 #glass video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
              opacity:0;transition:opacity .4s var(--ease)}
 /* idle: the finder is a small bright window in the middle of the camera back */
-/* MA. With no instruments on the back, the idle finder sits at the golden
-   section, a touch above and left of centre, so the black around it is a shape
-   and not what is left over. With instruments on, it returns to centre and
-   they take the symmetric field around it. */
-body:not(.cocked) #screen{transform:translate(-11.8%, -10%) scale(.26);border-radius:3px;
+body:not(.cocked) #screen{transform:scale(.26);border-radius:3px;
                           box-shadow:0 0 0 1px rgba(255,255,255,.28), 0 0 26px rgba(0,0,0,.9)}
-body:not(.cocked).instruments #screen{transform:scale(.26)}
 body.cocked #screen{transform:none;border-radius:0}
 #screen::after{content:"";position:absolute;inset:0;pointer-events:none;
   box-shadow:inset 0 0 26px 6px rgba(0,0,0,.72), inset 0 0 4px rgba(0,0,0,.6);
@@ -635,6 +638,19 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
           transition:opacity .22s var(--ease)}
 #chip img.step{animation:stepup 2.4s var(--ease) both}
 #chip .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
+#fly{position:fixed;z-index:80;object-fit:cover;border-radius:5px;pointer-events:none;transform-origin:0 0;opacity:.95;
+     transition:transform .46s cubic-bezier(.2,.75,.2,1), opacity .26s var(--ease)}
+#contact{position:fixed;inset:0;z-index:70;background:#050506;display:none;flex-direction:column;
+  padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 16px)}
+#contact.on{display:flex}
+#contact .head{display:flex;justify-content:space-between;align-items:baseline;padding:6px 4px 14px;font:600 11px var(--ui);letter-spacing:.14em;color:#c9a862}
+#contact .head .of{color:var(--mute)}
+#contact .frames{flex:1;display:grid;grid-template-columns:repeat(6, 1fr);gap:6px 6px;align-content:start;overflow:auto}
+#contact .cell{position:relative;aspect-ratio:5/4;background:#0d0e11;border:1px solid var(--hair);border-radius:2px;overflow:hidden}
+#contact .cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#contact .cell b{position:absolute;left:3px;bottom:2px;font:600 6px var(--ui);letter-spacing:.12em;color:#c9a862;opacity:.85;text-shadow:0 1px 0 rgba(0,0,0,.9)}
+#chip .mosaic{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:#000}
+#chip .mosaic img{position:static;width:100%;height:100%;object-fit:cover;display:block}
 #chip .play{position:absolute;left:50%;top:50%;translate:-50% -50%;
   width:0;height:0;border-left:9px solid rgba(244,242,237,.92);
   border-top:6px solid transparent;border-bottom:6px solid transparent;
@@ -1038,7 +1054,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 145;                     /* bump with every ship; lands in EXIF */
+const BUILD = 146;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1143,7 +1159,9 @@ addEventListener("visibilitychange", () => {   /* iOS drops it on return */
   if (document.visibilityState === "visible" && pending > 0) labAwake(true);
 });
 const jobFrame = new Map();
-let workerVer = "";
+let workerVer = "", silentUntil = 0;
+try { if (localStorage.night === "1") document.body.classList.add("night"); } catch (e) {}
+const silent = () => performance.now() < silentUntil;
 /* HAPTIC. iOS plays a Taptic when a switch is toggled inside a user input
    handler, and for about a second after a touch. This flips a hidden switch;
    inside that window the phone answers, outside it nothing happens. */
@@ -1401,6 +1419,7 @@ const EV = { v: 0 };
    and only when the value actually steps. (Restored in 136: the recorded
    tick was tried in 135 and the owner preferred this.) */
 function evTick(zero) {
+  if (silent()) return;
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === "suspended") AC.resume();
@@ -1499,6 +1518,14 @@ function paintFinderMenu() {
   ib.appendChild(isw);
   ib.onclick = () => { machine("click", 0.18); closeFinderMenu(); $("scopemenu").classList.add("on"); $("lensveil").classList.add("on"); };
   m.appendChild(ib);
+  /* CARTIER-BRESSON. He taped his Leica's chrome black. NIGHT drops every line
+     and label to a quarter, withholds the gold, and dims the panel. */
+  const nb = document.createElement("button"); nb.textContent = "NIGHT";
+  nb.classList.toggle("cur", document.body.classList.contains("night"));
+  const nsw = document.createElement("input"); nsw.type = "checkbox"; nsw.setAttribute("switch", ""); nsw.className = "hapov"; nsw.tabIndex = -1;
+  nb.appendChild(nsw);
+  nb.onclick = () => { machine("click", 0.18); closeFinderMenu(); const on = document.body.classList.toggle("night"); try { localStorage.night = on ? "1" : ""; } catch (e) {} paintFinderMenu(); };
+  m.appendChild(nb);
   /* updates: a fresh load is all an update ever needs */
   const ub = document.createElement("button");
   ub.textContent = pendingBuild ? "UPDATE TO b" + pendingBuild : "CHECK FOR UPDATES";
@@ -1622,6 +1649,7 @@ function clickBuffer(name) {
   return (clickBufs[name] = buf);
 }
 function machine(name, gain) {
+  if (silent()) return;
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     const cold = AC.state === "suspended"; if (cold) AC.resume();
@@ -1739,7 +1767,7 @@ function roomSend(src, amount) {
   try { roomIn(); src.connect(AC.destination); if (room && room.wetIn) { const g = AC.createGain(); g.gain.value = amount; src.connect(g); g.connect(room.wetIn); } }
   catch (e) { try { src.connect(AC.destination); } catch (e2) {} }
 }
-function roomWet(on) { try { if (room) { const t = AC.currentTime; room.wet.gain.cancelScheduledValues(t); room.wet.gain.setValueAtTime(room.wet.gain.value, t); room.wet.gain.linearRampToValueAtTime(on ? 0.025 : 0, t + (on ? 1.2 : 0.4)); } } catch (e) {} }
+function roomWet(on, cut) { try { if (room) { const t = AC.currentTime; room.wet.gain.cancelScheduledValues(t); if (cut) { room.wet.gain.setValueAtTime(0, t); return; } room.wet.gain.setValueAtTime(room.wet.gain.value, t); room.wet.gain.linearRampToValueAtTime(on ? 0.025 : 0, t + (on ? 1.2 : 0.4)); } } catch (e) {} }
 
 /* THE DRONE. Under the hum, four sines at a third of its level: D3, A3, D4 and
    the flattened second, E-flat 4, the note that gives the desert modes their
@@ -1761,8 +1789,9 @@ function droneStart() {
     out.connect(roomIn()); drone = { out, nodes };
   } catch (e) { drone = null; }
 }
-function droneStop() {
+function droneStop(cut) {
   if (!drone) return;
+  if (cut) { try { const d = drone; drone = null; d.out.gain.cancelScheduledValues(AC.currentTime); d.out.gain.setValueAtTime(0.0001, AC.currentTime); d.nodes.forEach(n => n.stop()); d.out.disconnect(); } catch (e) { drone = null; } return; }
   try { const t = AC.currentTime, d = drone; drone = null;
     d.out.gain.cancelScheduledValues(t); d.out.gain.setValueAtTime(Math.max(d.out.gain.value, 0.0001), t); d.out.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
     setTimeout(() => { try { d.nodes.forEach(n => n.stop()); d.out.disconnect(); } catch (e) {} }, 700);
@@ -1772,6 +1801,7 @@ function droneStop() {
    thud, low and short, the sound of a release that has nothing to release.
    Quiet: it is a correction, not an alarm. */
 function refusal() {
+  if (silent()) return;
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === "suspended") AC.resume();
@@ -1803,9 +1833,10 @@ function humStart() {
     droneStart(); roomWet(true);
   } catch (e) { hum = null; }
 }
-function humStop() {
-  droneStop(); roomWet(false);
+function humStop(cut) {
+  droneStop(cut); roomWet(false, cut);
   if (!hum) return;
+  if (cut) { try { const h = hum; hum = null; h.out.gain.cancelScheduledValues(AC.currentTime); h.out.gain.setValueAtTime(0.0001, AC.currentTime); h.nodes.forEach(n => n.stop()); h.out.disconnect(); } catch (e) { hum = null; } return; }
   try {
     const t = AC.currentTime, h = hum; hum = null;
     h.out.gain.cancelScheduledValues(t);
@@ -1950,7 +1981,6 @@ function weather(face, wear, name) {
 }
 function paintScopeCards() {
   for (const k in scopeEls) scopeEls[k].card.classList.toggle("on", scopesOn.has(k));
-  document.body.classList.toggle("instruments", scopesOn.size > 0);    /* instruments on: the finder centres for them */
   const m = $("scopemenu"); m.innerHTML = "";
   const h = document.createElement("div"); h.className = "hint"; h.textContent = "INSTRUMENTS  \u00b7  choose any"; m.appendChild(h);
   for (const [k, label] of SCOPES) {
@@ -2020,7 +2050,7 @@ $("lensveil").addEventListener("click", closeScopeMenu);
    slot also clips, as a hard guarantee. */
 function fitScopes() {
   const g = $("glass"); const W = g.clientWidth, H = g.clientHeight; if (!W || !H) return;
-  const fw = W * 0.26, fh = H * 0.26, fx = (W - fw) / 2, fy = (H - fh) / 2;   /* centred: the finder is centred whenever instruments are on */
+  const fw = W * 0.26, fh = H * 0.26, fx = (W - fw) / 2, fy = (H - fh) / 2;
   /* THE FRAME LINES. The rangefinder brackets sit at 7% of each dimension with
      2px arms; the rectangle they imply is the instruments' whole world. Every
      housing, border included, stays 14px inside that line, which also leaves
@@ -2332,8 +2362,29 @@ function applyUpdate() {
   flashState("UPDATING");
   setTimeout(() => location.replace(location.pathname.replace(/[^/]*$/, "") + "index.html?v=" + pendingBuild), 400);
 }
+/* OUDOLF. The gold's temperature follows the clock: coolest and palest at one
+   in the afternoon, deepest and warmest at one in the morning, on a cosine.
+   Nobody sees the colour move; the camera feels different in the evening. */
+function goldByHour() {
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  const w = (1 - Math.cos((h - 1) / 24 * 2 * Math.PI)) / 2;       /* 0 at 01:00 .. 1 at 13:00 */
+  const cool = [234, 204, 140], warm = [214, 154, 60];
+  const c = cool.map((v, i) => Math.round(v * w + warm[i] * (1 - w)));
+  document.documentElement.style.setProperty("--ready", `rgb(${c[0]},${c[1]},${c[2]})`);
+}
+goldByHour(); setInterval(goldByHour, 600000);
 setTimeout(() => checkUpdate(false), 3000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(false); });
+function sceneMean() {
+  const v = $("video"); if (!v || !v.videoWidth) return null;
+  try {
+    lvCanvas = lvCanvas || Object.assign(document.createElement("canvas"), { width: 32, height: 32 });
+    const g = lvCanvas.getContext("2d", { willReadFrequently: true }); g.drawImage(v, 0, 0, 32, 32);
+    const d = g.getImageData(0, 0, 32, 32).data; let r = 0, gg = 0, b = 0;
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; }
+    const n = d.length / 4; return [Math.round(r / n), Math.round(gg / n), Math.round(b / n)];
+  } catch (e) { return null; }
+}
 /* the back panel reads out what the camera is actually set to */
 function backLCD() {
   /* nothing to read when the page is hidden or the gallery is up: the video
@@ -2398,6 +2449,7 @@ function backLCD() {
 }
 let frameNo = 0, ROLL = "A", lastLV = 8, meterNeedle = 8, lightBand = null, lastLightClick = 0, glintTimer = 0;
 function lightTick() {
+  if (silent()) return;
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === "suspended") AC.resume();
@@ -2534,6 +2586,10 @@ document.addEventListener("visibilitychange", () => {
 wake();
 function release() {                        /* the frame is taken: let go */
   const body = document.body;
+  /* CAGE. From the release until the blinds begin to part, nothing sounds: the
+     hum, the drone and the room are cut, not faded, and every other voice is
+     refused. The rest is part of the music. */
+  silentUntil = performance.now() + 560; humStop(true);
   body.classList.add("curtain");            /* blinds meet across the picture: 140 ms */
   setTimeout(haptic, 140);                  /* and you feel them stop */
   setTimeout(() => {
@@ -2601,8 +2657,11 @@ async function cook(c, voice, full) {
     backLCD();
     if (frameNo >= ROLL_LEN) setTimeout(rollOver, 900);
     release();                              /* the tension goes with the frame */
+    /* TURRELL: not black. The field is the mean colour of the scene, held for
+       a tenth of a second: the afterimage of the exposure, different each time. */
+    try { const m = sceneMean(); if (m) $("flash").style.background = `rgb(${m[0]},${m[1]},${m[2]})`; } catch (e) {}
     $("flash").style.opacity = 1;
-    setTimeout(() => $("flash").style.opacity = 0, 110);
+    setTimeout(() => { $("flash").style.opacity = 0; }, 110);
     shutterVoice();
     try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
   }
@@ -2757,8 +2816,28 @@ const newestProcessed = () =>
   [...prints].reverse().find(k => !unchosen.has(k));
 const newestCooking = () => [...cooking].sort().pop() || null;
 /* the gallery, newest first: frames still in the bath come before prints */
-const galleryIds = () =>
-  [...cooking].sort().reverse().concat([...prints].reverse().filter(k => !unchosen.has(k)));
+const hueOf = {};
+async function hueFor(id) {                     /* the print's dominant hue, from its thumbnail, cached */
+  if (hueOf[id] !== undefined) return hueOf[id];
+  try {
+    const u = await thumbURL(id); if (!u) return (hueOf[id] = 0);
+    const im = new Image(); await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = u; });
+    const c = Object.assign(document.createElement("canvas"), { width: 16, height: 16 }), g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(im, 0, 0, 16, 16); const d = g.getImageData(0, 0, 16, 16).data; let sx = 0, sy = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i] / 255, gg = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), dl = mx - mn;
+      if (dl < 0.04) continue;
+      let h = mx === r ? ((gg - b) / dl) % 6 : mx === gg ? (b - r) / dl + 2 : (r - gg) / dl + 4;
+      const a = h * Math.PI / 3; sx += Math.cos(a) * dl; sy += Math.sin(a) * dl;
+    }
+    return (hueOf[id] = (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360);
+  } catch (e) { return (hueOf[id] = 0); }
+}
+const galleryIds = () => {
+  const done = [...prints].reverse().filter(k => !unchosen.has(k));
+  if (chartOrder) done.sort((a, b) => (hueOf[a] || 0) - (hueOf[b] || 0));   /* RICHTER: the roll as a colour chart */
+  return [...cooking].sort().reverse().concat(done);
+};
 /* one chip, one painter: it wears the bath for as long as there is a bath */
 async function paintChip() {
   const chip = $("chip");
@@ -2772,7 +2851,22 @@ async function paintChip() {
   if (cook && !sc) { sc = document.createElement("i"); sc.className = "scrim";
                      chip.insertBefore(sc, dot); }
   else if (!cook && sc) { sc.remove(); sc = null; }
-  const ims = chip.querySelectorAll("img");
+  /* WARHOL. With four or more prints and nothing in the bath, the chip is a
+     two by two of the last four. Repetition says there is a body of work. */
+  const last4 = cook ? [] : [...prints].reverse().filter(k => !unchosen.has(k)).slice(0, 4);
+  let mosaic = chip.querySelector(".mosaic");
+  if (last4.length >= 4) {
+    const key = last4.join("|");
+    if (!mosaic || mosaic.dataset.key !== key) {
+      const m = document.createElement("div"); m.className = "mosaic"; m.dataset.key = key;
+      const urls = await Promise.all(last4.map(thumbURL));
+      urls.forEach(uu => { const im = document.createElement("img"); if (uu) im.src = uu; m.appendChild(im); });
+      if (mosaic) mosaic.remove(); chip.insertBefore(m, dot); mosaic = m;
+    }
+    for (const o of chip.querySelectorAll(":scope > img")) o.remove();
+    return;
+  } else if (mosaic) mosaic.remove();
+  const ims = chip.querySelectorAll(":scope > img");
   const top = ims[ims.length - 1];
   if (!u) { for (const o of ims) o.remove(); return; }
   if (!top || top.src !== u) {          /* a new step comes up in the bath */
@@ -2790,7 +2884,55 @@ async function paintChip() {
   }
 }
 paintChip();
-$("chip").onclick = () => { machine("button", 0.16); const k = galleryIds()[0]; if (k) openItem(k); };
+/* WRIGHT. Compression, then release: the small image in the chip grows from
+   its own place on the deck to fill the stage, and the room opens around it. */
+let chipHold = 0, chipHeld = false;
+function expandFromChip() {
+  try {
+    const src = $("chip").querySelector("img"); if (!src || !src.src) return;
+    const r0 = $("chip").getBoundingClientRect();
+    const fly = document.createElement("img"); fly.src = src.src; fly.id = "fly";
+    Object.assign(fly.style, { left: r0.left + "px", top: r0.top + "px", width: r0.width + "px", height: r0.height + "px" });
+    document.body.appendChild(fly);
+    requestAnimationFrame(() => {
+      const st = $("stage").getBoundingClientRect(); const ar = src.naturalWidth / Math.max(1, src.naturalHeight);
+      let w = st.width, h = w / ar; if (h > st.height) { h = st.height; w = h * ar; }
+      const x = st.left + (st.width - w) / 2, y = st.top + (st.height - h) / 2;
+      fly.style.transform = `translate(${x - r0.left}px, ${y - r0.top}px) scale(${w / r0.width}, ${h / r0.height})`;
+      fly.style.opacity = "1";
+      setTimeout(() => { fly.style.opacity = "0"; setTimeout(() => fly.remove(), 260); }, 460);
+    });
+  } catch (e) {}
+}
+$("chip").addEventListener("pointerdown", () => { chipHeld = false; clearTimeout(chipHold); chipHold = setTimeout(() => { chipHeld = true; haptic(); openContactSheet(); }, 600); });
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => $("chip").addEventListener(ev, () => clearTimeout(chipHold)));
+$("chip").onclick = () => {
+  if (chipHeld) { chipHeld = false; return; }
+  machine("button", 0.16); const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
+};
+/* WESTON. The whole roll on one page: thirty six frames, the roll letter and
+   frame numbers along the rebate, untaken frames blank. Tap a frame to open it. */
+async function openContactSheet() {
+  let sheet = $("contact");
+  if (!sheet) {
+    sheet = document.createElement("div"); sheet.id = "contact";
+    sheet.innerHTML = '<div class="head"><span class="rl"></span><span class="of"></span></div><div class="frames"></div>';
+    sheet.addEventListener("click", e => { if (e.target === sheet || e.target.closest(".head")) sheet.classList.remove("on"); });
+    document.body.appendChild(sheet);
+  }
+  const fr = sheet.querySelector(".frames"); fr.innerHTML = "";
+  const onRoll = {};
+  for (const k of prints) { try { const rf = localStorage["rf" + k] || ""; if (rf && rf[0] === ROLL) onRoll[parseInt(rf.slice(1), 10)] = k; } catch (e) {} }
+  const taken = Object.keys(onRoll).length;
+  sheet.querySelector(".rl").textContent = "ROLL " + ROLL; sheet.querySelector(".of").textContent = taken + " OF " + ROLL_LEN;
+  for (let i = 1; i <= ROLL_LEN; i++) {
+    const cell = document.createElement("div"); cell.className = "cell"; const id = onRoll[i];
+    if (id) { const im = document.createElement("img"); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im); cell.onclick = () => { sheet.classList.remove("on"); openItem(id); }; }
+    const n = document.createElement("b"); n.textContent = ROLL + String(i).padStart(2, "0"); cell.appendChild(n);
+    fr.appendChild(cell);
+  }
+  sheet.classList.add("on");
+}
 
 /* ---------- print view; long-press the print itself to save ---------- */
 let current = null, armedFile = null, watching = null, openTok = 0;
@@ -2861,21 +3003,40 @@ async function openPrint(id) {
    the pan the strip needed. touch-action above asks Safari to hand the pan to
    the scroller; this drives the scroll by hand regardless, and a gesture that
    moved more than a few pixels is not allowed to open a print on release. */
+let chartOrder = false, holdStrip = 0;
 (function stripDrag() {
-  const st = $("strip"); let x0 = 0, sl = 0, dragged = false, down = false;
-  st.addEventListener("pointerdown", e => { down = true; dragged = false; x0 = e.clientX; sl = st.scrollLeft; }, { passive: true });
+  const st = $("strip"); let x0 = 0, sl = 0, dragged = false, down = false, vx = 0, lastX = 0, lastT = 0, coast = 0;
+  st.addEventListener("pointerdown", e => {
+    down = true; dragged = false; x0 = lastX = e.clientX; sl = st.scrollLeft; lastT = performance.now(); vx = 0; cancelAnimationFrame(coast);
+    /* RICHTER: hold the strip still for six tenths of a second and it re-sorts by hue */
+    clearTimeout(holdStrip); holdStrip = setTimeout(() => { if (down && !dragged) { chartOrder = !chartOrder; haptic(); buildStrip(current || watching); } }, 600);
+  }, { passive: true });
   st.addEventListener("pointermove", e => {
     if (!down) return;
-    const dx = e.clientX - x0;
-    if (!dragged && Math.abs(dx) > 6) { dragged = true; st.classList.add("dragging"); }
-    if (dragged) st.scrollLeft = sl - dx;
+    const dx = e.clientX - x0, now = performance.now();
+    if (!dragged && Math.abs(dx) > 6) { dragged = true; st.classList.add("dragging"); clearTimeout(holdStrip); }
+    if (dragged) { st.scrollLeft = sl - dx; const dt = Math.max(1, now - lastT); vx = 0.8 * vx + 0.2 * ((e.clientX - lastX) / dt); lastX = e.clientX; lastT = now; }
   }, { passive: true });
-  const up = () => { down = false; setTimeout(() => { st.classList.remove("dragging"); }, 0); };
+  /* CALDER: let go and the strip coasts, slows, and settles with one soft overshoot */
+  const up = () => {
+    down = false; clearTimeout(holdStrip); setTimeout(() => { st.classList.remove("dragging"); }, 0);
+    if (!dragged || Math.abs(vx) < 0.05) return;
+    let v = -vx * 16, last = performance.now();
+    const step = (t) => {
+      const dt = Math.min(40, t - last); last = t;
+      st.scrollLeft += v * dt / 16; v *= Math.pow(0.93, dt / 16);
+      const max = st.scrollWidth - st.clientWidth;
+      if (st.scrollLeft <= 0 || st.scrollLeft >= max) v *= -0.28;   /* the soft bounce at the ends */
+      if (Math.abs(v) > 0.15) coast = requestAnimationFrame(step);
+    };
+    coast = requestAnimationFrame(step);
+  };
   st.addEventListener("pointerup", up, { passive: true }); st.addEventListener("pointercancel", up, { passive: true });
   /* a click that ends a drag is swallowed before the thumb sees it */
   st.addEventListener("click", e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
 })();
 async function buildStrip(selId) {
+  if (chartOrder) await Promise.all([...prints].filter(k => !unchosen.has(k) && hueOf[k] === undefined).map(hueFor));
   const strip = $("strip");
   const ids = galleryIds().slice(0, 40);
   const keep = new Set(ids);
