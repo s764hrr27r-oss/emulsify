@@ -619,6 +619,46 @@ body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-be
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
+/* ---------- FIFTEEN (b176): alive, caused, opacity/transform only ----------
+   1 the dust drifts and one point is mostly away. 2 the writing and the line
+   warm in the hand. 3 the counter tires near the end of its travel. 4 the hand
+   holding the camera. 6 low light hazes the finder. 7 gold arrives after the
+   silver. 9 the wet negative breathes. 10 the new print dries. 13 an empty
+   chip is an unexposed frame. 15 the shelf drifts. (5, 8, 11, 12, 14 in JS.) */
+@keyframes dustdrift1{from{transform:translate(0,0)}to{transform:translate(3px,-2px)}}
+@keyframes dustdrift2{from{transform:translate(0,0)}to{transform:translate(-2px,3px)}}
+body.cocked #sparkle i:nth-child(1){animation:twinkle 9.3s ease-in-out infinite, dustdrift1 41s ease-in-out infinite alternate}
+body.cocked #sparkle i:nth-child(2){animation:twinkle 11.1s ease-in-out -3.1s infinite, dustdrift2 53s ease-in-out infinite alternate}
+#sparkle i:nth-child(5){display:block;background-image:radial-gradient(circle at 71% 23%, rgba(240,242,246,.9) 0 .5px, transparent 1.1px)}
+body.cocked #sparkle i:nth-child(5){animation:twinkle 41s ease-in-out infinite, dustdrift2 61s ease-in-out infinite alternate}
+body.warmbody #backlcd .seg,body.warmbody #backlcd .lbl{color:#dad4c9;transition:color 90s linear}
+body.warmbody #lockline rect{stroke:rgba(255,236,204,.9);transition:stroke 90s linear}
+#backlcd .seg.tick.heavy{animation-duration:.6s;animation-timing-function:cubic-bezier(.25,.9,.15,1)}
+#backlcd .seg.tick.last{animation-duration:.9s}
+@keyframes handx{from{transform:translateX(0)}to{transform:translateX(.5px)}}
+@keyframes handy{from{transform:translateY(0)}to{transform:translateY(-.5px)}}
+body.cocked #lockline{animation:handx 8s ease-in-out infinite alternate}
+body.cocked #lockline rect{animation:oneline .72s cubic-bezier(.3,.6,.15,1) .12s both, handy 13s ease-in-out infinite alternate}
+#curtains .leak{background:linear-gradient(90deg, var(--lka, rgba(255,214,150,.9)), var(--lkm, rgba(255,246,226,.95)) 50%, var(--lkb, rgba(170,200,255,.85)))}
+#lowbloom{position:absolute;inset:-10%;pointer-events:none;z-index:2;opacity:0;transition:opacity 2.4s var(--ease);mix-blend-mode:screen;
+  background:radial-gradient(ellipse at 50% 46%, rgba(255,188,120,.11), rgba(255,160,90,.045) 46%, transparent 72%)}
+body.dimlight #lowbloom{opacity:1}
+body.sleep #lowbloom{opacity:0}
+body.cocked #below{opacity:.5;transition-delay:.2s}
+@keyframes wet{0%,100%{opacity:.8}50%{opacity:1}}
+#chip.cooking > img:not(.step){animation:wet 4s ease-in-out infinite}
+#stage.wet{overflow:hidden}
+#stage.wet::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(115deg, transparent 38%, rgba(255,255,255,.16) 50%, transparent 62%);animation:sheen .9s cubic-bezier(.4,0,.2,1) .1s both}
+@keyframes sheen{from{transform:translateX(-120%)}to{transform:translateX(120%)}}
+#chip:not(.hasimg):not(.cooking){background-image:
+  repeating-linear-gradient(90deg, transparent 0 5px, rgba(255,255,255,.09) 5px 7px),
+  repeating-linear-gradient(90deg, transparent 0 5px, rgba(255,255,255,.09) 5px 7px);
+  background-size:100% 3px,100% 3px;background-repeat:repeat-x;background-position:0 4px,0 calc(100% - 4px)}
+#chip:not(.hasimg) .play{opacity:0}
+#lastframe{transition:opacity 2.4s cubic-bezier(.4,0,.2,1)}
+@keyframes shelfdrift{from{transform:scale(1)}to{transform:scale(1.015)}}
+body.sleep #lastframe[src]{animation:shelfdrift 20s linear both}
 /* ---------- THE OTHER MARKS SET (b161) ----------
    Quad, spot and cross join the shutter-set state under the same doctrine as
    the grid and the patch: glow drawn into the raster once, breath on a second
@@ -1088,7 +1128,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
   <div id="frame">
     <div id="aura"></div>
     <div id="glass">
-      <div id="screen"><video id="video" autoplay playsinline muted></video><img id="lastframe" alt="" aria-hidden="true"><div id="curtains"><i class="l"></i><i class="r"></i><b class="leak"></b></div></div>
+      <div id="screen"><video id="video" autoplay playsinline muted></video><div id="lowbloom"></div><img id="lastframe" alt="" aria-hidden="true"><div id="curtains"><i class="l"></i><i class="r"></i><b class="leak"></b></div></div>
       <div id="anawarn">
         <svg viewBox="0 0 64 40" width="54" height="34" fill="none"
              stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
@@ -1112,7 +1152,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="bokashi"></div>
       <div id="caustic"><i></i><i></i></div>
       <div id="below"></div>
-      <div id="sparkle"><i></i><i></i><i></i><i></i></div>
+      <div id="sparkle"><i></i><i></i><i></i><i></i><i></i></div>
       <div id="scopes">
         <div class="slot top"></div><div class="slot left"></div><div class="slot right"></div><div class="slot bottom"></div>
       </div>
@@ -1264,7 +1304,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 175;                     /* bump with every ship; lands in EXIF */
+const BUILD = 176;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1488,7 +1528,7 @@ const labDevelop = (buf, seed, fid, full) => {
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
                          build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
                          mm: GLASS.mm,
-                         leak: (frameNo === 1) ? 0.9 : 0,   /* THE LOADING LEAK: frame one of a roll (the counter has already moved) */
+                         leak: leakFor(frameNo),   /* THE LOADING LEAK: frame one of a roll (the counter has already moved); 14: a whisper after a long night */
                          optic: ANA.id === "none" ? "" : ANA.label,
                          tint:  ANA.tint ? ANA.tint.join(",") : "",
                          tintS: ANA.tint ? (ANA.tintS || 0) : 0,
@@ -2185,6 +2225,28 @@ function refusal() {
   } catch (e) {}
 }
 let hum = null;
+/* 8 THE BATH HAS A ROOM TONE (b176). Lucier: while a frame develops the lab is a
+   room that is running - a sine at D2 with its octave, under the shutter hum's
+   level, lowpassed, slow to arrive and slow to leave. Stops with the print. */
+let bathTone = null;
+function bathToneStart() {
+  if (bathTone || silent()) return;
+  try {
+    audioAlive(); const t = AC.currentTime;
+    const out = AC.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(0.0011, t + 1.6);
+    const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 200; lp.Q.value = 0.6;
+    const mk = (f, g) => { const o = AC.createOscillator(), gg = AC.createGain(); o.type = "sine"; o.frequency.value = f; gg.gain.value = g; o.connect(gg); gg.connect(lp); o.start(t); return o; };
+    const a = mk(73.42, 0.6), b = mk(146.83, 0.25);
+    lp.connect(out); out.connect(AC.destination);
+    bathTone = { out, nodes: [a, b] };
+  } catch (e) { bathTone = null; }
+}
+function bathToneStop() {
+  if (!bathTone) return;
+  const h = bathTone; bathTone = null;
+  try { const t = AC.currentTime; h.out.gain.cancelScheduledValues(t); h.out.gain.setValueAtTime(Math.max(h.out.gain.value, 0.0001), t);
+        h.out.gain.exponentialRampToValueAtTime(0.0001, t + 1.2); h.nodes.forEach(n => n.stop(t + 1.3)); } catch (e) {}
+}
 function humStart() {
   if (hum || !cocked || $("print").classList.contains("on")) return;
   try {
@@ -2302,7 +2364,7 @@ function cock(on) {
    speed at you: a 32x32 sample of the live view, mean luminance in linear
    light, expressed on a log scale so it moves a step per stop. Roughly 4 in a
    dim room, 13 in open sun. */
-let lvCanvas = null;
+let lvCanvas = null, sceneRB = 1;              /* 5: the scene's red/blue balance, read with the light */
 function lightValue() {
   const v = $("video");
   if (!v || !v.videoWidth) return null;
@@ -2311,12 +2373,14 @@ function lightValue() {
     const g = lvCanvas.getContext("2d", { willReadFrequently: true });
     g.drawImage(v, 0, 0, 32, 32);
     const d = g.getImageData(0, 0, 32, 32).data;
-    let sum = 0;
+    let sum = 0, rs = 0, bs = 0;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i] / 255, gg = d[i + 1] / 255, b = d[i + 2] / 255;
       const lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-      sum += 0.2126 * lin(r) + 0.7152 * lin(gg) + 0.0722 * lin(b);
+      const lr = lin(r), lb = lin(b); rs += lr; bs += lb;
+      sum += 0.2126 * lr + 0.7152 * lin(gg) + 0.0722 * lb;
     }
+    sceneRB = (rs + 1e-4) / (bs + 1e-4);
     const mean = sum / (d.length / 4);
     return Math.max(0, Math.min(20, Math.round(14 + 2 * Math.log2(Math.max(mean, 1e-4)))));
   } catch (e) { return null; }
@@ -2860,6 +2924,7 @@ function backLCD() {
     const fe = $("lcdframe");
     if (fe.textContent !== String(shown).padStart(3, "0")) {
       fe.textContent = String(shown).padStart(3, "0");
+      fe.classList.toggle("heavy", shown >= 30); fe.classList.toggle("last", shown >= ROLL_LEN);   /* 3: mechanisms tire near the end of their travel */
       fe.classList.remove("tick"); void fe.offsetWidth; fe.classList.add("tick");   /* 5. odometer */
     }
     fe.classList.toggle("late", shown >= 36 - 2);                                   /* 3. last frames */
@@ -2876,6 +2941,7 @@ function backLCD() {
       meterNeedle += (raw - meterNeedle) * k;
     }
     const lv = raw === null ? null : Math.round(meterNeedle);
+    document.body.classList.toggle("dimlight", lv !== null && lv < 4);   /* 6: low light hazes the finder */
     /* the spot cell: dot brightness steps with the needle, smoothed by its CSS transition */
     try { const _sc = $("spot"); if (_sc) _sc.style.setProperty("--cell", raw === null ? ".55" : Math.max(0, Math.min(1, (meterNeedle - 2) / 11)).toFixed(2)); } catch (e) {}
     const lvEl = $("lcdlv"), lvTxt = lv === null ? "--" : String(lv).padStart(2, "0");
@@ -3009,11 +3075,13 @@ function rollOver() {
 function leaderVoice() { machine("lever", 0.30); haptic(); setTimeout(haptic, 90); }   /* the leader seats: the lever, and a double tap */
 /* POWER ON. Every camera with a panel does this: for half a second the
    segments all light, 8 888 88 88, then the real numbers settle in. Once. */
+let nightLeak = false;                        /* 14: the camera was in the bag; light found the leader */
+function leakFor(f) { const n = nightLeak; nightLeak = false; return f === 1 ? 0.9 : (n ? 0.3 : 0); }
 function powerOn() {
   /* OVERNIGHT. Six hours in the bag and the panel takes longer to come up,
      segments flickering as they light. Every launch after that is the quick one. */
   let overnight = false;
-  try { const last = parseInt(localStorage.lastOpen || "0", 10); overnight = !last || Date.now() - last > 6 * 3600 * 1000; localStorage.lastOpen = String(Date.now()); } catch (e) {}
+  try { const last = parseInt(localStorage.lastOpen || "0", 10); overnight = !last || Date.now() - last > 6 * 3600 * 1000; nightLeak = overnight; localStorage.lastOpen = String(Date.now()); } catch (e) {}
   if (overnight) $("backlcd").classList.add("overnight");
   const hold = overnight ? 1500 : 620;
   try {
@@ -3057,13 +3125,15 @@ $("windwrap").addEventListener("pointerdown", () => {
 /* AUTO-OFF. Two minutes untouched and the camera sleeps: finder dims, back
    fades, hum stops. Any touch wakes it. (Restored in b113: it was lost in 107
    when a removal sliced to a shared anchor.) */
-let sleepTimer = 0, asleep = false, shelfTimer = 0;
+let sleepTimer = 0, asleep = false, shelfTimer = 0, warmTimer = 0, lastLanded = { id: null, t: 0 };
 function wake() {
   if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); warmUp();
     document.body.classList.add("scan"); setTimeout(() => document.body.classList.remove("scan"), 700); }
   clearTimeout(sleepTimer);
+  if (!warmTimer) warmTimer = setTimeout(() => document.body.classList.add("warmbody"), 240000);   /* 2: four minutes in the hand */
   sleepTimer = setTimeout(() => {
     asleep = true; humStop();
+    clearTimeout(warmTimer); warmTimer = 0; document.body.classList.remove("warmbody");   /* 2: it cools on the table */
     try { const im = $("chip").querySelector("img"); if (im && im.src) $("lastframe").src = im.src; } catch (e) {}
     document.body.classList.add("sleep");
     /* THE SHELF: every twenty seconds the next print, under the same light */
@@ -3073,13 +3143,13 @@ function wake() {
       const ids = galleryIds(); if (ids.length < 2) return;
       idx = (idx + 1) % ids.length; const u = await thumbURL(ids[idx]); if (!u) return;
       const lf = $("lastframe"); lf.style.opacity = "0";
-      setTimeout(() => { lf.src = u; lf.style.opacity = ""; }, 1600);
+      setTimeout(() => { lf.src = u; lf.style.animation = "none"; void lf.offsetWidth; lf.style.animation = ""; lf.style.opacity = ""; }, 2400);   /* 15: each print drifts anew */
     }, 20000);
   }, 120000);
 }
 ["pointerdown", "keydown", "touchstart"].forEach(ev => addEventListener(ev, wake, { passive: true, capture: true }));
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { humStop(); clearTimeout(sleepTimer); }
+  if (document.hidden) { humStop(); bathToneStop(); clearTimeout(sleepTimer); }
   else { wake(); backLCD(); try { localStorage.lastOpen = String(Date.now()); } catch (e) {}
     if (cocked && !hum) setTimeout(humStart, 300); }
 });
@@ -3114,6 +3184,11 @@ function release() {                        /* the frame is taken: let go */
        they part: the field settles in from a hair too close over 1.1 s, and
        the instruments wake one after another behind it. One continuous reveal. */
     body.classList.add("reentry");
+    /* 5 THE ROOM DECIDES THE LEAK: tungsten rooms leak amber, daylight leaks cyan */
+    try { const c = $("curtains"), warm = sceneRB > 1.35, cool = sceneRB < 0.92;
+      c.style.setProperty("--lka", warm ? "rgba(255,190,110,.95)" : cool ? "rgba(200,225,255,.85)" : "rgba(255,214,150,.9)");
+      c.style.setProperty("--lkm", warm ? "rgba(255,226,180,.95)" : cool ? "rgba(236,246,255,.95)" : "rgba(255,246,226,.95)");
+      c.style.setProperty("--lkb", warm ? "rgba(255,160,90,.85)"  : cool ? "rgba(150,190,255,.9)"  : "rgba(170,200,255,.85)"); } catch (e) {}
     body.classList.remove("curtain");
     setTimeout(() => { warmUp(); scopeLoop(); }, 90);
     setTimeout(() => body.classList.remove("reentry"), 1300);
@@ -3203,7 +3278,7 @@ async function cook(c, voice, full) {
   if (!blob) { flagError("NEGATIVE FAILED"); c.width = c.height = 0; return; }   /* toBlob can hand back null under memory pressure */
   if (voice) { lastNeg = blob; }              /* the double's memory: the same bytes, no second encode */
   c.width = c.height = 0;
-  pending++; cooking.add(id); labStage = ""; paintWind();
+  pending++; cooking.add(id); labStage = ""; paintWind(); if (pending === 1) bathToneStart();
   try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
   try {
     labAwake(true);
@@ -3218,7 +3293,8 @@ async function cook(c, voice, full) {
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
   pending--; if (pending <= 0) labAwake(false);
-  paintWind();
+  paintWind(); if (pending <= 0) bathToneStop();
+  lastLanded = { id, t: Date.now() };                                     /* 10: the newest print, still wet */
   paintChip();
   if (wasWatched && $("print").classList.contains("on")) openPrint(id);
   else if ($("print").classList.contains("on")) buildStrip(watching || current);
@@ -3372,6 +3448,10 @@ async function hueFor(id) {                     /* the print's dominant hue, fro
     return (hueOf[id] = (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360);
   } catch (e) { return (hueOf[id] = 0); }
 }
+/* 11 THE ROLL REMEMBERS THE HOUR (b176). Sugimoto: a print's thumb carries an
+   almost invisible tint from the hour it was taken - the id is that moment. */
+const hourTint = id => { const n = Number(id); if (!n) return ""; const h = new Date(n).getHours();
+  return (h >= 5 && h < 9) ? "hue-rotate(-4deg) saturate(.97)" : (h >= 17 && h < 21) ? "sepia(.07)" : (h >= 21 || h < 5) ? "brightness(.97) hue-rotate(-3deg)" : ""; };
 const galleryIds = () => {
   const done = [...prints].reverse().filter(k => !unchosen.has(k));
   if (chartOrder) done.sort((a, b) => (hueOf[a] || 0) - (hueOf[b] || 0));   /* RICHTER: the roll as a colour chart */
@@ -3386,6 +3466,7 @@ async function paintChip() {
   const dot = chip.querySelector(".dot");
   if (dot) dot.classList.toggle("brew", !!cook);
   const u = cook ? (cookThumbs.get(cook) || null) : (id ? await thumbURL(id) : null);
+  chip.classList.toggle("hasimg", !!u || !!cook);   /* 13: without one, the chip is an unexposed frame */
   let sc = chip.querySelector(".scrim");
   if (cook && !sc) { sc = document.createElement("i"); sc.className = "scrim";
                      chip.insertBefore(sc, dot); }
@@ -3490,7 +3571,7 @@ async function openContactSheet(roll) {
   sheet.querySelector(".of").textContent = taken + " OF " + ROLL_LEN;
   for (let i = 1; i <= ROLL_LEN; i++) {
     const cell = document.createElement("div"); cell.className = "cell"; const id = onRoll[i];
-    if (id) { const im = document.createElement("img"); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im);
+    if (id) { const im = document.createElement("img"); im.style.filter = hourTint(id); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im);
       cell.onclick = () => { fromSheet = contactRoll; sheet.classList.remove("on"); openItem(id); }; }
     const n = document.createElement("b"); n.textContent = contactRoll + String(i).padStart(2, "0"); cell.appendChild(n);
     cell.style.animationDelay = (i * 16) + "ms";                        /* KUSAMA: a wave across the grid */
@@ -3557,6 +3638,7 @@ async function openPrint(id) {
       const fimg = document.createElement("img");
       fimg.className = "in"; fimg.src = u;
       stage.appendChild(fimg);
+      if (first) { stage.classList.add("wet"); setTimeout(() => stage.classList.remove("wet"), 1600); }   /* 10: it dries, once */
       bath.remove(); if (nimg) nimg.remove();
     }, (first && !slow) ? 2600 : 900);
   }
@@ -3594,10 +3676,11 @@ let chartOrder = false, holdStrip = 0;
     let v = -vx * 16, last = performance.now();
     const step = (t) => {
       const dt = Math.min(40, t - last); last = t;
-      st.scrollLeft += v * dt / 16; v *= Math.pow(0.93, dt / 16);
+      /* 12: more mass, softer stop - the drag eases as the spool slows */
+      st.scrollLeft += v * dt / 16; v *= Math.pow(0.955 + 0.02 * (1 - Math.min(1, Math.abs(v) / 24)), dt / 16);
       const max = st.scrollWidth - st.clientWidth;
-      if (st.scrollLeft <= 0 || st.scrollLeft >= max) v *= -0.28;   /* the soft bounce at the ends */
-      if (Math.abs(v) > 0.15) coast = requestAnimationFrame(step);
+      if (st.scrollLeft <= 0 || st.scrollLeft >= max) v *= -0.22;   /* the soft bounce at the ends */
+      if (Math.abs(v) > 0.08) coast = requestAnimationFrame(step);
     };
     coast = requestAnimationFrame(step);
   };
