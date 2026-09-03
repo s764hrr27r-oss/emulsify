@@ -1258,7 +1258,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 172;                     /* bump with every ship; lands in EXIF */
+const BUILD = 174;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1786,6 +1786,27 @@ function closeServiceMenu() {
    the panel is also its hatch. Behind it: the instruments, the lab by hand,
    the log when there is one, the updates. Repainted on every opening so the
    log and the update state are never stale. */
+function showReport(text) {              /* the log box, for any text that needs reading */
+  let box = $("lablog");
+  if (!box) { box = document.createElement("pre"); box.id = "lablog"; box.onclick = e => { if (e.target === box) box.classList.remove("on"); }; document.body.appendChild(box); }
+  box.textContent = text + "\n\n(tap the dark edge to close)"; box.classList.add("on");
+}
+/* LAYOUT REPORT (b173): where every deck control actually is, what it holds,
+   and which body states are live - for the bug where a button appears to
+   become another. Read it when it happens; the code alone could not find it. */
+function layoutReport() {
+  const r = id => { const e = $(id); if (!e) return id + ": missing";
+    const b = e.getBoundingClientRect();
+    return id.padEnd(12) + Math.round(b.left) + "," + Math.round(b.top) + "  " + Math.round(b.width) + "x" + Math.round(b.height) +
+      "  cls=" + JSON.stringify(e.className) + "  text=" + JSON.stringify((e.textContent || "").trim().slice(0, 24)) + "  kids=" + e.childElementCount; };
+  const dk = document.querySelector(".deck"), cs = dk ? getComputedStyle(dk) : null;
+  return ["LAYOUT REPORT  b" + BUILD + "  " + new Date().toISOString(),
+    "viewport " + innerWidth + "x" + innerHeight + "  " + (matchMedia("(orientation: landscape)").matches ? "landscape" : "portrait") + "  angle=" + turnAngle(),
+    "body: " + JSON.stringify(document.body.className),
+    "deck: display=" + (cs && cs.display) + "  cols=" + (cs && cs.gridTemplateColumns) + "  rows=" + (cs && cs.gridTemplateRows),
+    r("windwrap"), r("chips"), r("chip"), r("ana"), r("shutterwrap"), r("rightstack"), r("finder"), r("lens"), r("lastframe"),
+    "print.on=" + $("print").classList.contains("on") + "  asleep=" + asleep + "  pending=" + pending + "  FINDER=" + FINDER + "  GLASS=" + JSON.stringify(GLASS)].join("\n");
+}
 function paintServiceMenu() {
   const m = $("servicemenu"); m.innerHTML = "";
   const ib = document.createElement("button"); ib.textContent = "INSTRUMENTS \u2026";
@@ -1796,14 +1817,12 @@ function paintServiceMenu() {
   m.appendChild(ib);
   if (labLog) {
     const lg = document.createElement("button"); lg.textContent = "LAB LOG"; lg.style.color = "#e0a050";
-    lg.onclick = () => {
-      closeServiceMenu();
-      let box = $("lablog");
-      if (!box) { box = document.createElement("pre"); box.id = "lablog"; box.onclick = e => { if (e.target === box) box.classList.remove("on"); }; document.body.appendChild(box); }
-      box.textContent = labLog + "\n\n(tap the dark edge to close)"; box.classList.add("on");
-    };
+    lg.onclick = () => { closeServiceMenu(); showReport(labLog); };
     m.appendChild(lg);
   }
+  const ly = document.createElement("button"); ly.textContent = "LAYOUT REPORT"; ly.style.color = "var(--mute)";
+  ly.onclick = () => { machine("click", 0.18); closeServiceMenu(); try { showReport(layoutReport()); } catch (e) { showReport("LAYOUT REPORT failed: " + e); } };
+  m.appendChild(ly);
   const lb = document.createElement("button"); lb.textContent = "RESTART LAB";
   lb.style.color = "var(--mute)";
   const lsw = document.createElement("input"); lsw.type = "checkbox"; lsw.setAttribute("switch", ""); lsw.className = "hapov"; lsw.tabIndex = -1;
@@ -1928,13 +1947,19 @@ function clickBuffer(name) {
   for (let i = 0; i < n; i++) { let v = bin.charCodeAt(i * 2) | (bin.charCodeAt(i * 2 + 1) << 8); if (v & 0x8000) v -= 0x10000; d[i] = v / 32768; }
   return (clickBufs[name] = buf);
 }
-function machine(name, gain) {
+function machine(name, gain, soft) {
+  /* soft (b174): a lowpass corner in Hz. The gallery's button sample carried
+     41% of its energy above 3 kHz - abrasive at any gain; at 1600 Hz it keeps
+     10% and reads as a felt-lined button rather than a bare one. Gains only
+     ever go down in this house. */
   if (silent()) return;
   try {
     audioAlive(); const cold = AC.state !== "running";
     const src = AC.createBufferSource(); src.buffer = clickBuffer(name);
     const g = AC.createGain(); g.gain.value = gain;
-    src.connect(g); g.connect(roomIn()); src.start(AC.currentTime + (cold ? 0.05 : 0.001));
+    let tail = g;
+    if (soft) { const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = soft; lp.Q.value = 0.7; g.connect(lp); tail = lp; }
+    src.connect(g); tail.connect(roomIn()); src.start(AC.currentTime + (cold ? 0.05 : 0.001));
   } catch (e) {}
 }
 const SHUTTER_SR = 24000;
@@ -3350,7 +3375,7 @@ $("chip").addEventListener("pointerdown", () => { chipHeld = false; clearTimeout
 ["pointerup", "pointercancel", "pointerleave"].forEach(ev => $("chip").addEventListener(ev, () => clearTimeout(chipHold)));
 $("chip").onclick = () => {
   if (chipHeld) { chipHeld = false; return; }
-  machine("button", 0.16); fromSheet = null; const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
+  machine("button", 0.09, 1600); fromSheet = null; const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
 };
 /* WESTON. The rolls, one page each: thirty six frames, the roll letter and
    frame numbers along the rebate, untaken frames blank. Every roll that has a
@@ -3367,8 +3392,8 @@ async function openContactSheet(roll) {
   if (!sheet) {
     sheet = document.createElement("div"); sheet.id = "contact";
     sheet.innerHTML = '<div class="head"><button class="close">CLOSE</button><div class="tabs"></div><span class="of"></span><button class="share">SHARE</button></div><div class="frames"></div>';
-    sheet.querySelector(".close").onclick = () => { machine("button", 0.16); haptic(); sheet.classList.remove("on"); };
-    sheet.querySelector(".share").onclick = () => { machine("button", 0.16); haptic(); shareRoll(contactRoll); };
+    sheet.querySelector(".close").onclick = () => { machine("button", 0.09, 1600); haptic(); sheet.classList.remove("on"); };
+    sheet.querySelector(".share").onclick = () => { machine("button", 0.09, 1600); haptic(); shareRoll(contactRoll); };
     /* a swipe changes roll */
     let sx = 0, sy = 0;
     sheet.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; }, { passive: true });
@@ -3587,7 +3612,7 @@ function paintWatched() {              /* a new stage landed while watching */
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
   }, 2600);
 }
-$("back").onclick = () => { machine("button", 0.16); $("print").classList.remove("on");
+$("back").onclick = () => { machine("button", 0.09, 1600); $("print").classList.remove("on");
   if (fromSheet) { const r = fromSheet; fromSheet = null; setTimeout(() => openContactSheet(r), 60); }   /* came from the rolls: return to them */ setPaged(false); if (cocked) humStart();
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
