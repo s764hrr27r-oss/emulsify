@@ -1349,7 +1349,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 180;                     /* bump with every ship; lands in EXIF */
+const BUILD = 181;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1517,6 +1517,7 @@ function haptic() { try { $("hapx").click(); } catch (e) {} }
    wider than the gate, and a frame-sized glow stood fully exposed in the
    margins. Pin it to the glass's rectangle, bleeding 14% past each side. */
 function fitAura() {
+  if (document.body.classList.contains("turning")) return;   /* b181: never measure a body mid-turn; the turn refits when it settles */
   try {
     const g = $("glass").getBoundingClientRect(), f = $("frame").getBoundingClientRect(), a = $("aura");
     if (!g.width || !g.height) return;
@@ -2084,6 +2085,7 @@ function turnChoreo() {
   }, 260);
   turning = setTimeout(() => {                               /* 4 5 20: the detent, the note, the lean */
     body.classList.remove("turning");
+    try { fitAura(); fitAndVerify(); alignDeck(); } catch (e) {}   /* b181: the body is still - now measure it */
     machine("lever", 0.012); haptic();                     /* b180: the turn at a tenth of its voice */
     try { galleryNote(matchMedia("(orientation: landscape)").matches ? 5 : 0, 0.006, true); } catch (e) {}
     try { const aw = $("anawarn"); if (aw && getComputedStyle(aw).display !== "none") { aw.classList.remove("lean"); void aw.offsetWidth; aw.classList.add("lean"); } } catch (e) {}
@@ -2695,7 +2697,7 @@ function verifyScopes(pass) {
   }
   if (bad && pass < 3) requestAnimationFrame(() => verifyScopes(pass + 1));
 }
-const fitAndVerify = () => { fitScopes(); requestAnimationFrame(() => verifyScopes(0)); };
+const fitAndVerify = () => { if (document.body.classList.contains("turning")) return; fitScopes(); requestAnimationFrame(() => verifyScopes(0)); };   /* b181: same rule */
 addEventListener("resize", fitAndVerify); addEventListener("orientationchange", () => setTimeout(fitAndVerify, 140));
 /* the glass's real size, whenever it changes, is what positions the slots: a
    ResizeObserver means no card is ever laid out against a stale or zero size,
