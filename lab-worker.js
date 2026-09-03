@@ -654,7 +654,7 @@ _DC_EV, _DC_RATIO, _DC_SEED = 1.2, 0.56, 4242
 # carries a faint magenta. Strictly the last pass: applied in linear light at
 # each of the three points where a print is encoded, after every other law, so
 # nothing upstream sees it and the chemistry is unchanged.
-_STOCK_M = 0.050                        # NB: _TINT is the per-lens tint, set per job - do not reuse that name
+_STOCK_M = 0.070                        # NB: _TINT is the per-lens tint, set per job - do not reuse that name
 def _stock_tint(lin):
     g = np.array([1.0 + 0.5*_STOCK_M, 1.0 - _STOCK_M, 1.0 + 0.5*_STOCK_M])
     return np.clip(np.asarray(lin, dtype=np.float64) * g[None, None, :], 0.0, 1.0)
