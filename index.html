@@ -74,7 +74,7 @@ body.cocked #backlcd #lcdframe.late{color:#f0b060}
 @keyframes segflicker{0%{opacity:0}6%{opacity:.7}9%{opacity:.1}14%{opacity:.8}17%{opacity:.2}24%{opacity:.85}27%{opacity:.35}36%{opacity:.85}40%{opacity:.5}52%{opacity:.85}58%{opacity:.7}100%{opacity:.85}}
 /* on the narrowest portrait widths the build yields before anything wraps */
 @media (max-width: 420px) and (orientation: portrait){ #backlcd .build:not(.ready){display:none} }
-#backlcd .build.ready{display:inline !important}
+#backlcd .build.ready{display:inline !important;white-space:normal;line-height:1.1;font-size:7px}
 body.cocked #backlcd .state{color:var(--ready);opacity:1}
 body.cocked #backlcd{border-color:rgba(229,180,90,.45)}
 #frame{flex:1;display:grid;place-items:center;min-height:0;padding:0 0 6px;position:relative}
@@ -1094,7 +1094,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 155;                     /* bump with every ship; lands in EXIF */
+const BUILD = 156;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1114,7 +1114,7 @@ if ("serviceWorker" in navigator) {
    boot failure, errors, or says nothing for ninety seconds, the CDN cache is
    purged (a corrupted cached Pyodide is the usual cause) and it is respawned
    once; every waiting develop is failed cleanly so the shutter is never dead. */
-let worker = null, labBootTimer = 0, labRespawns = 0, labState = "";
+let worker = null, labBootTimer = 0, labRespawns = 0, labState = "", labLastError = "";
 function labNote(t) { labState = t || ""; try { backLCD(); } catch (e) {} }
 async function purgeCDN() {
   try { if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage("purge-cdn"); } catch (e) {}
@@ -1126,14 +1126,25 @@ function failAllWaits(why) {
 }
 async function labFailed(why) {
   clearTimeout(labBootTimer);
+  labLastError = String(why || "").replace(/^LAB (BOOT|ERROR|SILENT):?\s*/i, "");
   failAllWaits(why);
-  if (labRespawns < 1) { labRespawns++; labNote("LAB RESET"); await purgeCDN(); try { worker.terminate(); } catch (e) {} setTimeout(spawnWorker, 400); }
-  else { labNote("LAB FAILED"); try { flashState("LAB FAILED"); } catch (e) {} }
+  /* three tries with a growing pause; the CDN cache is purged before the first
+     retry. After that the badge carries the error text itself, because the
+     words are the diagnosis. */
+  if (labRespawns < 3) {
+    labRespawns++; labNote("LAB RESET " + labRespawns);
+    if (labRespawns === 1) await purgeCDN();
+    try { worker.terminate(); } catch (e) {}
+    setTimeout(spawnWorker, 400 * labRespawns);
+  } else {
+    labNote("LAB FAILED: " + (labLastError || "no detail").slice(0, 60).toUpperCase());
+    try { flashState("LAB FAILED"); } catch (e) {}
+  }
 }
 function spawnWorker() {
   worker = new Worker("lab-worker.js?v=" + BUILD + "&r=" + labRespawns);
   worker.onmessage = onLabMessage;
-  worker.onerror = e => { labFailed("LAB ERROR"); };
+  worker.onerror = e => { labFailed("LAB ERROR: " + ((e && (e.message || e.filename)) || "script failed to load")); };
   labNote("LAB LOADING");
   clearTimeout(labBootTimer);
   labBootTimer = setTimeout(() => { if (!workerVer) labFailed("LAB SILENT"); }, 90000);
@@ -1228,6 +1239,20 @@ addEventListener("visibilitychange", () => {   /* iOS drops it on return */
 });
 const jobFrame = new Map();
 let workerVer = "", silentUntil = 0;
+/* AUDIO, KEPT ALIVE. iOS suspends the AudioContext on a phone call, Siri,
+   another app's audio, or a trip to the background, and reports the state as
+   "interrupted" or "suspended". It only resumes inside a user gesture. Every
+   voice checked only for "suspended"; this checks for anything but running,
+   and every touch on the page is a chance to bring it back. */
+function audioAlive() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state !== "running") AC.resume().catch(() => {});
+    return AC;
+  } catch (e) { return null; }
+}
+addEventListener("pointerdown", () => { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }, { passive: true, capture: true });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && AC && AC.state !== "running") AC.resume().catch(() => {}); });
 try { if (localStorage.night === "1") document.body.classList.add("night"); } catch (e) {}
 const silent = () => performance.now() < silentUntil;
 /* HAPTIC. iOS plays a Taptic when a switch is toggled inside a user input
@@ -1259,7 +1284,7 @@ const onLabMessage = e => {
     if (e.data.ver) { workerVer = e.data.ver; }
     labNote(""); sizeFromProbe(e.data.probe); return;
   }
-  if (e.data.bootError) { labFailed("LAB BOOT: " + String(e.data.bootError).slice(0, 40)); return; }
+  if (e.data.bootError) { labFailed("LAB BOOT: " + String(e.data.bootError).slice(0, 120)); return; }
   if (e.data.progress) { labNote("LAB " + String(e.data.progress).toUpperCase().replace(/…/g, "")); return; }
   if (e.data.stage) {                 /* the bath, live: the negative forms */
     const f = jobFrame.get(id);
@@ -1497,8 +1522,7 @@ const EV = { v: 0 };
 function evTick(zero) {
   if (silent()) return;
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
+    audioAlive();
     const t = AC.currentTime, sr = AC.sampleRate, L = Math.ceil(0.0025 * sr);
     const b = AC.createBuffer(1, L, sr), d = b.getChannelData(0);
     for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 1.5);
@@ -1734,8 +1758,7 @@ function clickBuffer(name) {
 function machine(name, gain) {
   if (silent()) return;
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    const cold = AC.state === "suspended"; if (cold) AC.resume();
+    audioAlive(); const cold = AC.state !== "running";
     const src = AC.createBufferSource(); src.buffer = clickBuffer(name);
     const g = AC.createGain(); g.gain.value = gain;
     src.connect(g); g.connect(roomIn()); src.start(AC.currentTime + (cold ? 0.05 : 0.001));
@@ -1771,9 +1794,7 @@ function windBuffer() {
 }
 function windVoice() {
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    const cold = AC.state === "suspended";
-    if (cold) AC.resume();
+    audioAlive(); const cold = AC.state !== "running";
     const src = AC.createBufferSource();
     src.buffer = windBuffer();
     src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.03;   /* a lever, not a recording */
@@ -1789,8 +1810,7 @@ function windVoice() {
 const EGYPT = [0, 2, 5, 7, 10];
 function galleryNote(i, gain, dry) {
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
+    audioAlive();
     /* the strip walks the scale up for seven frames and back down for five,
        a twelve-frame rise and fall that cycles, so a long roll never climbs
        out of the register that sounds like this camera. Degrees 0..6 span
@@ -1825,7 +1845,7 @@ function galleryNote(i, gain, dry) {
 let room = null;
 function roomIn() {                                  /* returns a node to connect a source to */
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    audioAlive();
     if (!room) {
       const inp = AC.createGain(), wet = AC.createGain(), dry = AC.createGain();
       wet.gain.value = 0; dry.gain.value = 1;
@@ -1886,8 +1906,7 @@ function droneStop(cut) {
 function refusal() {
   if (silent()) return;
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
+    audioAlive();
     const t = AC.currentTime + 0.005, o = AC.createOscillator(), g = AC.createGain(), lp = AC.createBiquadFilter();
     o.type = "triangle"; o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(92, t + 0.09);
     lp.type = "lowpass"; lp.frequency.value = 420;
@@ -1899,8 +1918,7 @@ let hum = null;
 function humStart() {
   if (hum || !cocked || $("print").classList.contains("on")) return;
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
+    audioAlive();
     const t = AC.currentTime;
     const out = AC.createGain(); out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(0.0022, t + 1.4);   /* ear-to-the-body quiet */
@@ -1934,9 +1952,7 @@ function humStop(cut) {
 }
 function shutterVoice() {
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    const cold = AC.state === "suspended";
-    if (cold) AC.resume();
+    audioAlive(); const cold = AC.state !== "running";
     const src = AC.createBufferSource();
     src.buffer = shutterBuffer();
     /* a slow shutter is a longer, lower kachunk. Ride the scene light: a dim
@@ -2599,15 +2615,14 @@ function backLCD() {
     }
     const bt = $("lcdbuild");
     if (pendingBuild) { bt.textContent = "b" + pendingBuild + " READY"; bt.classList.add("ready"); }
-    else { bt.textContent = labState ? labState : ("b" + BUILD + (workerVer ? " w" + workerVer : "")); bt.classList.toggle("ready", !!labState && labState !== "LAB FAILED"); }
+    else { bt.textContent = labState ? labState : ("b" + BUILD + (workerVer ? " w" + workerVer : "")); bt.classList.toggle("ready", !!labState); }
   } catch (e) {}
 }
 let frameNo = 0, ROLL = "A", lastLV = 8, meterNeedle = 8, lightBand = null, lastLightClick = 0, glintTimer = 0;
 function lightTick() {
   if (silent()) return;
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
+    audioAlive();
     const t = AC.currentTime, sr = AC.sampleRate, L = Math.ceil(0.0025 * sr);
     const b = AC.createBuffer(1, L, sr), d = b.getChannelData(0);
     for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 1.5);
@@ -2635,8 +2650,7 @@ function rewindVoice() {
      a little breath over it, a slow wobble in its level, and a low stop at the
      end. Quiet: a thing happening inside a closed camera. */
   try {
-    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-    if (AC.state === "suspended") AC.resume();
+    audioAlive();
     const t0 = AC.currentTime + 0.02, dur = 1.6, sr = AC.sampleRate, n = Math.ceil(dur * sr);
     const b = AC.createBuffer(1, n, sr), d = b.getChannelData(0);
     let ph = 0, wb = 0;
@@ -2756,7 +2770,8 @@ function wake() {
 ["pointerdown", "keydown", "touchstart"].forEach(ev => addEventListener(ev, wake, { passive: true, capture: true }));
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) { humStop(); clearTimeout(sleepTimer); }
-  else { wake(); backLCD(); try { localStorage.lastOpen = String(Date.now()); } catch (e) {} }
+  else { wake(); backLCD(); try { localStorage.lastOpen = String(Date.now()); } catch (e) {}
+    if (cocked && !hum) setTimeout(humStart, 300); }
 });
 wake();
 /* NAUMAN. Every fifteen to forty seconds while set, the READY tube dips for
