@@ -669,6 +669,9 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 #chip .scrim{position:absolute;inset:0;background:rgba(10,10,10,.45)}
 #fly{position:fixed;z-index:80;object-fit:cover;border-radius:5px;pointer-events:none;transform-origin:0 0;opacity:.95;
      transition:transform .46s cubic-bezier(.2,.75,.2,1), opacity .26s var(--ease)}
+#lablog{position:fixed;inset:0;z-index:90;display:none;margin:0;padding:calc(env(safe-area-inset-top) + 24px) 18px 40px;background:rgba(5,5,6,.97);
+  color:#d1d5dd;font:11px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;overflow:auto;-webkit-user-select:text;user-select:text}
+#lablog.on{display:block}
 #contact{position:fixed;inset:0;z-index:70;background:#050506;display:none;flex-direction:column;
   padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 16px)}
 #contact.on{display:flex}
@@ -1094,7 +1097,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 156;                     /* bump with every ship; lands in EXIF */
+const BUILD = 157;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1114,7 +1117,7 @@ if ("serviceWorker" in navigator) {
    boot failure, errors, or says nothing for ninety seconds, the CDN cache is
    purged (a corrupted cached Pyodide is the usual cause) and it is respawned
    once; every waiting develop is failed cleanly so the shutter is never dead. */
-let worker = null, labBootTimer = 0, labRespawns = 0, labState = "", labLastError = "";
+let worker = null, labBootTimer = 0, labRespawns = 0, labState = "", labLastError = "", labLog = "";
 function labNote(t) { labState = t || ""; try { backLCD(); } catch (e) {} }
 async function purgeCDN() {
   try { if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage("purge-cdn"); } catch (e) {}
@@ -1137,7 +1140,7 @@ async function labFailed(why) {
     try { worker.terminate(); } catch (e) {}
     setTimeout(spawnWorker, 400 * labRespawns);
   } else {
-    labNote("LAB FAILED: " + (labLastError || "no detail").slice(0, 60).toUpperCase());
+    labNote("LAB FAILED: " + (labLastError || "no detail").slice(0, 90));
     try { flashState("LAB FAILED"); } catch (e) {}
   }
 }
@@ -1284,7 +1287,7 @@ const onLabMessage = e => {
     if (e.data.ver) { workerVer = e.data.ver; }
     labNote(""); sizeFromProbe(e.data.probe); return;
   }
-  if (e.data.bootError) { labFailed("LAB BOOT: " + String(e.data.bootError).slice(0, 120)); return; }
+  if (e.data.bootError) { labLog = String(e.data.bootError); const lines = labLog.trim().split("\n"); labFailed("LAB BOOT: " + lines[lines.length - 1].slice(0, 90)); return; }
   if (e.data.progress) { labNote("LAB " + String(e.data.progress).toUpperCase().replace(/…/g, "")); return; }
   if (e.data.stage) {                 /* the bath, live: the negative forms */
     const f = jobFrame.get(id);
@@ -1626,6 +1629,17 @@ function paintFinderMenu() {
   nb.appendChild(nsw);
   nb.onclick = () => { machine("click", 0.18); closeFinderMenu(); const on = document.body.classList.toggle("night"); try { localStorage.night = on ? "1" : ""; } catch (e) {} paintFinderMenu(); };
   m.appendChild(nb);
+  /* the lab's log: the full text of the last failure, selectable */
+  if (labLog) {
+    const lg = document.createElement("button"); lg.textContent = "LAB LOG"; lg.style.color = "#e0a050";
+    lg.onclick = () => {
+      closeFinderMenu();
+      let box = $("lablog");
+      if (!box) { box = document.createElement("pre"); box.id = "lablog"; box.onclick = e => { if (e.target === box) box.classList.remove("on"); }; document.body.appendChild(box); }
+      box.textContent = labLog + "\n\n(tap the dark edge to close)"; box.classList.add("on");
+    };
+    m.appendChild(lg);
+  }
   /* the lab, by hand: purge the chemistry cache and respawn the worker */
   const lb = document.createElement("button"); lb.textContent = "RESTART LAB";
   lb.style.color = "var(--mute)";
