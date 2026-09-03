@@ -1061,6 +1061,9 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
     padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(90deg, transparent, rgba(10,10,10,.55))}
   #strip{flex-direction:column;overflow-y:auto;overflow-x:hidden;max-width:none;max-height:100%;padding:22px 0;touch-action:pan-y;align-items:center}
   #stage{margin:0 calc(110px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left))}
+  /* b183: the strip hangs on the side the phone's bottom edge is on, like the deck */
+  body.flip #print .foot{right:auto;left:0;background:linear-gradient(270deg, transparent, rgba(10,10,10,.55))}
+  body.flip #stage{margin:0 calc(16px + env(safe-area-inset-right)) 0 calc(110px + env(safe-area-inset-left))}
   #print .bar{position:absolute;top:0;left:0;right:0;z-index:2;
               padding:calc(6px + env(safe-area-inset-top)) 14px 6px}
 }
@@ -1350,7 +1353,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 182;                     /* bump with every ship; lands in EXIF */
+const BUILD = 183;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
