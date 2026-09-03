@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.12";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.13";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -544,6 +544,17 @@ def _post_stage(tag, arr8):
         js.postStage(tag, _b64.b64encode(b.getvalue()).decode())
     except Exception:
         pass
+def _note(tag):
+    # w3.13: a stage note without a picture, on the same channel as the bath
+    # thumbnail. The page reads it onto the wind capsule while a frame is in
+    # the bath. Never allowed to break a develop; silent where there is no js.
+    if _DC_INNER[0]:
+        return
+    try:
+        import js
+        js.postStage(tag, "")
+    except Exception:
+        pass
 def _stage_thumb(a):
     h, w = a.shape[:2]; sc = 140.0 / max(h, w)
     im = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8))
@@ -646,6 +657,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     globals()["_RUNG_NOW"] = int(long_edge)
     globals()["_PROF_NOW"] = str(profile or "honey")
     globals()["_SHOT_NOW"] = _shot_settings(neg_bytes)
+    _note("load")
     try:
         _sx = Image.open(io.BytesIO(bytes(neg_bytes)))._getexif() or {}
         _iso = _sx.get(0x8827)
@@ -666,6 +678,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         cap["lin"] = np.asarray(r, dtype=np.float32)
         return r
     globals()["_dodge"] = _cap
+    _note("slow")
     try:
         slow = _canon_develop_v22(neg_bytes, profile, seed, long_edge)
     finally:
@@ -674,6 +687,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     fast = None
     if _DC_ON:
         ev0 = float(globals().get("_EV_BIAS", 0.0) or 0.0)
+        _note("fast")
         try:
             globals()["_EV_BIAS"] = ev0 + _DC_EV
             _DC_INNER[0] = True
@@ -691,6 +705,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
             return slow
         Ls = np.asarray(Ls, dtype=np.float64)
         cap.clear()
+        _note("match")
         if fast is None:
             Lf = None
         else:
@@ -725,6 +740,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
                 pass
         img = Image.fromarray((E.linear_to_srgb(np.clip(Ls, 0, 1))*255).astype(np.uint8))
         img = _desqueeze(img)
+        _note("print")
         secs = float(slow.get("secs", 0)) + float(fast.get("secs", 0)) or 0.01
         buf = io.BytesIO()
         try:

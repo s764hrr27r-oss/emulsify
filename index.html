@@ -492,6 +492,13 @@ body.rewinding #wind .perf{animation:filmback .5s linear infinite;transition:non
 #wind b::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;flex:0 0 auto}
 /* set: the words go emerald and breathe. Opacity only; the glow is static. */
 body.cocked #wind b{color:#2fd68c;opacity:1;text-shadow:0 0 8px rgba(47,214,140,.35);animation:readypulse 2.2s ease-in-out infinite}
+/* in the bath (b172): unwound with a frame developing, the capsule turns fire
+   opal and names the stage beneath. It is the deterrent: a double armed
+   mid-bath is what killed the page. Opacity only; the glow is static. */
+body.processing #wind b{color:#ff6b35;opacity:1;padding-bottom:9px;text-shadow:0 0 8px rgba(255,107,53,.42);animation:readypulse 1.5s ease-in-out infinite}
+#windstage{position:absolute;left:0;right:0;bottom:4px;text-align:center;font:500 6.5px/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;
+  color:#ff6b35;opacity:0;transition:opacity .3s var(--ease);pointer-events:none}
+body.processing #windstage{opacity:.8}
 @keyframes readypulse{0%,100%{opacity:.55}50%{opacity:1}}
 /* BOCCIONI: on the tap the word snaps wide for a frame and settles. 220 ms, once. */
 #wind b.flinch{animation:flinch .22s cubic-bezier(.2,.9,.3,1) both}
@@ -1118,7 +1125,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
     </div>
   </div>
     <div class="deck">
-    <span id="windwrap"><button id="wind" aria-label="Ready the shutter"><span class="perf"></span><b>TAP TO READY</b></button><input type="checkbox" switch id="haw" aria-label="Ready" tabindex="-1"></span>
+    <span id="windwrap"><button id="wind" aria-label="Ready the shutter"><span class="perf"></span><b>TAP TO READY</b><small id="windstage"></small></button><input type="checkbox" switch id="haw" aria-label="Ready" tabindex="-1"></span>
     <div id="chips">
       <button id="chip" aria-label="Prints"><span class="dot"></span><span class="play"></span></button>
       <button id="ana" class="lensbtn" aria-label="Anamorphic">1.55</button>
@@ -1251,7 +1258,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 171;                     /* bump with every ship; lands in EXIF */
+const BUILD = 172;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1443,6 +1450,7 @@ const onLabMessage = e => {
   if (e.data.bootError) { labLog = String(e.data.bootError); const lines = labLog.trim().split("\n"); labFailed("LAB BOOT: " + lines[lines.length - 1].slice(0, 90)); return; }
   if (e.data.progress) { labNote("LAB " + String(e.data.progress).toUpperCase().replace(/…/g, "")); return; }
   if (e.data.stage) {                 /* the bath, live: the negative forms */
+    labStage = String(e.data.stage); paintWind();
     const f = jobFrame.get(id);
     if (f && cooking.has(f) && e.data.stage === "neg") {
       cookThumbs.set(f, "data:image/jpeg;base64," + e.data.b64);
@@ -2136,6 +2144,9 @@ let doubleArm = false, lastNeg = null, dblHold = 0;
 hapEl.addEventListener("pointerdown", () => {
   clearTimeout(dblHold);
   if (!cocked && lastNeg && !doubleArm) dblHold = setTimeout(() => {
+    /* b172: summing two negatives builds ~35 MB of canvases; done while the
+       worker holds a 1100px develop, iOS kills the page silently. Wait it out. */
+    if (pending > 0) { flashState("AFTER THE BATH"); haptic(); return; }
     doubleArm = true; haptic(); setTimeout(haptic, 120); machine("toggle", 0.2);
     $("lcdstate").textContent = "DOUBLE"; $("wind").querySelector("b").textContent = "WIND FOR 2ND";
   }, 700);
@@ -2171,12 +2182,20 @@ hapEl.addEventListener("pointercancel", unpress);
    spends it. If anything in here ever throws, cock() is what unblocks the
    camera, so the failure mode is a camera that always fires, never one that
    cannot. */
-let cocked = false;
+let cocked = false, labStage = "";
+const STAGE_TEXT = { load: "reading the negative", slow: "slow coat: shadows and body", neg: "developer on the film",
+                     fast: "fast coat: highlights", match: "matching the two coats", print: "fixing and drying" };
+function paintWind() {                  /* the capsule's words: set, asking, or in the bath */
+  const b = $("wind").querySelector("b"), sg = $("windstage");
+  const bath = pending > 0 && !cocked;
+  document.body.classList.toggle("processing", bath);
+  if (b) b.textContent = cocked ? (doubleArm ? "2ND EXPOSURE" : "READY") : bath ? "FILM PROCESSING" : (doubleArm ? "WIND FOR 2ND" : "TAP TO READY");
+  if (sg) sg.textContent = bath ? (STAGE_TEXT[labStage] || "in the bath") : "";
+}
 function cock(on) {
   cocked = !!on;
   document.body.classList.toggle("cocked", cocked);
-  const b = $("wind").querySelector("b");
-  if (b) b.textContent = cocked ? (doubleArm ? "2ND EXPOSURE" : "READY") : (doubleArm ? "WIND FOR 2ND" : "TAP TO READY");
+  paintWind();
   const st = $("lcdstate");
   if (st) st.textContent = cocked ? "SHUTTER SET" : "WIND ON";
   if (cocked) humStart(); else humStop();
@@ -3087,7 +3106,7 @@ async function cook(c, voice, full) {
   if (!blob) { flagError("NEGATIVE FAILED"); c.width = c.height = 0; return; }   /* toBlob can hand back null under memory pressure */
   if (voice) { lastNeg = blob; }              /* the double's memory: the same bytes, no second encode */
   c.width = c.height = 0;
-  pending++; cooking.add(id);
+  pending++; cooking.add(id); labStage = ""; paintWind();
   try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
   try {
     labAwake(true);
@@ -3102,6 +3121,7 @@ async function cook(c, voice, full) {
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
   pending--; if (pending <= 0) labAwake(false);
+  paintWind();
   paintChip();
   if (wasWatched && $("print").classList.contains("on")) openPrint(id);
   else if ($("print").classList.contains("on")) buildStrip(watching || current);
