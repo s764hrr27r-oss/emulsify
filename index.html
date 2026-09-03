@@ -803,6 +803,13 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 @keyframes cellwake{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 #contact .cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 #contact .cell b{position:absolute;left:3px;bottom:2px;font:600 6px var(--ui);letter-spacing:.12em;color:#c9a862;opacity:.85;text-shadow:0 1px 0 rgba(0,0,0,.9)}
+/* WESTON, turned (b178): the sheet keeps portrait's cell size in landscape. The
+   grid's width is the device's short side either way, centred; rows size to
+   their cells and never stretch to fill the height, so a 5:4 frame stays 5:4. */
+#contact .frames{align-items:start;grid-auto-rows:max-content}
+@media (orientation: landscape){
+  #contact .frames{width:calc(100vh - 32px);max-width:100%;margin:0 auto}
+}
 #chip .mosaic{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:#000}
 #chip .mosaic img{position:static;width:100%;height:100%;object-fit:cover;display:block}
 #chip .play{position:absolute;left:50%;top:50%;translate:-50% -50%;
@@ -1304,7 +1311,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 177;                     /* bump with every ship; lands in EXIF */
+const BUILD = 178;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
