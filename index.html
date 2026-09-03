@@ -1093,7 +1093,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 153;                     /* bump with every ship; lands in EXIF */
+const BUILD = 154;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2802,7 +2802,7 @@ async function cook(c, voice, full) {
     tc.width = tc.height = 0;
   } catch (e) {}
   closeLensMenu();
-  if (voice) {
+  if (voice) try {
     frameNo++;                              /* the counter only moves on a real frame */
     try { localStorage.frameNo = String(frameNo); localStorage["rf" + id] = ROLL + String(frameNo).padStart(2, "0"); } catch (e) {}
     backLCD();
@@ -2828,12 +2828,15 @@ async function cook(c, voice, full) {
     setTimeout(() => { $("flash").style.opacity = 0; }, 110);
     shutterVoice();
     try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
-  }
-  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
+  } catch (e) { try { flashState("SHOT: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
+  /* the encode, with a stall detector: if Safari never calls back, the panel says so */
+  const blob = await new Promise(r => { let done = false; const stall = setTimeout(() => { if (!done) flashState("ENCODE STALL"); }, 4000);
+                                        c.toBlob(b => { done = true; clearTimeout(stall); r(b); }, "image/jpeg", 0.93); });
   if (!blob) { flagError("NEGATIVE FAILED"); c.width = c.height = 0; return; }   /* toBlob can hand back null under memory pressure */
   if (voice) { lastNeg = blob; lastNegSize = [c.width, c.height]; }              /* the double's memory: the same bytes, no second encode */
   c.width = c.height = 0;
-  pending++; cooking.add(id); paintChip();
+  pending++; cooking.add(id);
+  try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
   try {
     labAwake(true);
     const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed, id, full);
@@ -3045,7 +3048,7 @@ async function paintChip() {
        the one that scheduled it: a stale step cleanup used to delete the
        finished thumbnail if the print landed inside its 2.6 s window */
     setTimeout(() => {
-      const all = chip.querySelectorAll("img"), keep = all[all.length - 1];
+      const all = chip.querySelectorAll(":scope > img"), keep = all[all.length - 1];   /* the chip's own images, never the mosaic's */
       for (const o of all) if (o !== keep) o.remove();
     }, cook ? 2600 : 400);
   }
