@@ -1093,7 +1093,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 152;                     /* bump with every ship; lands in EXIF */
+const BUILD = 153;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1254,10 +1254,14 @@ const labDevelop = (buf, seed, fid, full) => {
     waits.set(id, { res, rej, cook: true });
     if (fid) jobFrame.set(id, fid);
     noteCookStart(RUNGS[r].px);
+    /* WATCHDOG: the shutter refuses when three develops are pending. A worker
+       that never answers would therefore disable the camera silently. Two
+       minutes without an answer is a failure, reported as one. */
+    setTimeout(() => { const w = waits.get(id); if (w) { waits.delete(id); w.rej(new Error("LAB TIMEOUT")); } }, 120000);
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
                          build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
                          mm: GLASS.mm,
-                         leak: (frameNo === 0) ? 0.9 : 0,   /* THE LOADING LEAK: the first frame of a roll */
+                         leak: (frameNo === 1) ? 0.9 : 0,   /* THE LOADING LEAK: frame one of a roll (the counter has already moved) */
                          optic: ANA.id === "none" ? "" : ANA.label,
                          tint:  ANA.tint ? ANA.tint.join(",") : "",
                          tintS: ANA.tint ? (ANA.tintS || 0) : 0,
@@ -2782,7 +2786,6 @@ $("shutterwrap").onclick = async () => {
   c.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
   if (doubleArm && lastNeg && lastNegSize[0] === c.width && lastNegSize[1] === c.height) { await sumExposures(c); doubleArm = false; }
   else doubleArm = false;
-  try { lastNegSize = [c.width, c.height]; c.toBlob(b => { lastNeg = b; }, "image/jpeg", 0.95); } catch (e) {}   /* ~300 KB, not ~10 MB */
   await cook(c, true, false);
 };
 /* Everything after a negative exists: latent thumb, develop, file it away.
@@ -2827,6 +2830,8 @@ async function cook(c, voice, full) {
     try { navigator.vibrate && navigator.vibrate(18); } catch (e) {}
   }
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93));
+  if (!blob) { flagError("NEGATIVE FAILED"); c.width = c.height = 0; return; }   /* toBlob can hand back null under memory pressure */
+  if (voice) { lastNeg = blob; lastNegSize = [c.width, c.height]; }              /* the double's memory: the same bytes, no second encode */
   c.width = c.height = 0;
   pending++; cooking.add(id); paintChip();
   try {
@@ -2838,7 +2843,7 @@ async function cook(c, voice, full) {
     await put("prints", id, printBlob);          // balanced in the lab: final
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
-  } catch (e) { console.error(e); flagError(); }
+  } catch (e) { console.error(e); flagError(String(e && e.message || e).slice(0, 18).toUpperCase() || "DEVELOP FAILED"); }
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
   pending--; if (pending <= 0) labAwake(false);
@@ -2966,10 +2971,11 @@ setOptic(ANA.id);
 addEventListener("resize", anaGuard);
 addEventListener("orientationchange", anaGuard);
 
-function flagError() {
+function flagError(msg) {
   const chip = $("chip");
   chip.style.borderColor = "#7c2d12";
   setTimeout(() => chip.style.borderColor = "", 2500);
+  try { flashState(msg || "DEVELOP FAILED"); } catch (e) {}
 }
 
 /* ---------- chip (finished gallery) + tray (the drying line) ---------- */
