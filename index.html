@@ -119,6 +119,11 @@ body.cocked #bokashi{opacity:0}
 @keyframes caustic1{from{transform:rotate(-23deg) translateY(-110px)}to{transform:rotate(-19deg) translateY(90px)}}
 @keyframes caustic2{from{transform:rotate(31deg) translateY(120px)}to{transform:rotate(27deg) translateY(-100px)}}
 body.cocked #caustic{opacity:.035}
+/* VAN GOGH: for three seconds after a frame everything moves faster, then calms */
+body.charged #caustic i:nth-child(1){animation-duration:7s}
+body.charged #caustic i:nth-child(2){animation-duration:10s}
+body.charged.cocked #sparkle i{animation-duration:3.1s}
+body.charged.cocked #sparkle i:nth-child(2){animation-duration:3.7s}
 /* LIT FROM BELOW. A three percent warmth rising from the bottom edge of the
    gate: something golden beneath, out of frame. */
 #below{position:absolute;left:0;right:0;bottom:0;height:38%;pointer-events:none;z-index:2;opacity:0;transition:opacity 1.8s var(--ease);
@@ -253,6 +258,12 @@ body.cocked #rf i{border-color:rgba(255,236,206,.9);
 .lensbtn,#chip{background:rgba(255,255,255,.028);box-shadow:0 2px 3px rgba(0,0,0,.55), 0 6px 10px -4px rgba(0,0,0,.5)}
 #windwrap{filter:none}
 #wind{background:rgba(255,255,255,.02);box-shadow:0 2px 3px rgba(0,0,0,.5), 0 6px 10px -4px rgba(0,0,0,.45)}
+/* HARING. Two rings leave the button on the release and fade: the energy of
+   the press going out of the disc. Transform and opacity only. */
+#shutterwrap .ring{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(233,236,242,.7);pointer-events:none;opacity:0;transform:scale(1)}
+body.radiate #shutterwrap .ring{animation:radiate .42s cubic-bezier(.2,.7,.3,1) both}
+body.radiate #shutterwrap .ring:nth-child(2){animation-delay:.09s}
+@keyframes radiate{0%{opacity:.75;transform:scale(1)}100%{opacity:0;transform:scale(1.9)}}
 /* IRWIN. A disc lit from four lamps floats on four faint shadows. */
 #shutterwrap::before{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
   box-shadow:0 -7px 16px -8px rgba(0,0,0,.6), 0 7px 16px -8px rgba(0,0,0,.6), -7px 0 16px -8px rgba(0,0,0,.6), 7px 0 16px -8px rgba(0,0,0,.6)}
@@ -410,6 +421,14 @@ body.f-rf #rf{display:block}
 #flash{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .1s}
 /* asleep: the finder and the back fall away until touched */
 #dim{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .35s var(--ease);z-index:4}
+/* PAIK: one bright line rolls down the finder once, the tube warming */
+#scan{position:absolute;left:0;right:0;top:0;height:2px;pointer-events:none;z-index:5;opacity:0;
+  background:linear-gradient(90deg, transparent, rgba(233,236,242,.85) 20%, rgba(233,236,242,.85) 80%, transparent)}
+body.scan #scan{animation:scan .6s cubic-bezier(.3,.4,.4,1) both}
+@keyframes scan{0%{opacity:0;transform:translateY(0)}10%{opacity:.9}90%{opacity:.6}100%{opacity:0;transform:translateY(calc(100cqh - 2px))}}
+#glass{container-type:size}
+.ghost{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;z-index:3;
+  transform:scale(1);transform-origin:50% 50%;transition:transform .34s cubic-bezier(.3,.7,.3,1), opacity .3s var(--ease)}
 /* THE CURTAINS. Inside the finder window itself, so they close over the
    picture and travel with it as it shrinks. Two focal-plane blinds meet across
    the frame after the exposure, hold while the back changes state behind them,
@@ -435,6 +454,9 @@ body.sleep #dim{opacity:.8;transition:opacity 1.6s var(--ease)}
 body.sleep #lastframe[src]{opacity:.6}
 body.sleep .deck,body.sleep #backlcd{opacity:.3 !important;transition:opacity 1.6s var(--ease)}
 body.sleep #aura,body.sleep #sparkle{opacity:0 !important}
+/* TINGUELY: the deck shudders half a pixel with each beat of the motor */
+.deck.rattle{animation:rattle .12s steps(2) both}
+@keyframes rattle{0%{transform:translate(0,0)}50%{transform:translate(.5px,-.5px)}100%{transform:translate(0,0)}}
 /* the back is open: dark while the roll rewinds, the film running backwards */
 body.rewinding #dim{opacity:.96}
 body.rewinding #scopes{opacity:.15;transition:opacity .6s var(--ease)}
@@ -476,6 +498,12 @@ body.rewinding #wind .perf{animation:filmback .5s linear infinite;transition:non
 /* set: the words go emerald and breathe. Opacity only; the glow is static. */
 body.cocked #wind b{color:#2fd68c;opacity:1;text-shadow:0 0 8px rgba(47,214,140,.35);animation:readypulse 2.2s ease-in-out infinite}
 @keyframes readypulse{0%,100%{opacity:.55}50%{opacity:1}}
+/* BOCCIONI: on the tap the word snaps wide for a frame and settles. 220 ms, once. */
+#wind b.flinch{animation:flinch .22s cubic-bezier(.2,.9,.3,1) both}
+@keyframes flinch{0%{letter-spacing:.16em}25%{letter-spacing:.34em}100%{letter-spacing:.16em}}
+/* NAUMAN: the READY tube flickers, rarely */
+body.cocked #wind b.neon{animation:neon .16s steps(1) both}
+@keyframes neon{0%{opacity:1}30%{opacity:.35}45%{opacity:.95}70%{opacity:.5}100%{opacity:1}}
 #wind:active{border-color:rgba(214,216,222,.45)}
 #wind.winding .perf{transition:transform .58s cubic-bezier(.18,.85,.28,1);transform:translateX(-60px)}
 #wind.winding b{opacity:.25}
@@ -646,7 +674,9 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 #contact .head{display:flex;justify-content:space-between;align-items:baseline;padding:6px 4px 14px;font:600 11px var(--ui);letter-spacing:.14em;color:#c9a862}
 #contact .head .of{color:var(--mute)}
 #contact .frames{flex:1;display:grid;grid-template-columns:repeat(6, 1fr);gap:6px 6px;align-content:start;overflow:auto}
-#contact .cell{position:relative;aspect-ratio:5/4;background:#0d0e11;border:1px solid var(--hair);border-radius:2px;overflow:hidden}
+#contact .cell{position:relative;aspect-ratio:5/4;background:#0d0e11;border:1px solid var(--hair);border-radius:2px;overflow:hidden;
+  animation:cellwake .5s var(--ease) both}
+@keyframes cellwake{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 #contact .cell img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 #contact .cell b{position:absolute;left:3px;bottom:2px;font:600 6px var(--ui);letter-spacing:.12em;color:#c9a862;opacity:.85;text-shadow:0 1px 0 rgba(0,0,0,.9)}
 #chip .mosaic{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:#000}
@@ -844,6 +874,8 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 #strip button{flex:0 0 auto;width:44px;height:44px;border-radius:5px;overflow:hidden;
               border:1px solid transparent}
 #strip button.sel{border-color:var(--dot)}
+#strip button.sing{animation:sing .9s var(--ease) both}
+@keyframes sing{0%{box-shadow:0 0 0 1.5px var(--note,#fff), 0 0 10px var(--note,#fff)}100%{box-shadow:0 0 0 0 transparent, 0 0 0 transparent}}
 #strip button{position:relative}
 #strip .tw{position:relative;flex:0 0 auto;width:44px;height:44px}
 #strip .tw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;
@@ -917,6 +949,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <div id="tension"><i></i><i></i><i></i><i></i></div>
       <svg id="lockline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" width="100" height="100" pathLength="1"/></svg>
       <div id="flash"></div>
+      <div id="scan"></div>
       <div id="dim"></div>
       <div id="denied">Allow camera access in Settings › Safari.</div>
     </div>
@@ -927,7 +960,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
       <button id="chip" aria-label="Prints"><span class="dot"></span><span class="play"></span></button>
       <button id="ana" class="lensbtn" aria-label="Anamorphic">1.55</button>
     </div>
-    <span id="shutterwrap"><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
+    <span id="shutterwrap"><i class="ring"></i><i class="ring"></i><button id="shutter" aria-label="Shutter"><i></i></button><input type="checkbox" switch id="hap" aria-label="Shutter" tabindex="-1"></span>
     <span id="rightstack"><button id="finder" class="lensbtn" aria-label="Finder"></button><button id="lens" class="lensbtn" aria-label="Lens">33mm</button></span>
   </div>
 </div>
@@ -1054,7 +1087,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 147;                     /* bump with every ship; lands in EXIF */
+const BUILD = 148;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1828,8 +1861,12 @@ function humStart() {
     /* in D: the fundamental is D2, 73.4 Hz, with its beating partner two cents
        up, the octave D3 above, and D1 beneath. The gallery sings in the same key. */
     const a = mk("sawtooth", 73.42, 0.40), b = mk("sawtooth", 75.4, 0.40), c = mk("sine", 146.83, 0.14), d = mk("sine", 36.71, 0.45);
+    /* REICH: the second saw's detune drifts over a minute, so the beating
+       speeds and slows and the hum is never the same twice */
+    const phase = AC.createOscillator(); phase.frequency.value = 1 / 64; const pg = AC.createGain(); pg.gain.value = 1.1;
+    phase.connect(pg); pg.connect(b.frequency); phase.start(t);
     lfo.start(t); lp.connect(out); out.connect(AC.destination);
-    hum = { out, nodes: [a, b, c, d, lfo] };
+    hum = { out, nodes: [a, b, c, d, lfo, phase] };
     droneStart(); roomWet(true);
   } catch (e) { hum = null; }
 }
@@ -2507,7 +2544,7 @@ function rollOver() {
     n--; i++;
     fe.textContent = String(Math.max(n, 1)).padStart(3, "0");
     fe.classList.remove("tick", "down"); void fe.offsetWidth; fe.classList.add("down");
-    if (i % 4 === 0) haptic();                                          /* the motor, in the hand */
+    if (i % 4 === 0) { haptic(); const dk = document.querySelector(".deck"); dk.classList.remove("rattle"); void dk.offsetWidth; dk.classList.add("rattle"); }   /* TINGUELY */
     if (n > 1) setTimeout(spin, 18 + 42 * Math.pow(i / total, 2.2));   /* slows as the spool fills */
   };
   setTimeout(spin, 120);
@@ -2540,6 +2577,7 @@ function powerOn() {
     $("backlcd").classList.add("selftest");
   } catch (e) {}
   setTimeout(() => { $("backlcd").classList.remove("selftest", "overnight"); backLCD(); cock(cocked); }, hold);
+  setTimeout(() => { document.body.classList.add("scan"); setTimeout(() => document.body.classList.remove("scan"), 700); }, 300);   /* PAIK */
   setInterval(backLCD, 400);               /* 2.5 Hz is steady enough for a needle */
 }
 powerOn();
@@ -2548,6 +2586,7 @@ $("windwrap").onclick = () => {
   const w = $("wind");
   w.classList.add("winding");
   windVoice();                              /* the ratchet; the switch gives the tick */
+  { const b = w.querySelector("b"); b.classList.remove("flinch"); void b.offsetWidth; b.classList.add("flinch"); }   /* BOCCIONI */
   cock(true);                               /* the picture grows WHILE the lever runs */
   setTimeout(haptic, 200);                  /* the throw, then the seat */
   setTimeout(() => {                        /* the perforations reset once stopped */
@@ -2570,7 +2609,8 @@ $("windwrap").addEventListener("pointerdown", () => {
    when a removal sliced to a shared anchor.) */
 let sleepTimer = 0, asleep = false;
 function wake() {
-  if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); warmUp(); }
+  if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); warmUp();
+    document.body.classList.add("scan"); setTimeout(() => document.body.classList.remove("scan"), 700); }
   clearTimeout(sleepTimer);
   sleepTimer = setTimeout(() => {
     asleep = true; humStop();
@@ -2584,12 +2624,24 @@ document.addEventListener("visibilitychange", () => {
   else { wake(); backLCD(); try { localStorage.lastOpen = String(Date.now()); } catch (e) {} }
 });
 wake();
+/* NAUMAN. Every fifteen to forty seconds while set, the READY tube dips for
+   160 ms, sometimes twice. Alive, not broken. */
+function neonTick() {
+  if (cocked) { const b = $("wind").querySelector("b"); b.classList.remove("neon"); void b.offsetWidth; b.classList.add("neon");
+    if (Math.random() < 0.3) setTimeout(() => { b.classList.remove("neon"); void b.offsetWidth; b.classList.add("neon"); }, 260); }
+  setTimeout(neonTick, 15000 + Math.random() * 25000);
+}
+setTimeout(neonTick, 12000);
 function release() {                        /* the frame is taken: let go */
   const body = document.body;
   /* CAGE. From the release until the blinds begin to part, nothing sounds: the
      hum, the drone and the room are cut, not faded, and every other voice is
      refused. The rest is part of the music. */
   silentUntil = performance.now() + 560; humStop(true);
+  body.classList.remove("radiate"); void body.offsetWidth; body.classList.add("radiate");      /* HARING */
+  setTimeout(() => body.classList.remove("radiate"), 600);
+  /* VAN GOGH: charged for three seconds after a frame, then calm */
+  setTimeout(() => { body.classList.add("charged"); setTimeout(() => body.classList.remove("charged"), 3000); }, 560);
   body.classList.add("curtain");            /* blinds meet across the picture: 140 ms */
   setTimeout(haptic, 140);                  /* and you feel them stop */
   setTimeout(() => {
@@ -2657,6 +2709,19 @@ async function cook(c, voice, full) {
     backLCD();
     if (frameNo >= ROLL_LEN) setTimeout(rollOver, 900);
     release();                              /* the tension goes with the frame */
+    /* DUCHAMP: three ghosts of the frame trail the finder as it shrinks, at
+       falling scale and opacity. The picture seen descending into the camera. */
+    try {
+      const snap = Object.assign(document.createElement("canvas"), { width: 240, height: 180 });
+      snap.getContext("2d").drawImage(v, 0, 0, 240, 180); const url = snap.toDataURL("image/jpeg", 0.6);
+      [[0.78, 0.45, 180], [0.56, 0.30, 300], [0.38, 0.18, 420]].forEach(([sc, op, delay]) => {
+        const g = document.createElement("img"); g.className = "ghost"; g.src = url; g.style.opacity = "0";
+        $("glass").appendChild(g);
+        setTimeout(() => { g.style.opacity = String(op); g.style.transform = `scale(${sc})`; }, delay);
+        setTimeout(() => { g.style.opacity = "0"; g.style.transform = "scale(.26)"; }, delay + 160);
+        setTimeout(() => g.remove(), delay + 560);
+      });
+    } catch (e) {}
     /* TURRELL: not black. The field is the mean colour of the scene, held for
        a tenth of a second: the afterimage of the exposure, different each time. */
     try { const m = sceneMean(); if (m) $("flash").style.background = `rgb(${m[0]},${m[1]},${m[2]})`; } catch (e) {}
@@ -2929,6 +2994,7 @@ async function openContactSheet() {
     const cell = document.createElement("div"); cell.className = "cell"; const id = onRoll[i];
     if (id) { const im = document.createElement("img"); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im); cell.onclick = () => { sheet.classList.remove("on"); openItem(id); }; }
     const n = document.createElement("b"); n.textContent = ROLL + String(i).padStart(2, "0"); cell.appendChild(n);
+    cell.style.animationDelay = (i * 16) + "ms";                        /* KUSAMA: a wave across the grid */
     fr.appendChild(cell);
   }
   sheet.classList.add("on");
@@ -3052,7 +3118,14 @@ async function buildStrip(selId) {
       const sw = document.createElement("input");            /* native switch: iOS taptic */
       sw.type = "checkbox"; sw.setAttribute("switch", ""); sw.tabIndex = -1; sw.setAttribute("aria-hidden", "true");
       w.appendChild(b); w.appendChild(sw);
-      w.onclick = () => { galleryNote([...strip.children].indexOf(w)); openItem(k); };
+      w.onclick = () => {
+        const idx = [...strip.children].indexOf(w); galleryNote(idx); openItem(k);
+        /* KANDINSKY: the ring flashes the colour of the note. Degree 0..6 up the
+           scale, D warm red through orange, gold, green, blue, to violet at the top. */
+        const n = Math.max(0, idx) % 12, deg = n <= 6 ? n : 12 - n;
+        const hue = [8, 28, 46, 96, 150, 212, 268][deg];
+        b.style.setProperty("--note", `hsl(${hue} 80% 62%)`); b.classList.remove("sing"); void b.offsetWidth; b.classList.add("sing");
+      };
     }
     if (strip.children[i] !== w) strip.insertBefore(w, strip.children[i] || null);
     b.classList.toggle("sel", k === selId);
