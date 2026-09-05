@@ -1320,6 +1320,96 @@ const CORE = {
   log: [],                                            /* 3 */
   listeners: new Set()
 };
+/* ==================== SIGNALS (b191) ====================
+   Batch 2. 7 a signal holds a value and knows who read it. 8 an effect re-runs
+   when what it read changes. 9 a computed caches until its inputs move. 10 the
+   tracking is automatic: adding a field to a panel wires it, instead of you
+   finding all six callers. Nothing polls; nothing is repainted on a timer.
+   @typedef {{get:function():*, set:function(*):void, peek:function():*}} Signal  (30) */
+let SUB = null;                                  /* whoever is currently reading */
+const BATCH = { on: false, q: new Set() };
+function signal(v) {
+  const subs = new Set();
+  const sg = {
+    get() { if (SUB) { subs.add(SUB); SUB.deps.add(subs); } return v; },
+    peek() { return v; },
+    set(nv) {
+      if (Object.is(nv, v)) return;              /* 9: equal is not a change */
+      v = nv;
+      for (const f of [...subs]) (BATCH.on ? BATCH.q.add(f) : run(f));
+    }
+  };
+  return sg;
+}
+function run(f) {
+  if (f.dead) return;
+  for (const d of f.deps) d.delete(f);           /* 10: re-tracked on every run */
+  f.deps.clear();
+  const prev = SUB; SUB = f;
+  try { f(); } catch (e) { ringPush("effect", (e && e.stack) || e); } finally { SUB = prev; }
+}
+function effect(fn) {                            /* 8 */
+  const f = () => fn();
+  f.deps = new Set();
+  run(f);
+  return () => { f.dead = true; for (const d of f.deps) d.delete(f); };
+}
+function computed(fn) {                          /* 9: cached until an input moves */
+  let cache, valid = false;
+  const out = signal(undefined);
+  effect(() => { valid = false; cache = fn(); out.set(cache); });
+  return { get: () => (valid ? cache : out.get()), peek: () => cache };
+}
+const batch = fn => {                            /* one paint for many writes */
+  BATCH.on = true;
+  try { fn(); } finally { BATCH.on = false; const q = [...BATCH.q]; BATCH.q.clear(); for (const f of q) run(f); }
+};
+
+/* ==================== RENDER (b191) ====================
+   11 markup that reads like its output, updating only what changed. 12 keyed
+   lists: the diff MOVES nodes instead of rebuilding them, so a re-sorted strip
+   keeps its images, its scroll and its animations. 13 components are functions
+   returning markup. 14 props down, events up - a child never reaches upward.
+   15 a component's state lives with the component. */
+function html(strings, ...vals) { return { s: strings, v: vals, __m: true }; }
+function setAttrs(el, props) {
+  for (const k in props) {
+    const val = props[k];
+    if (k === "class") el.className = val;
+    else if (k === "style" && typeof val === "object") Object.assign(el.style, val);
+    else if (k.startsWith("on") && typeof val === "function") el[k.toLowerCase()] = val;
+    else if (val === false || val == null) el.removeAttribute(k);
+    else if (val === true) el.setAttribute(k, "");
+    else if (el.getAttribute(k) !== String(val)) el.setAttribute(k, val);
+  }
+}
+/* h(tag, props, ...children) - the component author's tool */
+function h(tag, props, ...kids) { return { tag, props: props || {}, kids: kids.flat(), __h: true }; }
+function mount(node, vnode) {
+  if (vnode.__h) {
+    const el = document.createElement(vnode.tag);
+    setAttrs(el, vnode.props);
+    for (const k of vnode.kids) el.appendChild(k && k.__h ? mount(null, k) : document.createTextNode(String(k)));
+    return el;
+  }
+  return document.createTextNode(String(vnode));
+}
+/* 12: keyed reconcile. items -> key -> vnode; existing nodes are moved, not remade. */
+function renderList(parent, items, keyOf, build, update) {
+  const have = new Map();
+  for (const el of [...parent.children]) { const k = el.dataset.k; k ? have.set(k, el) : el.remove(); }
+  let i = 0;
+  for (const item of items) {
+    const k = String(keyOf(item));
+    let el = have.get(k);
+    if (el) have.delete(k);
+    else { el = build(item); el.dataset.k = k; }
+    if (update) update(el, item);
+    if (parent.children[i] !== el) parent.insertBefore(el, parent.children[i] || null);
+    i++;
+  }
+  for (const el of have.values()) el.remove();     /* only the genuinely gone */
+}
 /* 17: guards. One rule, one place, consulted by everyone - instead of the same
    condition checked differently in three handlers. */
 const GUARDS = {
@@ -1539,7 +1629,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 190;                     /* bump with every ship; lands in EXIF */
+const BUILD = 191;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2157,44 +2247,50 @@ async function deepLog() {
   try { L.push(layoutReport()); } catch (e) { L.push("layout: " + e); }
   return L.join("\n");
 }
+/* b191 (13, 14, 15): the service menu as a COMPONENT. It used to build four
+   buttons by hand on every open, throwing the DOM away each time - which is why
+   a tap during a repaint could land on a node about to be replaced. Now it is a
+   function of its props (lab state, log, pending build), rendered as a keyed
+   list: rows that persist are moved and updated, never rebuilt. Each row emits
+   an action upward; the menu does not reach into the systems it names. */
+function ServiceRows(props) {
+  const rows = [
+    { key: "inst", label: "INSTRUMENTS \u2026", colour: "var(--ready)", sw: true,
+      act: () => { closeServiceMenu(); $("scopemenu").classList.add("on"); $("lensveil").classList.add("on"); } }
+  ];
+  if (props.log) rows.push({ key: "log", label: "LAB LOG", colour: "#e0a050",
+      act: () => { closeServiceMenu(); showReport(props.log); } });
+  rows.push({ key: "layout", label: "LAYOUT REPORT", colour: "var(--mute)",
+      act: () => { closeServiceMenu(); try { showReport(layoutReport()); } catch (e) { showReport("LAYOUT REPORT failed: " + e); } } });
+  rows.push({ key: "deep", label: "COPY DEEP LOG", colour: "var(--mute)",
+      act: async () => { closeServiceMenu();
+        let text; try { text = await deepLog(); } catch (e) { text = "DEEP LOG failed: " + e; }
+        let ok = false; try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {}
+        flashState(ok ? "LOG COPIED" : "COPY FAILED: SELECT FROM BOX"); showReport(text); } });
+  rows.push({ key: "restart", label: "RESTART LAB", colour: "var(--mute)", sw: true,
+      act: async () => { closeServiceMenu(); labRespawns = 0; workerVer = ""; labNote("LAB RESET");
+        dispatch("RESTART"); await purgeCDN(); try { worker.terminate(); } catch (e) {}
+        failAllWaits("LAB RESTARTED"); setTimeout(spawnWorker, 300); } });
+  rows.push({ key: "update", label: props.pending ? "UPDATE TO b" + props.pending : "CHECK FOR UPDATES",
+      colour: props.pending ? "var(--ready)" : "var(--mute)", sw: true,
+      act: () => { closeServiceMenu(); applyUpdate(); } });
+  return rows;
+}
 function paintServiceMenu() {
-  const m = $("servicemenu"); m.innerHTML = "";
-  const ib = document.createElement("button"); ib.textContent = "INSTRUMENTS \u2026";
-  ib.style.color = "var(--ready)";
-  const isw = document.createElement("input"); isw.type = "checkbox"; isw.setAttribute("switch", ""); isw.className = "hapov"; isw.tabIndex = -1;
-  ib.appendChild(isw);
-  ib.onclick = () => { machine("click", 0.18); closeServiceMenu(); $("scopemenu").classList.add("on"); $("lensveil").classList.add("on"); };
-  m.appendChild(ib);
-  if (labLog) {
-    const lg = document.createElement("button"); lg.textContent = "LAB LOG"; lg.style.color = "#e0a050";
-    lg.onclick = () => { closeServiceMenu(); showReport(labLog); };
-    m.appendChild(lg);
-  }
-  const ly = document.createElement("button"); ly.textContent = "LAYOUT REPORT"; ly.style.color = "var(--mute)";
-  ly.onclick = () => { machine("click", 0.18); closeServiceMenu(); try { showReport(layoutReport()); } catch (e) { showReport("LAYOUT REPORT failed: " + e); } };
-  m.appendChild(ly);
-  const dl = document.createElement("button"); dl.textContent = "COPY DEEP LOG"; dl.style.color = "var(--mute)";
-  dl.onclick = async () => {
-    machine("click", 0.18); closeServiceMenu();
-    let text; try { text = await deepLog(); } catch (e) { text = "DEEP LOG failed: " + e; }
-    let copied = false; try { await navigator.clipboard.writeText(text); copied = true; } catch (e) {}
-    flashState(copied ? "LOG COPIED" : "COPY FAILED: SELECT FROM BOX");
-    showReport(text);
-  };
-  m.appendChild(dl);
-  const lb = document.createElement("button"); lb.textContent = "RESTART LAB";
-  lb.style.color = "var(--mute)";
-  const lsw = document.createElement("input"); lsw.type = "checkbox"; lsw.setAttribute("switch", ""); lsw.className = "hapov"; lsw.tabIndex = -1;
-  lb.appendChild(lsw);
-  lb.onclick = async () => { machine("click", 0.18); closeServiceMenu(); labRespawns = 0; workerVer = ""; labNote("LAB RESET"); await purgeCDN(); try { worker.terminate(); } catch (e) {} failAllWaits("LAB RESTARTED"); setTimeout(spawnWorker, 300); };
-  m.appendChild(lb);
-  const ub = document.createElement("button");
-  ub.textContent = pendingBuild ? "UPDATE TO b" + pendingBuild : "CHECK FOR UPDATES";
-  ub.style.color = pendingBuild ? "var(--ready)" : "var(--mute)";
-  const usw = document.createElement("input"); usw.type = "checkbox"; usw.setAttribute("switch", ""); usw.className = "hapov"; usw.tabIndex = -1;
-  ub.appendChild(usw);
-  ub.onclick = () => { machine("click", 0.18); closeServiceMenu(); applyUpdate(); };
-  m.appendChild(ub);
+  const m = $("servicemenu");
+  const rows = ServiceRows({ log: labLog, pending: pendingBuild, lab: CORE.state.lab });
+  renderList(m, rows, r => r.key,
+    r => {                                   /* build: only for a row that is new */
+      const b = document.createElement("button");
+      if (r.sw) { const sw = document.createElement("input"); sw.type = "checkbox"; sw.setAttribute("switch", ""); sw.className = "hapov"; sw.tabIndex = -1; b.appendChild(sw); }
+      return b;
+    },
+    (b, r) => {                              /* update: text, colour, action */
+      const sw = b.querySelector("input");
+      b.textContent = r.label; if (sw) b.appendChild(sw);
+      b.style.color = r.colour;
+      b.onclick = () => { machine("click", 0.18); r.act(); };
+    });
 }
 setFinder(FINDER);
 $("finder").addEventListener("click", () => {
