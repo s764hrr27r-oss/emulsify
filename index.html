@@ -1288,6 +1288,96 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 
 <script type="module">
 const $ = id => document.getElementById(id);
+/* ==================== THE CORE (b190) ====================
+   Batch 1 of the React-properties work. Nearly every bug this project has had
+   was a state machine implemented implicitly across many handlers: the wedged
+   updater, the shutter dead after three shots, the double exposure that killed
+   the page. This is that machine made explicit. It runs ALONGSIDE the existing
+   variables rather than replacing them - they stay the working store, the core
+   is the authoritative record of how we got here, the guard on what may happen
+   next, and the log that explains it afterwards.
+     1 one state object      2 named transitions     3 an action log
+     4 replay                5 derived, never stored 6 frozen in dev
+    16 an explicit chart    17 guards               18 a parallel lab region
+    26 error boundaries                                                      */
+const CORE = {
+  /* 1: one object. Two regions run in parallel (18): the body and the lab,
+     so a stuck bath can never wedge the shutter and vice versa. */
+  state: { body: "idle", lab: "cold", frame: 1, roll: "A", pending: 0, doubled: false },
+  /* 16: the chart. What is not listed here cannot happen. */
+  chart: {
+    body: { idle:     { WIND: "wound", SLEEP: "asleep" },
+            wound:    { COCK: "cocked", UNWIND: "idle", SLEEP: "asleep" },
+            cocked:   { RELEASE: "wound", EXPOSE: "exposing", SLEEP: "asleep" },
+            exposing: { EXPOSED: "idle", FAIL: "idle" },
+            asleep:   { WAKE: "idle" } },
+    lab:  { cold:     { BOOT: "booting" },
+            booting:  { READY: "ready", FAIL: "failed" },
+            ready:    { BATH: "bathing", FAIL: "failed", RESTART: "booting" },
+            bathing:  { BATH: "bathing", DRAINED: "ready", FAIL: "failed" },
+            failed:   { RESTART: "booting" } }
+  },
+  log: [],                                            /* 3 */
+  listeners: new Set()
+};
+/* 17: guards. One rule, one place, consulted by everyone - instead of the same
+   condition checked differently in three handlers. */
+const GUARDS = {
+  EXPOSE:  () => CORE.state.body === "cocked" && CORE.state.pending < 3,
+  DOUBLE:  () => CORE.state.pending === 0 && CORE.state.body !== "exposing",
+  UPDATE:  () => CORE.state.pending === 0 || CORE.state.lab === "failed",
+  BATH:    () => CORE.state.lab === "ready" || CORE.state.lab === "bathing"
+};
+const can = k => { try { return !!(GUARDS[k] && GUARDS[k]()); } catch (e) { return false; } };
+/* 5: derived, computed on demand, so it can never disagree with the state. */
+const DERIVED = {
+  canShoot:   () => can("EXPOSE"),
+  busy:       () => CORE.state.pending > 0,
+  lastFrame:  () => CORE.state.frame >= 36,
+  labAlive:   () => CORE.state.lab === "ready" || CORE.state.lab === "bathing"
+};
+function dispatch(type, payload) {
+  const st = CORE.state, region = CORE.chart.body[st.body] && CORE.chart.body[st.body][type] ? "body"
+            : CORE.chart.lab[st.lab] && CORE.chart.lab[st.lab][type] ? "lab" : null;
+  const from = region ? st[region] : null;
+  const to = region ? CORE.chart[region][from][type] : null;
+  const entry = { t: Math.round(performance.now()), type, region, from, to,
+                  payload: payload === undefined ? null : payload, taken: !!region };
+  CORE.log.push(entry); if (CORE.log.length > 50) CORE.log.shift();      /* 3 */
+  if (region) st[region] = to;
+  if (payload && typeof payload === "object") for (const k in payload) if (k in st) st[k] = payload[k];
+  for (const fn of CORE.listeners) { try { fn(entry, st); } catch (e) {} }
+  return !!region;
+}
+/* 4: replay. Feed a log back through a fresh machine and watch where it diverges
+   - a bug that happened once can be reproduced without waiting for it again. */
+function replay(log) {
+  const sim = { body: "idle", lab: "cold", pending: 0 }; const out = [];
+  for (const e of (log || CORE.log)) {
+    const r = CORE.chart[e.region || "body"];
+    const to = r && r[sim[e.region || "body"]] && r[sim[e.region || "body"]][e.type];
+    out.push(`${e.t}ms ${e.type} ${e.region || "-"} ${sim[e.region || "body"]} -> ${to || "REFUSED"}`);
+    if (to) sim[e.region || "body"] = to;
+  }
+  return out.join("\n");
+}
+/* 6: in dev the state object is frozen after each dispatch, so a stray write
+   throws where it happens instead of corrupting quietly three screens later. */
+const CORE_DEV = /[?&]dev=1/.test(location.search);
+if (CORE_DEV) CORE.listeners.add(() => Object.freeze(Object.assign({}, CORE.state)));
+/* 26: error boundaries. A region that throws is disabled and reported, rather
+   than taking the camera down with it. */
+function boundary(name, fn) {
+  return function () {
+    try { return fn.apply(this, arguments); }
+    catch (e) {
+      ringPush("boundary:" + name, (e && e.stack) || e);
+      dispatch("REGION_FAILED", { region: name });   /* not a chart edge: logged as refused, which is the truth */
+      try { flashState(name.toUpperCase() + " OFF"); } catch (e2) {}
+      return undefined;
+    }
+  };
+}
 /* 7 8 9 10 (b186) THE SCHEDULER. setTimeout(0) has no priority: a background
    thumb decode and a tap response queue identically. Where the browser offers
    scheduler.postTask, work is filed by priority; where it offers yield() or
@@ -1449,7 +1539,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 189;                     /* bump with every ship; lands in EXIF */
+const BUILD = 190;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2051,6 +2141,13 @@ async function deepLog() {
   H("STORAGE");
   try { const e = await navigator.storage.estimate(); L.push("usage MB: " + (e.usage / 1048576).toFixed(1) + "  quota MB: " + (e.quota / 1048576).toFixed(0)); } catch (e) { L.push("estimate: ?"); }
   try { const p = await navigator.permissions.query({ name: "camera" }); L.push("camera permission: " + p.state); } catch (e) { L.push("camera permission: ?"); }
+  H("CORE (b190)");
+  L.push(kv("state", () => CORE.state), kv("derived", () => ({ canShoot: DERIVED.canShoot(), busy: DERIVED.busy(), labAlive: DERIVED.labAlive() })),
+         kv("guards", () => ({ EXPOSE: can("EXPOSE"), DOUBLE: can("DOUBLE"), UPDATE: can("UPDATE"), BATH: can("BATH") })));
+  L.push("transitions (most recent last):");
+  for (const e of CORE.log) L.push("  +" + e.t + "ms " + (e.taken ? "" : "REFUSED ") + e.type + "  " + (e.region || "-") + ": " + e.from + " -> " + (e.to || e.from));
+  if (!CORE.log.length) L.push("  none this session");
+  L.push("replay:"); try { L.push(replay().split("\n").map(x => "  " + x).join("\n")); } catch (e) {}
   H("ERRORS (" + errRing.length + ")");
   for (const e of errRing) L.push("  +" + e.t + "ms " + e.kind + " " + e.msg + (e.where ? "  @" + e.where : ""));
   if (!errRing.length) L.push("  none this session");
@@ -2496,7 +2593,7 @@ hapEl.addEventListener("pointerdown", () => {
   if (!cocked && lastNeg && !doubleArm) dblHold = setTimeout(() => {
     /* b172: summing two negatives builds ~35 MB of canvases; done while the
        worker holds a 1100px develop, iOS kills the page silently. Wait it out. */
-    if (pending > 0) { flashState("AFTER THE BATH"); haptic(); return; }
+    if (!can("DOUBLE")) { flashState("AFTER THE BATH"); haptic(); return; }
     doubleArm = true; haptic(); setTimeout(haptic, 120); machine("toggle", 0.2);
     $("lcdstate").textContent = "DOUBLE"; $("wind").querySelector("b").textContent = "WIND FOR 2ND";
   }, 700);
@@ -2543,6 +2640,7 @@ function paintWind() {                  /* the capsule's words: set, asking, or 
   if (sg) sg.textContent = bath ? (STAGE_TEXT[labStage] || "in the bath") : "";
 }
 function cock(on) {
+  dispatch(on ? "COCK" : "RELEASE");            /* the chart hears every set and release */
   cocked = !!on;
   document.body.classList.toggle("cocked", cocked);
   paintWind();
@@ -3029,12 +3127,12 @@ function drawScopes() {
   }
 }
 /* the loop: ~14 Hz, and only while there is something to show and someone to see it */
-function scopeLoop() {
+const scopeLoop = boundary("scopes", function scopeLoopInner() {
   scopeRAF = 0;
   if (!scopesOn.size || cocked || document.hidden || $("print").classList.contains("on") || asleep || document.body.classList.contains("curtain")) return;
   drawScopes();
   scopeRAF = requestAnimationFrame(scopeLoop);
-}
+});
 /* ---------- UPDATES ----------
    The app updates itself by reloading; nothing ever needs re-adding to the
    home screen. This fetches the live index with the cache bypassed, reads its
@@ -3081,7 +3179,7 @@ function applyUpdate() {
      cannot be mid-bath, and a bath making no progress for a minute is not a
      bath. This is how the broken worker locked out every update since b151:
      three shots queued forever, pending never drained, the reload never came. */
-  if (pending > 0 && !labLastError) {
+  if (!can("UPDATE") && !labLastError) {
     if (pending !== bathWaitPending) { bathWaitPending = pending; bathWait = 0; }
     if (++bathWait < 40) { flashState("AFTER THE BATH"); setTimeout(applyUpdate, 1500); return; }
   }
@@ -3495,6 +3593,7 @@ async function cook(c, voice, full) {
   if (voice) { lastNeg = blob; }              /* the double's memory: the same bytes, no second encode */
   c.width = c.height = 0;
   pending++; cooking.add(id); labStage = ""; paintWind(); if (pending === 1) bathToneStart();
+  dispatch("BATH", { pending });
   try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
   try {
     labAwake(true);
@@ -3509,6 +3608,7 @@ async function cook(c, voice, full) {
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
   pending--; if (pending <= 0) labAwake(false);
+  dispatch(pending > 0 ? "BATH" : "DRAINED", { pending });
   paintWind(); if (pending <= 0) bathToneStop();
   lastLanded = { id, t: Date.now() };                                     /* 10: the newest print, still wet */
   paintChip();
