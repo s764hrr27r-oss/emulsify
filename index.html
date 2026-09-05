@@ -1343,7 +1343,15 @@ const mkURL = b => { const u = URL.createObjectURL(b); urls.add(u); return u; };
 const revokeAll = () => { for (const u of urls) URL.revokeObjectURL(u); urls.clear(); };
 
 async function makeThumb(blob) {
-  const bmp = await createImageBitmap(blob);
+  /* b187 (4): decode AND downscale in one off-thread step. Decoding a 1100 px
+     print to full size just to draw a 220 px thumb allocates the whole bitmap
+     on the main thread; resizeWidth hands back the small one instead. The
+     canvas pass then only ever touches an already-small image, and only when
+     the print is upright (resize keeps aspect, so height can exceed the cap).
+     Falls back to the full decode where the option is unsupported. */
+  let bmp;
+  try { bmp = await createImageBitmap(blob, { resizeWidth: 220, resizeQuality: "high" }); }
+  catch (e) { bmp = await createImageBitmap(blob); }
   const s = 220 / Math.max(bmp.width, bmp.height);
   const c = document.createElement("canvas");
   c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
@@ -1386,7 +1394,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 186;                     /* bump with every ship; lands in EXIF */
+const BUILD = 187;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -3669,20 +3677,29 @@ function vt(fn) {
   try { document.startViewTransition(fn); } catch (e) { fn(); }
 }
 function expandFromChip() {
+  /* b187 (19): FLIP, strictly. Both rectangles are measured BEFORE anything is
+     appended - the old version appended, then measured inside rAF, forcing a
+     layout with the new node already in the tree. The delta is then one Web
+     Animations run: interruptible, compositor-driven, and self-cleaning on
+     finish, replacing a chain of two timeouts that could outlive the view. */
   try {
     const src = $("chip").querySelector("img"); if (!src || !src.src) return;
-    const r0 = $("chip").getBoundingClientRect();
+    const r0 = $("chip").getBoundingClientRect();                       /* first */
+    const st = $("stage").getBoundingClientRect();                      /* last  */
+    if (!r0.width || !st.width) return;
+    const ar = src.naturalWidth / Math.max(1, src.naturalHeight);
+    let w = st.width, h = w / ar; if (h > st.height) { h = st.height; w = h * ar; }
+    const x = st.left + (st.width - w) / 2, y = st.top + (st.height - h) / 2;
     const fly = document.createElement("img"); fly.src = src.src; fly.id = "fly";
-    Object.assign(fly.style, { left: r0.left + "px", top: r0.top + "px", width: r0.width + "px", height: r0.height + "px" });
-    document.body.appendChild(fly);
-    requestAnimationFrame(() => {
-      const st = $("stage").getBoundingClientRect(); const ar = src.naturalWidth / Math.max(1, src.naturalHeight);
-      let w = st.width, h = w / ar; if (h > st.height) { h = st.height; w = h * ar; }
-      const x = st.left + (st.width - w) / 2, y = st.top + (st.height - h) / 2;
-      fly.style.transform = `translate(${x - r0.left}px, ${y - r0.top}px) scale(${w / r0.width}, ${h / r0.height})`;
-      fly.style.opacity = "1";
-      setTimeout(() => { fly.style.opacity = "0"; setTimeout(() => fly.remove(), 260); }, 460);
-    });
+    Object.assign(fly.style, { left: r0.left + "px", top: r0.top + "px",
+                               width: r0.width + "px", height: r0.height + "px", opacity: "1" });
+    document.body.appendChild(fly);                                     /* invert + play */
+    const end = `translate(${x - r0.left}px, ${y - r0.top}px) scale(${w / r0.width}, ${h / r0.height})`;
+    const a = fly.animate([{ transform: "none", opacity: 1 },
+                           { transform: end, opacity: 1, offset: 0.62 },
+                           { transform: end, opacity: 0 }],
+                          { duration: 720, easing: "cubic-bezier(.16,.9,.22,1)", fill: "forwards" });
+    a.finished.then(() => fly.remove(), () => fly.remove());
   } catch (e) {}
 }
 $("chip").addEventListener("pointerdown", () => { chipHeld = false; clearTimeout(chipHold); chipHold = setTimeout(() => { chipHeld = true; haptic(); openContactSheet(); }, 600); });
