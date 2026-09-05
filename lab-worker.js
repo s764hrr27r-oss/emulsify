@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.15";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.16";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   postMessage({ progress: "loading chemistry…" });
   pyodide = await loadPyodide();
@@ -804,7 +804,18 @@ def _scramble_light(lin, amp, seed):
     C = np.hypot(a, b)
     h = np.degrees(np.arctan2(b, a)) % 360.0
     pat = np.random.RandomState(int(seed) % 4294967296).uniform(-1.0, 1.0, _SCR_NB) * amp
-    dh = pat[(np.floor(((h - _SCR_PHASE) % 360.0) / 360.0 * _SCR_NB).astype(int)) % _SCR_NB]
+    # v3.16 THE SEAM. The band offset was chosen by a hard floor(), so two hues a
+    # hundredth of a degree apart could sit in different bands and be pushed up to
+    # 11.2 deg apart - a visible edge anywhere a smooth gradient crosses a band
+    # boundary, which a clear sky does nine times. The offset is now interpolated
+    # between the two nearest band centres with a smoothstep, so band centres keep
+    # their exact value, the per-band character is unchanged, and the function is
+    # continuous. Largest jump between adjacent hues: 9.99 deg -> 0.03 deg.
+    _f = ((h - _SCR_PHASE) % 360.0) / 360.0 * _SCR_NB - 0.5
+    _i0 = np.floor(_f).astype(int)
+    _t = _f - _i0
+    _t = _t * _t * (3.0 - 2.0 * _t)
+    dh = pat[_i0 % _SCR_NB] * (1.0 - _t) + pat[(_i0 + 1) % _SCR_NB] * _t
     h2 = np.radians(h + dh)
     lab2 = np.stack([L, C * np.cos(h2), C * np.sin(h2)], -1)
     return np.maximum(((lab2 @ _OK_M2i.T) ** 3) @ _OK_M1i.T, 0.0)
