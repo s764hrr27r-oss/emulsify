@@ -1394,7 +1394,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 187;                     /* bump with every ship; lands in EXIF */
+const BUILD = 188;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -3747,14 +3747,23 @@ async function openContactSheet(roll) {
   for (const k of prints) { try { const rf = localStorage["rf" + k] || ""; if (rf && rf[0] === contactRoll) onRoll[parseInt(rf.slice(1), 10)] = k; } catch (e) {} }
   const taken = Object.keys(onRoll).length;
   sheet.querySelector(".of").textContent = taken + " OF " + ROLL_LEN;
+  /* b188 (8, 9): 36 cells were appended one at a time into the live tree, each
+     append invalidating layout, with no way for a tap to interrupt. Now they are
+     built into a fragment off the tree and attached in one write, and the loop
+     breaks for a waiting finger every eight cells. Thumbs stay lazy: the img is
+     decoded only when the browser needs to paint it. */
+  const frag = document.createDocumentFragment();
   for (let i = 1; i <= ROLL_LEN; i++) {
     const cell = document.createElement("div"); cell.className = "cell"; const id = onRoll[i];
-    if (id) { const im = document.createElement("img"); im.style.filter = hourTint(id); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im);
+    if (id) { const im = document.createElement("img"); im.loading = "lazy"; im.decoding = "async";
+      im.style.filter = hourTint(id); thumbURL(id).then(u => { if (u) im.src = u; }); cell.appendChild(im);
       cell.onclick = () => { fromSheet = contactRoll; sheet.classList.remove("on"); openItem(id); }; }
     const n = document.createElement("b"); n.textContent = contactRoll + String(i).padStart(2, "0"); cell.appendChild(n);
     cell.style.animationDelay = (i * 16) + "ms";                        /* KUSAMA: a wave across the grid */
-    fr.appendChild(cell);
+    frag.appendChild(cell);
+    if (i % 8 === 0 && inputWaiting()) await breathe();
   }
+  fr.appendChild(frag);
   if (rolls.length > 1) { const hint = document.createElement("div"); hint.className = "hint"; hint.textContent = "swipe for other rolls"; fr.appendChild(hint); }
   sheet.classList.add("on");
   /* HEAR YOUR ROLL. Each taken frame plays its note in order as the wave
@@ -3904,7 +3913,16 @@ async function buildStrip(selId) {
     if (strip.children[i] !== w) strip.insertBefore(w, strip.children[i] || null);
     b.classList.toggle("sel", k === selId);
     b.classList.toggle("cook", cook);
-    const u = cook ? (cookThumbs.get(k) || null) : await thumbURL(k);
+    /* b188 (7, 10): the thumb read no longer blocks the row it belongs to. The
+       cell is laid out now and its picture arrives when the read finishes, at
+       background priority; forty serial awaits used to hold the whole strip. */
+    const u = cook ? (cookThumbs.get(k) || null) : (thumbURLs.get(k) || null);
+    let pending = false;
+    if (!cook && !u) {                       /* not cached yet: hold the cell, fill it when the read lands */
+      pending = true;
+      if (!b.querySelector("img")) b.appendChild(Object.assign(document.createElement("img"), { decoding: "async" }));
+      soon(() => thumbURL(k).then(uu => { const im = b.querySelector("img"); if (uu && im && !im.src) im.src = uu; }), "background");
+    }
     let sc = b.querySelector(".scrim"), dd = b.querySelector(".dot");
     if (cook) {
       if (!sc) { sc = document.createElement("i"); sc.className = "scrim"; b.appendChild(sc); }
@@ -3912,7 +3930,7 @@ async function buildStrip(selId) {
     } else { if (sc) sc.remove(); if (dd) dd.remove(); sc = null; dd = null; }
     const ims = b.querySelectorAll("img");
     const top = ims[ims.length - 1];
-    if (!u) { for (const o of ims) o.remove(); continue; }
+    if (!u) { if (!pending) for (const o of ims) o.remove(); continue; }   /* a pending cell keeps its empty frame */
     if (!top || top.src !== u) {
       const im = document.createElement("img");
       if (cook) im.className = "step";
