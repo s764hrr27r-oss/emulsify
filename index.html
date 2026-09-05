@@ -619,6 +619,23 @@ body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-be
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
+/* ---------- SEAMLESS II (b189) ----------
+   20 the strip's thumbs answer to scroll position on the compositor: no scroll
+   listener, no main-thread work, nothing to fall behind a finger. Guarded by
+   @supports so browsers without it keep the plain strip.
+   15 the deck reads its own box rather than the window's orientation, which is
+   what it actually cares about; the media queries stay as the fallback. */
+@supports (animation-timeline: view()){
+  #strip button{animation:thumbrise linear both;animation-timeline:view(inline);animation-range:entry 0% entry 70%}
+  @media (orientation: landscape){ #strip button{animation-timeline:view(block)} }
+}
+@keyframes thumbrise{from{opacity:.45;transform:scale(.9)}to{opacity:1;transform:none}}
+@supports (container-type: inline-size){
+  .deck{container-type:inline-size;container-name:deck}
+  @container deck (min-width: 560px){
+    #windwrap{max-width:none}
+  }
+}
 /* ---------- SEAMLESS (b186): browser-native scheduling, containment, transitions ----------
    16 typed custom properties interpolate on the compositor instead of stepping.
    13 containment stops a change inside one box invalidating the rest of the page.
@@ -1342,7 +1359,45 @@ const urls = new Set();
 const mkURL = b => { const u = URL.createObjectURL(b); urls.add(u); return u; };
 const revokeAll = () => { for (const u of urls) URL.revokeObjectURL(u); urls.clear(); };
 
+/* b189 (5, 6): THE ASSISTANT. Thumbnailing is decode + downscale + JPEG encode,
+   all of which ran on the main thread between a tap and its response. It now
+   runs in a tiny second worker on an OffscreenCanvas - separate from the lab, so
+   a thumb can never queue behind a develop. Built from a blob URL, so the app
+   stays one file. Falls back to the in-page path where either API is missing. */
+let tw = null, twSeq = 0;
+const twJobs = new Map();
+function thumbWorker() {
+  if (tw !== null) return tw;
+  try {
+    if (typeof OffscreenCanvas !== "function" || typeof Worker !== "function") { tw = false; return tw; }
+    const src = 'self.onmessage=async function(e){var d=e.data;try{' +
+      'var b;try{b=await createImageBitmap(d.blob,{resizeWidth:220,resizeQuality:"high"});}catch(x){b=await createImageBitmap(d.blob);}' +
+      'var s=220/Math.max(b.width,b.height);var w=Math.round(b.width*s),h=Math.round(b.height*s);' +
+      'var c=new OffscreenCanvas(w,h);c.getContext("2d").drawImage(b,0,0,w,h);b.close();' +
+      'var o=await c.convertToBlob({type:"image/jpeg",quality:0.85});' +
+      'self.postMessage({id:d.id,blob:o});}catch(err){self.postMessage({id:d.id,error:String(err)});}};';
+    const u = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+    tw = new Worker(u); URL.revokeObjectURL(u);
+    tw.onmessage = e => { const j = twJobs.get(e.data.id); if (!j) return; twJobs.delete(e.data.id); e.data.error ? j.rej(new Error(e.data.error)) : j.res(e.data.blob); };
+    tw.onerror = () => { for (const j of twJobs.values()) j.rej(new Error("assistant failed")); twJobs.clear(); tw = false; };
+  } catch (e) { tw = false; }
+  return tw;
+}
 async function makeThumb(blob) {
+  const w = thumbWorker();
+  if (w) {
+    try {
+      const id = ++twSeq;
+      return await new Promise((res, rej) => {
+        twJobs.set(id, { res, rej });
+        setTimeout(() => { if (twJobs.delete(id)) rej(new Error("assistant timeout")); }, 8000);
+        w.postMessage({ id, blob });
+      });
+    } catch (e) { /* fall through to the in-page path */ }
+  }
+  return makeThumbInPage(blob);
+}
+async function makeThumbInPage(blob) {
   /* b187 (4): decode AND downscale in one off-thread step. Decoding a 1100 px
      print to full size just to draw a 220 px thumb allocates the whole bitmap
      on the main thread; resizeWidth hands back the small one instead. The
@@ -1394,7 +1449,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 188;                     /* bump with every ship; lands in EXIF */
+const BUILD = 189;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
