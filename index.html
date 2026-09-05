@@ -619,6 +619,24 @@ body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-be
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
+/* ---------- SEAMLESS (b186): browser-native scheduling, containment, transitions ----------
+   16 typed custom properties interpolate on the compositor instead of stepping.
+   13 containment stops a change inside one box invalidating the rest of the page.
+   14 off-screen sheet rows cost nothing until scrolled to. 22 no rubber-band leak.
+   24 roll tabs land instead of drifting. 21 layers are promoted for a gesture and
+   given back after, rather than held forever. 17 named view-transition targets. */
+@property --cell{syntax:"<number>";inherits:true;initial-value:.55}
+@property --room{syntax:"<number>";inherits:true;initial-value:1}
+.deck,#backlcd,#scopes,#print .foot{contain:layout paint}
+#contact .cell{contain:layout paint style}
+#contact .frames{content-visibility:auto;contain-intrinsic-size:auto 480px}
+#strip,#contact,#print,#lablog{overscroll-behavior:contain}
+#contact .tabs{scroll-snap-type:x mandatory}
+#contact .tabs button{scroll-snap-align:center}
+#strip.dragging{will-change:scroll-position}
+#stage img.in{view-transition-name:print-image}
+#chip img{view-transition-name:none}
+::view-transition-old(print-image),::view-transition-new(print-image){animation-duration:.28s}
 /* ---------- THE TURN (b179): rotation as one continuous motion ----------
    iOS cuts a PWA from one layout to the other. The body turns in from where it
    was (1), overshoots and settles (3); the world under it counter-rotates so
@@ -1253,6 +1271,21 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 
 <script type="module">
 const $ = id => document.getElementById(id);
+/* 7 8 9 10 (b186) THE SCHEDULER. setTimeout(0) has no priority: a background
+   thumb decode and a tap response queue identically. Where the browser offers
+   scheduler.postTask, work is filed by priority; where it offers yield() or
+   isInputPending(), long loops break for a waiting finger. All three degrade
+   to the old behaviour when absent, so nothing depends on them. */
+const soon = (fn, pri) => {
+  try { if (typeof scheduler === "object" && scheduler && scheduler.postTask) return scheduler.postTask(fn, { priority: pri || "user-visible" }); } catch (e) {}
+  return setTimeout(fn, 0);
+};
+const idle = fn => (typeof requestIdleCallback === "function" ? requestIdleCallback(fn, { timeout: 1200 }) : setTimeout(fn, 250));
+const inputWaiting = () => { try { return !!(navigator.scheduling && navigator.scheduling.isInputPending && navigator.scheduling.isInputPending()); } catch (e) { return false; } };
+const breathe = async () => {
+  try { if (typeof scheduler === "object" && scheduler && scheduler.yield) return await scheduler.yield(); } catch (e) {}
+  return new Promise(r => setTimeout(r, 0));
+};
 /* ERROR RING (b175): the last forty things the page threw, kept for the deep
    log. Registered first so nothing escapes it. */
 const errRing = [];
@@ -1353,7 +1386,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 185;                     /* bump with every ship; lands in EXIF */
+const BUILD = 186;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1575,6 +1608,10 @@ const labDevelop = (buf, seed, fid, full) => {
        that never answers would therefore disable the camera silently. Two
        minutes without an answer is a failure, reported as one. */
     setTimeout(() => { const w = waits.get(id); if (w) { waits.delete(id); w.rej(new Error("LAB TIMEOUT")); } }, 120000);
+    /* b186 star 3: the negative is TRANSFERRED, not cloned. A structured clone of
+       a 1-3 MB ArrayBuffer copies it on the main thread at the exact moment the
+       shutter is pressed; transferring is zero-copy. The page's copy is neutered,
+       which is correct - only the worker needs it from here. */
     worker.postMessage({ id, neg: buf, profile: "honey", seed: seed, ev: EV.v,
                          build: BUILD, ana: (typeof ANA === "object" ? ANA.s : 1),
                          mm: GLASS.mm,
@@ -1583,7 +1620,7 @@ const labDevelop = (buf, seed, fid, full) => {
                          tint:  ANA.tint ? ANA.tint.join(",") : "",
                          tintS: ANA.tint ? (ANA.tintS || 0) : 0,
                          size: RUNGS[r].px,
-                         dc:   RUNGS[r].dc });
+                         dc:   RUNGS[r].dc }, [buf]);   /* transfer, do not clone */
   });
 };
 const _labBake_unused = (buf, w, t, secs) => {
@@ -2456,7 +2493,13 @@ function cock(on) {
    light, expressed on a log scale so it moves a step per stop. Roughly 4 in a
    dim room, 13 in open sun. */
 let lvCanvas = null, sceneRB = 1;              /* 5: the scene's red/blue balance, read with the light */
-function lightValue() {
+/* b186 star 1: the meter reads on the VIDEO'S OWN frame delivery, not the
+   panel's timer. getImageData at an arbitrary moment collides with taps and
+   animations; requestVideoFrameCallback runs when a frame actually arrived,
+   after paint. The panel then reads a cached number instead of sampling.
+   Where rVFC does not exist, lightValue samples inline exactly as before. */
+let lvCache = null, lvRVFC = 0;
+function lvSample() {
   const v = $("video");
   if (!v || !v.videoWidth) return null;
   try {
@@ -2475,6 +2518,17 @@ function lightValue() {
     const mean = sum / (d.length / 4);
     return Math.max(0, Math.min(20, Math.round(14 + 2 * Math.log2(Math.max(mean, 1e-4)))));
   } catch (e) { return null; }
+}
+function lvPump() {
+  const v = $("video");
+  if (!v || !v.requestVideoFrameCallback || lvRVFC) return;
+  const step = () => { lvRVFC = 0; if (!document.hidden && !asleep) lvCache = lvSample(); lvRVFC = v.requestVideoFrameCallback(step); };
+  lvRVFC = v.requestVideoFrameCallback(step);
+}
+function lightValue() {
+  const v = $("video");
+  if (v && v.requestVideoFrameCallback) { lvPump(); return lvCache; }
+  return lvSample();
 }
 /* ---------- THE INSTRUMENTS ----------
    Five pieces of equipment fed by one 96x72 sample of the live view, drawn at
@@ -2684,8 +2738,12 @@ function verifyScopes(pass) {
   pass = pass || 0;
   const g = $("glass").getBoundingClientRect();
   const F = { l: g.left + g.width * 0.07 + 2, t: g.top + g.height * 0.07 + 2, r: g.right - g.width * 0.07 - 2, b: g.bottom - g.height * 0.07 - 2 };
+  /* b186 star 11: ALL READS, THEN ALL WRITES. Measuring and styling in the same
+     loop forces a synchronous layout per scope - up to five forced reflows in a
+     single frame, on every rotation and every scope wake. */
   let bad = false;
-  for (const [k, , slot, asp] of SCOPES) {
+  const work = [];
+  for (const [k, , slot, asp] of SCOPES) {                      /* reads */
     if (!scopesOn.has(k)) continue;
     const card = scopeEls[k].card, cv = scopeEls[k].cv;
     const r = card.getBoundingClientRect(), sr = $("scopes").querySelector("." + slot).getBoundingClientRect();
@@ -2695,9 +2753,12 @@ function verifyScopes(pass) {
     if (overX > 0.5 || overY > 0.5) {
       bad = true;
       const kx = (r.width - 2 * overX - 1) / r.width, ky = (r.height - 2 * overY - 1) / r.height, kk = Math.max(0.5, Math.min(kx, ky));
-      const cw = parseFloat(cv.style.width) * kk, ch = cw / asp;
-      cv.style.width = Math.floor(cw) + "px"; cv.style.height = Math.floor(ch) + "px"; card.style.width = Math.floor(cw + 20) + "px";
+      const cw = parseFloat(cv.style.width) * kk;
+      work.push([cv, card, Math.floor(cw), Math.floor(cw / asp)]);
     }
+  }
+  for (const [cv, card, cw, ch] of work) {                      /* writes */
+    cv.style.width = cw + "px"; cv.style.height = ch + "px"; card.style.width = (cw + 20) + "px";
   }
   if (bad && pass < 3) requestAnimationFrame(() => verifyScopes(pass + 1));
 }
@@ -2720,7 +2781,7 @@ function sampleFrame() {
 function face(cv, persist) {
   const dpr = Math.min(2, devicePixelRatio || 1);
   const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
-  const g = cv.getContext("2d");
+  const g = cv.getContext("2d", { willReadFrequently: true });
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; g.fillStyle = "#050605"; g.fillRect(0, 0, w, h); }
   else if (persist) { g.fillStyle = "rgba(5,6,5," + Math.min(1, persist * scopeDT / 0.07).toFixed(3) + ")"; g.fillRect(0, 0, w, h); }   /* phosphor decay, per second */
   else g.clearRect(0, 0, w, h);
@@ -3189,6 +3250,7 @@ function powerOn() {
   setInterval(backLCD, 400);               /* 2.5 Hz is steady enough for a needle */
 }
 powerOn();
+idle(() => { try { if (!worker) spawnWorker(); } catch (e) {} });   /* 29: boot the lab during the lid, not on the first shot */
 setTimeout(() => { try { const sp = $("splash"); if (sp) { sp.style.opacity = "0"; setTimeout(() => sp.remove(), 700); } } catch (e) {} }, 4000);   /* the lid NEVER strands the camera */
 $("windwrap").onclick = () => {
   if (cocked) return;                       /* already set: no double stroke */
@@ -3598,6 +3660,14 @@ paintChip();
 /* WRIGHT. Compression, then release: the small image in the chip grows from
    its own place on the deck to fill the stage, and the room opens around it. */
 let chipHold = 0, chipHeld = false;
+/* b186 star 17: VIEW TRANSITIONS. Where the browser can snapshot both states and
+   cross-fade them itself, it cannot desync the way a hand-built fly-out can.
+   Used only where supported and where motion is wanted; every other path is
+   untouched, so nothing is lost where it is not supported. */
+function vt(fn) {
+  if (calmMotion || !document.startViewTransition) { fn(); return; }
+  try { document.startViewTransition(fn); } catch (e) { fn(); }
+}
 function expandFromChip() {
   try {
     const src = $("chip").querySelector("img"); if (!src || !src.src) return;
@@ -3753,13 +3823,18 @@ let chartOrder = false, holdStrip = 0;
   const V = () => matchMedia("(orientation: landscape)").matches, P = e => V() ? e.clientY : e.clientX;
   const S = v => { if (v === undefined) return V() ? st.scrollTop : st.scrollLeft; if (V()) st.scrollTop = v; else st.scrollLeft = v; };
   const M = () => V() ? st.scrollHeight - st.clientHeight : st.scrollWidth - st.clientWidth;
+  st.addEventListener("scroll", () => {}, { passive: true });   /* 25: never block a scroll to ask about preventDefault */
   st.addEventListener("pointerdown", e => {
     down = true; dragged = false; x0 = lastX = P(e); sl = S(); lastT = performance.now(); vx = 0; cancelAnimationFrame(coast);
+    st.classList.add("dragging");                        /* 21: promote for the gesture only */
     /* RICHTER: hold the strip still for six tenths of a second and it re-sorts by hue */
     clearTimeout(holdStrip); holdStrip = setTimeout(() => { if (down && !dragged) { chartOrder = !chartOrder; haptic(); buildStrip(current || watching); } }, 600);
   }, { passive: true });
   st.addEventListener("pointermove", e => {
     if (!down) return;
+    /* 23: every sampled touch point, not one per frame - this is what makes the
+       paper feel like it is under the finger rather than following it */
+    if (e.getCoalescedEvents) { const cs = e.getCoalescedEvents(); if (cs.length) e = cs[cs.length - 1]; }
     const dx = P(e) - x0, now = performance.now();
     if (!dragged && Math.abs(dx) > 6) { dragged = true; st.classList.add("dragging"); clearTimeout(holdStrip); }
     if (dragged) { S(sl - dx); const dt = Math.max(1, now - lastT); vx = 0.8 * vx + 0.2 * ((P(e) - lastX) / dt); lastX = P(e); lastT = now; }
@@ -3862,7 +3937,7 @@ function paintWatched() {              /* a new stage landed while watching */
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
   }, 2600);
 }
-$("back").onclick = () => { machine("button", 0.09, 1600); $("print").classList.remove("on");
+$("back").onclick = () => { machine("button", 0.09, 1600); vt(() => $("print").classList.remove("on"));
   if (fromSheet) { const r = fromSheet; fromSheet = null; setTimeout(() => openContactSheet(r), 60); }   /* came from the rolls: return to them */ setPaged(false); if (cocked) humStart();
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
