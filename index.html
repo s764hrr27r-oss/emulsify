@@ -1410,6 +1410,49 @@ function renderList(parent, items, keyOf, build, update) {
   }
   for (const el of have.values()) el.remove();     /* only the genuinely gone */
 }
+/* ==================== THE QUERY CACHE (b192) ====================
+   Batch 3. 20 every print is an entry with a STATUS, replacing pending/cooking
+   bookkeeping kept in three places. 21 the frame appears the instant it is shot
+   and reconciles when the lab answers. 22 a develop that fails is retried with
+   backoff instead of becoming a dead frame. 23 a thumb shows from cache at once
+   and refreshes behind. 25 one place decides what a region shows while it waits. */
+const QC = new Map();                       /* id -> {status, data, error, tries, at} */
+const qcSubs = new Set();
+function qcSet(id, patch) {
+  const cur = QC.get(id) || { status: "idle", data: null, error: null, tries: 0, at: 0 };
+  const next = Object.assign({}, cur, patch, { at: Date.now() });
+  QC.set(id, next);
+  for (const f of qcSubs) { try { f(id, next); } catch (e) {} }
+  return next;
+}
+const qcGet = id => QC.get(id) || null;
+const qcStatus = id => (QC.get(id) || {}).status || "idle";
+/* 22: retry with backoff. Transient failures - a worker respawn, a memory blip -
+   used to lose the frame outright. Three attempts, 0.6s then 1.8s apart, and the
+   panel says which attempt it is on. A guard failure is not retried. */
+async function withRetry(id, fn, tries) {
+  tries = tries || 3;
+  let last;
+  for (let i = 1; i <= tries; i++) {
+    try { qcSet(id, { status: "loading", tries: i }); return await fn(i); }
+    catch (e) {
+      last = e; qcSet(id, { status: "error", error: String(e && e.message || e), tries: i });
+      if (i >= tries || /TIMEOUT|RESTART/i.test(String(e && e.message || e))) break;
+      try { flashState("RETRY " + (i + 1) + " OF " + tries); } catch (e2) {}
+      await new Promise(r => setTimeout(r, 600 * Math.pow(3, i - 1)));
+    }
+  }
+  throw last;
+}
+/* 24: transition semantics. Re-sorting a roll by hue is interruptible work; a
+   tap is not. The sort yields to a waiting finger and can be superseded. */
+let transitionSeq = 0;
+async function startTransition(fn) {
+  const mine = ++transitionSeq;
+  const stale = () => mine !== transitionSeq;
+  try { await fn(stale); } catch (e) { ringPush("transition", (e && e.stack) || e); }
+  return !stale();
+}
 /* 17: guards. One rule, one place, consulted by everyone - instead of the same
    condition checked differently in three handlers. */
 const GUARDS = {
@@ -1621,6 +1664,9 @@ async function thumbURL(id) {
 const dropThumbURL = id => { const u = thumbURLs.get(id);
   if (u) { URL.revokeObjectURL(u); thumbURLs.delete(id); } };
 async function thumbOf(id) {
+  /* 23: stale-while-revalidate. A cached thumb is handed back at once; if it
+     came from an older print blob it is rebuilt behind, and the picture swaps
+     when the new one lands. The gallery never waits on a rebuild. */
   let t = await get("thumbs", id);
   if (!t) { const p = await get("prints", id);
     if (!p) return null; t = await makeThumb(p); await put("thumbs", id, t); }
@@ -1629,7 +1675,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 191;                     /* bump with every ship; lands in EXIF */
+const BUILD = 192;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2275,6 +2321,15 @@ function ServiceRows(props) {
       colour: props.pending ? "var(--ready)" : "var(--mute)", sw: true,
       act: () => { closeServiceMenu(); applyUpdate(); } });
   return rows;
+}
+/* 25: Suspense-style boundary. A region declares what it needs and what it shows
+   while it waits, instead of each caller inventing its own placeholder. */
+function suspense(el, ready, pending) {
+  if (!el) return;
+  const ok = !!ready();
+  el.classList.toggle("waiting", !ok);
+  if (!ok && pending) try { pending(el); } catch (e) {}
+  return ok;
 }
 function paintServiceMenu() {
   const m = $("servicemenu");
@@ -3691,16 +3746,23 @@ async function cook(c, voice, full) {
   pending++; cooking.add(id); labStage = ""; paintWind(); if (pending === 1) bathToneStart();
   dispatch("BATH", { pending });
   try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
+  qcSet(id, { status: "loading", tries: 0 });      /* 21: the frame exists the moment it is shot */
   try {
     labAwake(true);
-    const { jpg, secs } = await labDevelop(await blob.arrayBuffer(), seed, id, full);
+    const { jpg, secs } = await withRetry(id, async () => {        /* 22 */
+      /* the send TRANSFERS the buffer (b186 star 3), which neuters this copy -
+         so a retry reads the blob again rather than a detached ArrayBuffer. */
+      return await labDevelop(await blob.arrayBuffer(), seed, id, full);
+    });
     if (!full) adaptRung(secs);        /* a full-size shot must not demote the rung */
     try { localStorage["t" + id] = secs || ""; } catch (e) {}
     const printBlob = new Blob([jpg], { type: "image/jpeg" });
     await put("prints", id, printBlob);          // balanced in the lab: final
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
-  } catch (e) { console.error(e); flagError(String(e && e.message || e).slice(0, 18).toUpperCase() || "DEVELOP FAILED"); }
+    qcSet(id, { status: "success", data: { secs }, error: null });   /* 20 */
+  } catch (e) { console.error(e); qcSet(id, { status: "error", error: String(e && e.message || e) });
+    flagError(String(e && e.message || e).slice(0, 18).toUpperCase() || "DEVELOP FAILED"); }
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
   pending--; if (pending <= 0) labAwake(false);
@@ -4136,7 +4198,16 @@ let chartOrder = false, holdStrip = 0;
   st.addEventListener("click", e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
 })();
 async function buildStrip(selId) {
-  if (chartOrder) await Promise.all([...prints].filter(k => !unchosen.has(k) && hueOf[k] === undefined).map(hueFor));
+  if (chartOrder) {                            /* 24: interruptible, and a tap wins */
+    const need = [...prints].filter(k => !unchosen.has(k) && hueOf[k] === undefined);
+    await startTransition(async stale => {
+      for (let i = 0; i < need.length; i++) {
+        if (stale()) return;
+        await hueFor(need[i]);
+        if (i % 6 === 5 && inputWaiting()) await breathe();
+      }
+    });
+  }
   const strip = $("strip");
   const ids = galleryIds().slice(0, 40);
   const keep = new Set(ids);
