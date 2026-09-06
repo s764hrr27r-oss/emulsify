@@ -1545,11 +1545,17 @@ async function startTransition(fn) {
 }
 /* 17: guards. One rule, one place, consulted by everyone - instead of the same
    condition checked differently in three handlers. */
+/* b199: the guards read the WORKING STORE, not the chart. b190 said plainly that
+   the existing variables stay authoritative and the chart is the record - then I
+   wired the guards to the chart anyway. Because WIND and BOOT were never
+   dispatched, body never left "idle", so can("EXPOSE") was permanently false and
+   b194's paintAvail dimmed the shutter to 42% every time it was set. The chart
+   keeps logging; the rules read the truth. */
 const GUARDS = {
-  EXPOSE:  () => CORE.state.body === "cocked" && CORE.state.pending < 3,
-  DOUBLE:  () => CORE.state.pending === 0 && CORE.state.body !== "exposing",
-  UPDATE:  () => CORE.state.pending === 0 || CORE.state.lab === "failed",
-  BATH:    () => CORE.state.lab === "ready" || CORE.state.lab === "bathing"
+  EXPOSE:  () => (typeof cocked !== "undefined" ? cocked : false) && pending < 3,
+  DOUBLE:  () => pending === 0,
+  UPDATE:  () => pending === 0 || !!labLastError,
+  BATH:    () => !!workerVer && !labLastError
 };
 const can = k => { try { return !!(GUARDS[k] && GUARDS[k]()); } catch (e) { return false; } };
 /* 5: derived, computed on demand, so it can never disagree with the state. */
@@ -1765,7 +1771,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 198;                     /* bump with every ship; lands in EXIF */
+const BUILD = 199;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1817,7 +1823,7 @@ function spawnWorker() {
   worker = new Worker("lab-worker.js?v=" + BUILD + "&r=" + labRespawns);
   worker.onmessage = onLabMessage;
   worker.onerror = e => { labFailed("LAB ERROR: " + ((e && (e.message || e.filename)) || "script failed to load")); };
-  labNote("LAB LOADING");
+  labNote("LAB LOADING"); dispatch("BOOT");
   clearTimeout(labBootTimer);
   labBootTimer = setTimeout(() => { if (!workerVer) labFailed("LAB SILENT"); }, 90000);
 }
@@ -1864,6 +1870,12 @@ let hardIdx = (() => { try { const v = parseInt(localStorage["memhard"], 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
 } catch (e) { return 0; } })();
 const saveHard = () => { try { localStorage["memhard"] = hardIdx; } catch (e) {} };
+/* b199: a cap that predates the ceiling still means this phone died at the size
+   above it. Without this, a phone capped by b197 would earn its way back to
+   1100 in eight frames and crash again - the exact loop the ceiling exists to
+   break. Seeded once, then never widened by anything but a fresh death. */
+(() => { try { if (localStorage["memhard"] === undefined || localStorage["memhard"] === null) {
+  hardIdx = Math.max(hardIdx, capIdx); saveHard(); } } catch (e) {} })();
 const saveCap = () => { try { localStorage["memcap"] = capIdx; } catch (e) {} };
 (() => {                                   /* did the last session die cooking? */
   let died = null;
@@ -2394,7 +2406,7 @@ async function deepLog() {
   H("LAB RUNG & MEMORY");
   L.push(kv("rung", () => rung + " -> " + RUNGS[rung].px + "px  dualcoat=" + RUNGS[rung].dc),
          kv("memcap", () => capIdx + " -> floor " + RUNGS[capIdx].px + "px, " + capOk + "/8 clean frames toward trust"),
-         kv("memhard", () => hardIdx + " -> permanent ceiling " + RUNGS[hardIdx].px + "px (a size that killed this phone)"),
+         kv("memhard", () => hardIdx + " -> ceiling " + RUNGS[hardIdx].px + "px" + (hardIdx ? " (this phone died above it)" : " (no death recorded; no restriction)")),
          kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size));
   H("LOCALSTORAGE (key: chars)");
   try { const ks = Object.keys(localStorage).sort(); L.push("keys: " + ks.length); for (const k of ks) { const v = String(localStorage[k]); L.push("  " + k + ": " + (v.length > 60 ? v.length + " chars" : JSON.stringify(v))); } } catch (e) { L.push("localStorage: ?"); }
@@ -3723,6 +3735,7 @@ $("windwrap").onclick = () => {
   w.classList.add("winding");
   windVoice();                              /* the ratchet; the switch gives the tick */
   { const b = w.querySelector("b"); b.classList.remove("flinch"); void b.offsetWidth; b.classList.add("flinch"); }   /* BOCCIONI */
+  dispatch("WIND");                         /* b199: the chart hears the wind, so its log is true */
   cock(true);                               /* the picture grows WHILE the lever runs */
   setTimeout(haptic, 200);                  /* the throw, then the seat */
   setTimeout(() => {                        /* the perforations reset once stopped */
