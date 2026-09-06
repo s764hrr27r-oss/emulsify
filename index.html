@@ -619,6 +619,17 @@ body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-be
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
+/* ---------- LEGIBILITY III (b196) ----------
+   6 DISABLED IS NOT HIDDEN. A control that vanishes when unavailable teaches
+   nothing; one that stays and dims teaches the rule, and says why on a tap.
+   19 RUBBER-BAND RESISTANCE (Ording). The edge should push back and let go
+   rather than stop you dead - that is how a list says it has ended. */
+#shutter.unavail{opacity:.42}
+#shutter.unavail::after{box-shadow:0 0 0 1px rgba(236,236,232,.18)}
+#ana.unavail,#lens.unavail{opacity:.4}
+@keyframes nudge{0%,100%{transform:translateX(0)}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+.unavail.refused,.refused{animation:nudge .22s var(--ease-mech) 2}
+#strip{transition:transform .34s var(--ease-settle)}
 /* ---------- LEGIBILITY II (b195): mass, depth, arrival ----------
    3 a dragged control tracks the finger 1:1, or it is a picture of a control.
    15 easing carries mass: the shutter is fast and mechanical, paper is slow.
@@ -1754,7 +1765,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 195;                     /* bump with every ship; lands in EXIF */
+const BUILD = 196;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2876,12 +2887,24 @@ hapEl.addEventListener("pointercancel", unpress);
 let cocked = false, labStage = "";
 const STAGE_TEXT = { load: "reading the negative", slow: "slow coat: shadows and body", neg: "developer on the film",
                      fast: "fast coat: highlights", match: "matching the two coats", print: "fixing and drying" };
+function paintAvail() {
+  /* 6 (b196): availability is worn, not hidden - and computed from the same
+     guards everything else uses, so a control cannot disagree with the rule. */
+  try {
+    const sh = $("shutter"); if (sh) sh.classList.toggle("unavail", cocked ? !can("EXPOSE") : false);
+    const aw = $("ana"); if (aw) aw.classList.toggle("unavail", anaBlocked());
+  } catch (e) {}
+}
+function refuse(el, msg) {              /* say why, once, without a dialogue */
+  try { if (el) { el.classList.add("refused"); setTimeout(() => el.classList.remove("refused"), 480); } flashState(msg); haptic(); } catch (e) {}
+}
 function paintWind() {                  /* the capsule's words: set, asking, or in the bath */
   const b = $("wind").querySelector("b"), sg = $("windstage");
   const bath = pending > 0 && !cocked;
   document.body.classList.toggle("processing", bath);
   if (b) b.textContent = cocked ? (doubleArm ? "2ND EXPOSURE" : "READY") : bath ? "FILM PROCESSING" : (doubleArm ? "WIND FOR 2ND" : "TAP TO READY");
   if (sg) sg.textContent = bath ? (STAGE_TEXT[labStage] || "in the bath") : "";
+  paintAvail();
 }
 function cock(on) {
   dispatch(on ? "COCK" : "RELEASE");            /* the chart hears every set and release */
@@ -3761,8 +3784,10 @@ $("shutterwrap").onclick = async () => {
     w.classList.remove("nudge"); void w.offsetWidth; w.classList.add("nudge");
     return;
   }
-  if (!v.videoWidth || restarting || pending > 2) return;   /* wind is kept, not spent */
+  if (!v.videoWidth || restarting) return;                  /* wind is kept, not spent */
+  if (pending > 2) { refuse($("shutter"), "BATH IS FULL"); return; }   /* 6: refused, and it says why */
   if (anaBlocked()) {                 /* the squeeze needs the wide gate */
+    refuse($("ana"), "TURN FOR THE SQUEEZE");
     try { navigator.vibrate && navigator.vibrate([12, 60, 12]); } catch (e) {}
     return;
   }
@@ -4300,11 +4325,24 @@ let chartOrder = false, holdStrip = 0;
     if (e.getCoalescedEvents) { const cs = e.getCoalescedEvents(); if (cs.length) e = cs[cs.length - 1]; }
     const dx = P(e) - x0, now = performance.now();
     if (!dragged && Math.abs(dx) > 6) { dragged = true; st.classList.add("dragging"); clearTimeout(holdStrip); }
-    if (dragged) { S(sl - dx); const dt = Math.max(1, now - lastT); vx = 0.8 * vx + 0.2 * ((P(e) - lastX) / dt); lastX = P(e); lastT = now; }
+    if (dragged) {
+      /* 19: past the end the strip resists instead of stopping dead, then springs
+         back on release - the boundary is felt rather than announced. */
+      const want = sl - dx, max = M();
+      const over = want < 0 ? want : want > max ? want - max : 0;
+      S(Math.max(0, Math.min(max, want)));
+      if (over) {
+        const give = Math.sign(over) * Math.min(46, Math.pow(Math.abs(over), 0.62));
+        st.style.transition = "none";
+        st.style.transform = V() ? "translateY(" + (-give) + "px)" : "translateX(" + (-give) + "px)";
+      } else if (st.style.transform) { st.style.transition = ""; st.style.transform = ""; }
+      const dt = Math.max(1, now - lastT); vx = 0.8 * vx + 0.2 * ((P(e) - lastX) / dt); lastX = P(e); lastT = now;
+    }
   }, { passive: true });
   /* CALDER: let go and the strip coasts, slows, and settles with one soft overshoot */
   const up = () => {
     down = false; clearTimeout(holdStrip); setTimeout(() => { st.classList.remove("dragging"); }, 0);
+    if (st.style.transform) { st.style.transition = ""; st.style.transform = ""; }   /* 19: let go, spring back */
     if (!dragged || Math.abs(vx) < 0.05) return;
     let v = -vx * 16, last = performance.now();
     const step = (t) => {
