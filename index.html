@@ -619,6 +619,40 @@ body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-be
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
+/* ---------- LEGIBILITY (b194): the control explains itself ----------
+   1 the shutter answers the finger before it answers the tap. 5 the small round
+   buttons are bigger than they look. 8 a cell that is waiting shows the SHAPE of
+   what is coming, not a spinner. 12 anything possibly stale is faded until it is
+   confirmed. 20 the strip and the sheet peek, so you can see they continue.
+   29 a failed lab wears its own fix. All opacity/transform. */
+#shutter::after{content:"";position:absolute;inset:-6px;border-radius:50%;pointer-events:none;
+  box-shadow:0 0 0 1px rgba(236,236,232,.5);opacity:0;transition:opacity .12s linear}
+#shutter.touch::after{opacity:.7}
+#shutter.touch{transform:scale(.985)}
+/* 5: the tap target is larger than the drawn control */
+#finder,#lens,#ana,#back{position:relative}
+#finder::after,#lens::after,#ana::after,#back::after{content:"";position:absolute;inset:-10px;border-radius:inherit}
+/* 8 + 12: waiting and stale */
+#strip button.waiting img,#contact .cell.waiting img{opacity:0}
+#strip button.waiting,#contact .cell.waiting{background:
+  linear-gradient(100deg, rgba(255,255,255,.02) 30%, rgba(255,255,255,.07) 50%, rgba(255,255,255,.02) 70%) 0 0/300% 100%;
+  animation:shimmer 1.6s linear infinite}
+@keyframes shimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+.stale{opacity:.55;transition:opacity .3s var(--ease)}
+/* 20: peeking - the content is visibly cut, so you know there is more */
+#strip{-webkit-mask:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 22px),transparent);
+        mask:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 22px),transparent)}
+@media (orientation: landscape){
+  #strip{-webkit-mask:linear-gradient(180deg,transparent,#000 14px,#000 calc(100% - 22px),transparent);
+          mask:linear-gradient(180deg,transparent,#000 14px,#000 calc(100% - 22px),transparent)}
+}
+/* 29: a dead lab wears its own fix */
+#backlcd.labfailed .state{color:#e0704a}
+#servicemenu button.fix{color:#ffb27a !important;order:-1}
+/* 2: the EV preview - one overlay, opacity only, only while dragging */
+#evpreview{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;transition:opacity .18s linear;background:#000}
+#evpreview.up{background:#fff}
+body.evdrag #evpreview{transition:none}
 /* ---------- SEAMLESS II (b189) ----------
    20 the strip's thumbs answer to scroll position on the compositor: no scroll
    listener, no main-thread work, nothing to fall behind a finger. Guarded by
@@ -1212,7 +1246,7 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
   <div id="frame">
     <div id="aura"></div>
     <div id="glass">
-      <div id="screen"><video id="video" autoplay playsinline muted></video><div id="lowbloom"></div><img id="lastframe" alt="" aria-hidden="true"><div id="curtains"><i class="l"></i><i class="r"></i><b class="leak"></b></div></div>
+      <div id="screen"><video id="video" autoplay playsinline muted></video><div id="lowbloom"></div><div id="evpreview"></div><img id="lastframe" alt="" aria-hidden="true"><div id="curtains"><i class="l"></i><i class="r"></i><b class="leak"></b></div></div>
       <div id="anawarn">
         <svg viewBox="0 0 64 40" width="54" height="34" fill="none"
              stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
@@ -1675,7 +1709,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 193;                     /* bump with every ship; lands in EXIF */
+const BUILD = 194;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1708,6 +1742,7 @@ function failAllWaits(why) {
 async function labFailed(why) {
   clearTimeout(labBootTimer);
   labLastError = String(why || "").replace(/^LAB (BOOT|ERROR|SILENT):?\s*/i, "");
+  markLabFailed(true); try { paintServiceMenu(); } catch (e) {}   /* 29: the fix appears beside the error */
   failAllWaits(why);
   /* three tries with a growing pause; the CDN cache is purged before the first
      retry. After that the badge carries the error text itself, because the
@@ -1863,6 +1898,8 @@ const onLabMessage = e => {
   if (ready !== undefined) {
     clearTimeout(labBootTimer);
     if (e.data.ver) { workerVer = e.data.ver; }
+    labLastError = ""; markLabFailed(false); dispatch("READY");   /* 29: the lab is back; the fix stops shouting */
+    try { paintServiceMenu(); } catch (e2) {}
     labNote(""); sizeFromProbe(e.data.probe); return;
   }
   if (e.data.bootError) { labLog = String(e.data.bootError); const lines = labLog.trim().split("\n"); labFailed("LAB BOOT: " + lines[lines.length - 1].slice(0, 90)); return; }
@@ -2139,6 +2176,10 @@ function setEV(v) {
   else { f.style.top = "50%"; f.style.height = (pct - 50) + "%"; }
   lab.textContent = (v > 0 ? "+" : "") + v.toFixed(1).replace(/\.0$/, "");
   $("evrow").classList.toggle("live", v !== 0);
+  /* 2 (b194): the dial shows its effect on the scene while you move it, rather
+     than only on the print two seconds later. One overlay, opacity only. */
+  try { const p = $("evpreview");
+    if (p) { p.classList.toggle("up", v > 0); p.style.opacity = String(Math.min(0.42, Math.abs(v) * 0.16)); } } catch (e) {}
   $("video").style.filter = v ? "brightness(" + Math.pow(2, v).toFixed(3) + ")" : "";
   try { localStorage["ev"] = v; } catch (e) {}
 }
@@ -2313,7 +2354,8 @@ function ServiceRows(props) {
         let text; try { text = await deepLog(); } catch (e) { text = "DEEP LOG failed: " + e; }
         let ok = false; try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {}
         flashState(ok ? "LOG COPIED" : "COPY FAILED: SELECT FROM BOX"); showReport(text); } });
-  rows.push({ key: "restart", label: "RESTART LAB", colour: "var(--mute)", sw: true,
+  rows.push({ key: "restart", label: labLastError ? "RESTART LAB \u2190 FIX" : "RESTART LAB",
+      cls: labLastError ? "fix" : "", colour: "var(--mute)", sw: true,
       act: async () => { closeServiceMenu(); labRespawns = 0; workerVer = ""; labNote("LAB RESET");
         dispatch("RESTART"); await purgeCDN(); try { worker.terminate(); } catch (e) {}
         failAllWaits("LAB RESTARTED"); setTimeout(spawnWorker, 300); } });
@@ -2344,6 +2386,7 @@ function paintServiceMenu() {
       const sw = b.querySelector("input");
       b.textContent = r.label; if (sw) b.appendChild(sw);
       b.style.color = r.colour;
+      b.className = r.cls || "";
       b.onclick = () => { machine("click", 0.18); r.act(); };
     });
 }
@@ -2769,6 +2812,11 @@ async function sumExposures(c) {            /* the previous negative plus this o
     g.putImageData(img, 0, 0);
   } catch (e) { flashState("DOUBLE FAILED"); }
 }
+/* 1 (b194): the ring answers the finger on contact, before the tap resolves -
+   you know the control is live before you commit to it. */
+hapEl.addEventListener("pointerdown", () => $("shutter").classList.add("touch"));
+["pointerup", "pointercancel", "pointerleave"].forEach(ev =>
+  hapEl.addEventListener(ev, () => $("shutter").classList.remove("touch")));
 const unpress = () => $("shutter").classList.remove("pressed");
 hapEl.addEventListener("pointerup", unpress);
 hapEl.addEventListener("pointercancel", unpress);
@@ -3590,7 +3638,7 @@ $("windwrap").addEventListener("pointerdown", () => {
 /* AUTO-OFF. Two minutes untouched and the camera sleeps: finder dims, back
    fades, hum stops. Any touch wakes it. (Restored in b113: it was lost in 107
    when a removal sliced to a shared anchor.) */
-let sleepTimer = 0, asleep = false, shelfTimer = 0, warmTimer = 0, lastLanded = { id: null, t: 0 };
+let sleepTimer = 0, asleep = false, shelfTimer = 0, warmTimer = 0, lastLanded = { id: null, t: 0 }, stripPos = {};
 function wake() {
   if (asleep) { asleep = false; document.body.classList.remove("sleep"); if (cocked) humStart(); warmUp();
     document.body.classList.add("scan"); setTimeout(() => document.body.classList.remove("scan"), 700); }
@@ -3893,6 +3941,12 @@ setOptic(ANA.id);
 addEventListener("resize", anaGuard);
 addEventListener("orientationchange", anaGuard);
 
+/* 29 (b194): never a dead end. A failed lab marks the panel and promotes
+   RESTART LAB to the top of the service menu in its own colour, so the fix is
+   beside the error rather than three taps away. */
+function markLabFailed(on) {   /* called wherever labLastError is set */
+  try { $("backlcd").classList.toggle("labfailed", !!on); } catch (e) {}
+}
 function flagError(msg) {
   const chip = $("chip");
   chip.style.borderColor = "#7c2d12";
@@ -3988,6 +4042,25 @@ let chipHold = 0, chipHeld = false;
 function vt(fn) {
   if (calmMotion || !document.startViewTransition) { fn(); return; }
   try { document.startViewTransition(fn); } catch (e) { fn(); }
+}
+/* 17 (b194): closing reverses the exact path of opening. A view that opens by
+   growing from the chip and then simply vanishes leaves you unsure what you
+   came from; retracing answers it without a word. Same FLIP, run backwards. */
+function collapseToChip() {
+  try {
+    const img = $("stage").querySelector("img"); const chip = $("chip");
+    if (!img || !chip) return;
+    const r1 = img.getBoundingClientRect(), r0 = chip.getBoundingClientRect();
+    if (!r1.width || !r0.width) return;
+    const fly = document.createElement("img"); fly.src = img.src; fly.id = "fly";
+    Object.assign(fly.style, { left: r1.left + "px", top: r1.top + "px",
+                               width: r1.width + "px", height: r1.height + "px", opacity: "1" });
+    document.body.appendChild(fly);
+    const end = `translate(${r0.left - r1.left}px, ${r0.top - r1.top}px) scale(${r0.width / r1.width}, ${r0.height / r1.height})`;
+    const a = fly.animate([{ transform: "none", opacity: 1 }, { transform: end, opacity: 0.85 }],
+                          { duration: 340, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+    a.finished.then(() => fly.remove(), () => fly.remove());
+  } catch (e) {}
 }
 function expandFromChip() {
   /* b187 (19): FLIP, strictly. Both rectangles are measured BEFORE anything is
@@ -4158,6 +4231,9 @@ async function openPrint(id) {
 let chartOrder = false, holdStrip = 0;
 (function stripDrag() {
   const st = $("strip"); let x0 = 0, sl = 0, dragged = false, down = false, vx = 0, lastX = 0, lastT = 0, coast = 0;
+  /* 21 (b194): position persistence. Coming back to a list you have scrolled and
+     finding it at the start is a small betrayal; it is remembered per roll. */
+  st.addEventListener("scroll", () => { try { stripPos[ROLL] = matchMedia("(orientation: landscape)").matches ? st.scrollTop : st.scrollLeft; } catch (e) {} }, { passive: true });
   /* 19: in landscape the strip hangs, so the scroll axis follows the orientation */
   const V = () => matchMedia("(orientation: landscape)").matches, P = e => V() ? e.clientY : e.clientX;
   const S = v => { if (v === undefined) return V() ? st.scrollTop : st.scrollLeft; if (V()) st.scrollTop = v; else st.scrollLeft = v; };
@@ -4294,7 +4370,7 @@ function paintWatched() {              /* a new stage landed while watching */
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
   }, 2600);
 }
-$("back").onclick = () => { machine("button", 0.09, 1600); vt(() => $("print").classList.remove("on"));
+$("back").onclick = () => { machine("button", 0.09, 1600); collapseToChip(); vt(() => $("print").classList.remove("on"));
   if (fromSheet) { const r = fromSheet; fromSheet = null; setTimeout(() => openContactSheet(r), 60); }   /* came from the rolls: return to them */ setPaged(false); if (cocked) humStart();
   watching = null;
   setTimeout(revokeAll, 220); paintChip(); };
