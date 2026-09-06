@@ -619,6 +619,45 @@ body.cocked.f-grid #lockgrid{opacity:var(--room,1);animation:lockin .5s cubic-be
 @keyframes lockin{0%{transform:scale(1.2);opacity:0}55%{opacity:1}72%{transform:scale(.992)}100%{transform:none;opacity:1}}
 body.released #lockgrid{animation:lockout .32s var(--ease) both}
 @keyframes lockout{from{opacity:1;transform:none}to{opacity:0;transform:scale(.9)}}
+/* ---------- LEGIBILITY II (b195): mass, depth, arrival ----------
+   3 a dragged control tracks the finger 1:1, or it is a picture of a control.
+   15 easing carries mass: the shutter is fast and mechanical, paper is slow.
+   16 things overshoot and settle, because objects do. 22 the print header ties
+   itself to the scroll beneath it. 23 shadow depth says how dismissible a thing
+   is. 26 hierarchy by weight, which survives sunlight where grey does not.
+   27 round shapes set a hair large so they LOOK aligned with flat ones.
+   30 empties show what will fill them. All opacity/transform. */
+:root{--ease-mech:cubic-bezier(.2,0,0,1);--ease-paper:cubic-bezier(.25,.9,.2,1);--ease-settle:cubic-bezier(.2,1.5,.35,1)}
+/* 15: the shutter and its deck are mechanical; the gallery is paper */
+#shutter,#shutter::after,#backlcd .seg{transition-timing-function:var(--ease-mech)}
+#strip,#stage img,#contact .cell,#print{transition-timing-function:var(--ease-paper)}
+/* 16: arrival overshoots and settles */
+@keyframes settle{from{transform:scale(.94);opacity:0}70%{transform:scale(1.012);opacity:1}to{transform:scale(1)}}
+#servicemenu.on button,#scopemenu.on button{animation:settle .34s var(--ease-settle) both}
+#servicemenu.on button:nth-child(2),#scopemenu.on button:nth-child(2){animation-delay:.03s}
+#servicemenu.on button:nth-child(3),#scopemenu.on button:nth-child(3){animation-delay:.06s}
+#servicemenu.on button:nth-child(4){animation-delay:.09s}
+#servicemenu.on button:nth-child(5){animation-delay:.12s}
+#servicemenu.on button:nth-child(6){animation-delay:.15s}
+/* 22: the header answers the scroll under it */
+#print .bar{transition:opacity .25s var(--ease), transform .25s var(--ease)}
+#print.scrolled .bar{opacity:.55;transform:translateY(-2px)}
+/* 23: depth says how dismissible. A menu floats a little; a sheet floats a lot. */
+#servicemenu,#scopemenu,#lensmenu,#anamenu,#findermenu{box-shadow:0 6px 18px rgba(0,0,0,.55)}
+#contact.on,#print.on{box-shadow:0 -14px 46px rgba(0,0,0,.8)}
+#lablog.on{box-shadow:0 0 60px rgba(0,0,0,.95) inset}
+/* 26: weight, not colour, carries the hierarchy */
+#backlcd .state{font-weight:600}
+#backlcd .lbl{font-weight:500}
+#servicemenu button.fix{font-weight:600}
+/* 27: optical alignment - round glyphs set a hair large against flat ones */
+#backlcd .seg,#edgecode{font-feature-settings:"tnum" 1,"case" 1}
+#shutter,#chip .play{transform:translateZ(0) scale(1.012)}
+/* 30: an empty roll shows the shape of what will fill it */
+#strip:empty::after{content:"";display:block;width:100%;height:44px;
+  background:repeating-linear-gradient(90deg, rgba(255,255,255,.045) 0 40px, transparent 40px 46px)}
+#contact .cell:not(:has(img))::after{content:"";position:absolute;inset:22% 18%;
+  border:1px dashed rgba(255,255,255,.06);border-radius:1px}
 /* ---------- LEGIBILITY (b194): the control explains itself ----------
    1 the shutter answers the finger before it answers the tap. 5 the small round
    buttons are bigger than they look. 8 a cell that is waiting shows the SHAPE of
@@ -653,6 +692,9 @@ body.released #lockgrid{animation:lockout .32s var(--ease) both}
 #evpreview{position:absolute;inset:0;pointer-events:none;z-index:3;opacity:0;transition:opacity .18s linear;background:#000}
 #evpreview.up{background:#fff}
 body.evdrag #evpreview{transition:none}
+/* 3: during a drag the control follows the finger 1:1. A transition here turns
+   a physical object back into a picture of one. */
+body.evdrag #evrow .thumb,body.evdrag #evrow .fill{transition:none}
 /* ---------- SEAMLESS II (b189) ----------
    20 the strip's thumbs answer to scroll position on the compositor: no scroll
    listener, no main-thread work, nothing to fall behind a finger. Guarded by
@@ -685,8 +727,11 @@ body.evdrag #evpreview{transition:none}
 #contact .tabs{scroll-snap-type:x mandatory}
 #contact .tabs button{scroll-snap-align:center}
 #strip.dragging{will-change:scroll-position}
+/* 14 (b195): shared element continuity. The chip's picture and the print are
+   named as ONE object, so the browser carries the same thing between the two
+   views instead of dissolving one into the other. */
 #stage img.in{view-transition-name:print-image}
-#chip img{view-transition-name:none}
+body.chipsource #chip img{view-transition-name:print-image}
 ::view-transition-old(print-image),::view-transition-new(print-image){animation-duration:.28s}
 /* ---------- THE TURN (b179): rotation as one continuous motion ----------
    iOS cuts a PWA from one layout to the other. The body turns in from where it
@@ -1709,7 +1754,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 194;                     /* bump with every ship; lands in EXIF */
+const BUILD = 195;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1903,7 +1948,7 @@ const onLabMessage = e => {
     labNote(""); sizeFromProbe(e.data.probe); return;
   }
   if (e.data.bootError) { labLog = String(e.data.bootError); const lines = labLog.trim().split("\n"); labFailed("LAB BOOT: " + lines[lines.length - 1].slice(0, 90)); return; }
-  if (e.data.progress) { labNote("LAB " + String(e.data.progress).toUpperCase().replace(/…/g, "")); return; }
+  if (e.data.progress) { labNote((e.data.step ? e.data.step + "/" + e.data.steps + " " : "LAB ") + String(e.data.progress).toUpperCase().replace(/…/g, "")); return; }
   if (e.data.stage) {                 /* the bath, live: the negative forms */
     labStage = String(e.data.stage); paintWind();
     const f = jobFrame.get(id);
@@ -4092,7 +4137,9 @@ $("chip").addEventListener("pointerdown", () => { chipHeld = false; clearTimeout
 ["pointerup", "pointercancel", "pointerleave"].forEach(ev => $("chip").addEventListener(ev, () => clearTimeout(chipHold)));
 $("chip").onclick = () => {
   if (chipHeld) { chipHeld = false; return; }
-  machine("button", 0.09, 1600); fromSheet = null; const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
+  machine("button", 0.09, 1600); fromSheet = null;
+  document.body.classList.add("chipsource"); setTimeout(() => document.body.classList.remove("chipsource"), 700);
+  const k = galleryIds()[0]; if (k) { expandFromChip(); openItem(k); }
 };
 /* WESTON. The rolls, one page each: thirty six frames, the roll letter and
    frame numbers along the rebate, untaken frames blank. Every roll that has a
@@ -4233,6 +4280,7 @@ let chartOrder = false, holdStrip = 0;
   const st = $("strip"); let x0 = 0, sl = 0, dragged = false, down = false, vx = 0, lastX = 0, lastT = 0, coast = 0;
   /* 21 (b194): position persistence. Coming back to a list you have scrolled and
      finding it at the start is a small betrayal; it is remembered per roll. */
+  st.addEventListener("scroll", () => { try { $("print").classList.toggle("scrolled", (matchMedia("(orientation: landscape)").matches ? st.scrollTop : st.scrollLeft) > 8); } catch (e) {} }, { passive: true });   /* 22 */
   st.addEventListener("scroll", () => { try { stripPos[ROLL] = matchMedia("(orientation: landscape)").matches ? st.scrollTop : st.scrollLeft; } catch (e) {} }, { passive: true });
   /* 19: in landscape the strip hangs, so the scroll axis follows the orientation */
   const V = () => matchMedia("(orientation: landscape)").matches, P = e => V() ? e.clientY : e.clientX;

@@ -103,15 +103,21 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.16";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.17";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
-  postMessage({ progress: "loading chemistry…" });
+  /* v3.17 (9): a determinate boot. "LOADING CHEMISTRY" for eight seconds tells
+     you nothing and cannot be distinguished from a hang; five named steps with
+     a count can. Each is posted as it actually completes, never on a timer. */
+  const step = (n, t) => postMessage({ progress: t, step: n, steps: 5 });
+  step(1, "warming the lab…");
   pyodide = await loadPyodide();
+  step(2, "mixing chemistry…");
   await pyodide.loadPackage(["numpy", "scipy", "pillow"]);
   for (const f of ["emulsify2.py", "honey_sr.py", "canon_profiles.py"]) {
     const src = await (await fetch(f)).text();
     pyodide.FS.writeFile(f, src);
   }
+  step(3, "loading the canon…");
   await pyodide.runPythonAsync(`
 import io, gc, numpy as np
 from PIL import Image, ImageOps
