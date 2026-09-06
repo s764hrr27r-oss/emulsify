@@ -1765,7 +1765,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 197;                     /* bump with every ship; lands in EXIF */
+const BUILD = 198;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1853,6 +1853,17 @@ let capIdx = (() => { try { const v = parseInt(localStorage["memcap"], 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
 } catch (e) { return 0; } })();
 let capOk = 0;
+/* b198 THE LEARNED CEILING. b197 was wrong: I read the cap as a time budget and
+   raised it because 1100px develops in ~10s of a 26s budget. The cap is about
+   MEMORY, which no timing tells you about, and raising it walked the phone into
+   the wall the cap existed to avoid. A size that has ever killed this phone is
+   now remembered permanently and can never be chosen again - not by the probe,
+   not by earned trust, not by hand. Only the false-positive fixes from b197
+   survive: a timeout, an error, or a clean close are no longer read as deaths. */
+let hardIdx = (() => { try { const v = parseInt(localStorage["memhard"], 10);
+  return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
+} catch (e) { return 0; } })();
+const saveHard = () => { try { localStorage["memhard"] = hardIdx; } catch (e) {} };
 const saveCap = () => { try { localStorage["memcap"] = capIdx; } catch (e) {} };
 (() => {                                   /* did the last session die cooking? */
   let died = null;
@@ -1861,6 +1872,7 @@ const saveCap = () => { try { localStorage["memcap"] = capIdx; } catch (e) {} };
   if (died === null) return;
   const i = RUNGS.findIndex(r => r.px === died);
   capIdx = Math.max(capIdx, Math.min(RUNGS.length - 1, (i < 0 ? 0 : i) + 1));
+  hardIdx = Math.max(hardIdx, capIdx); saveHard();          /* b198: never offered again */
   saveCap();
   console.warn("EMULSIFY: last session died developing at " + died +
                "px - capped at " + RUNGS[capIdx].px + "px until trust is earned");
@@ -1882,9 +1894,9 @@ const noteCookEnd = ok => {
   try { localStorage.removeItem("cooking"); } catch (e) {}
   if (!ok || capIdx === 0) { capOk = 0; return; }
   capOk += 1;
-  if (capOk >= 4) { capIdx -= 1; capOk = 0; saveCap(); }   /* b197: four clean frames, not eight */
+  if (capOk >= 8 && capIdx > hardIdx) { capIdx -= 1; capOk = 0; saveCap(); }   /* b198: eight frames, and never past the ceiling */
 };
-const setRung = r => { rung = Math.max(capIdx, Math.min(RUNGS.length - 1, r));
+const setRung = r => { rung = Math.max(hardIdx, capIdx, Math.min(RUNGS.length - 1, r));
   try { localStorage["rung"] = rung; } catch (e) {} };
 setRung(rung);                             /* the restored rung obeys the cap too */
 let probed = false;
@@ -2381,7 +2393,8 @@ async function deepLog() {
   L.push(kv("AC", () => AC ? { state: AC.state, rate: AC.sampleRate, baseLatency: AC.baseLatency } : null), kv("hum", () => !!hum), kv("silent", () => silent()));
   H("LAB RUNG & MEMORY");
   L.push(kv("rung", () => rung + " -> " + RUNGS[rung].px + "px  dualcoat=" + RUNGS[rung].dc),
-         kv("memcap", () => capIdx + " -> floor " + RUNGS[capIdx].px + "px, " + capOk + "/4 clean frames toward trust"),
+         kv("memcap", () => capIdx + " -> floor " + RUNGS[capIdx].px + "px, " + capOk + "/8 clean frames toward trust"),
+         kv("memhard", () => hardIdx + " -> permanent ceiling " + RUNGS[hardIdx].px + "px (a size that killed this phone)"),
          kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size));
   H("LOCALSTORAGE (key: chars)");
   try { const ks = Object.keys(localStorage).sort(); L.push("keys: " + ks.length); for (const k of ks) { const v = String(localStorage[k]); L.push("  " + k + ": " + (v.length > 60 ? v.length + " chars" : JSON.stringify(v))); } } catch (e) { L.push("localStorage: ?"); }
@@ -2417,10 +2430,16 @@ function ServiceRows(props) {
   ];
   if (props.log) rows.push({ key: "log", label: "LAB LOG", colour: "#e0a050",
       act: () => { closeServiceMenu(); showReport(props.log); } });
-  rows.push({ key: "size", label: "PRINT SIZE " + RUNGS[rung].px + (capIdx ? "  (capped " + RUNGS[capIdx].px + ")" : "  (full)"),
-      colour: capIdx ? "#e0a050" : "var(--mute)",
-      act: () => { capIdx = 0; capOk = 0; saveCap(); setRung(0); probed = false;
-                   flashState("PRINT SIZE " + RUNGS[rung].px); paintServiceMenu(); } });
+  rows.push({ key: "size", label: "PRINT SIZE " + RUNGS[rung].px +
+        (hardIdx ? "  (ceiling " + RUNGS[hardIdx].px + ")" : capIdx ? "  (capped " + RUNGS[capIdx].px + ")" : "  (full)"),
+      colour: rung > hardIdx ? "#e0a050" : "var(--mute)",
+      /* b198: one rung at a time, and never above what this phone has survived.
+         A leap to full is how b197 crashed the app. */
+      act: () => {
+        if (rung <= hardIdx) { flashState("AT THIS PHONE'S CEILING"); return; }
+        capIdx = Math.max(hardIdx, capIdx - 1); capOk = 0; saveCap(); setRung(rung - 1);
+        flashState("PRINT SIZE " + RUNGS[rung].px); paintServiceMenu();
+      } });
   rows.push({ key: "layout", label: "LAYOUT REPORT", colour: "var(--mute)",
       act: () => { closeServiceMenu(); try { showReport(layoutReport()); } catch (e) { showReport("LAYOUT REPORT failed: " + e); } } });
   rows.push({ key: "deep", label: "COPY DEEP LOG", colour: "var(--mute)",
