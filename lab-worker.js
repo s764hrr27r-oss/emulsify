@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.17";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.19";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   /* v3.17 (9): a determinate boot. "LOADING CHEMISTRY" for eight seconds tells
      you nothing and cannot be distinguished from a hang; five named steps with
@@ -185,7 +185,9 @@ def _expand(lin, kmax=2.2):
 # against exposure error and color cast (max ~ +/-6% color, +/-15% time).
 # Deterministic — driven only by the image. Rescued frames carry a trace
 # of push character, as real rescued rolls did.
-_TAUS = [1.0, 1.0, 1.0]; _CALL = [0]; _FIELDS = [None, None, None]; _BEDS = [None, None, None]
+_TAUS = [1.0, 1.0, 1.0]; _CALL = [0]
+_FIELDS = [None, None, None]; _BEDS = [None, None, None]
+_GRAIN_SEED = [0]      # v3.18: grain is keyed to the frame seed, not to call order
 
 # ---- THE MINERAL CATALOG ----
 # name: (rarity, size_um, speed, dev_rate, glint, contrast)
@@ -306,11 +308,51 @@ def _make_fields(h, w, seed):
         fields.append(np.clip(1.0 + f, 0.972, 1.033))
     return fields
 
+# ---- v3.18 POSITION-ADDRESSED GRAIN ----
+# The crystal populations were drawn from a RUNNING generator, so the value at a
+# pixel depended on how many numbers had been drawn before it. A strip of the
+# picture therefore disagrees with the whole picture - the one thing banding
+# cannot tolerate, and banding is the only route past 1100px (bandcheck.py
+# measures this: 7e-2 disagreement from a running generator, exact from a
+# positional one). The draw is now a function of ABSOLUTE POSITION: one Philox
+# stream per 64-row block, keyed by seed, layer and mineral, whole blocks always
+# generated and then sliced, so ANY strip layout gives identical grain.
+# The binomial becomes its normal form - n is ~3400 crystals per pixel, where the
+# two are statistically indistinguishable (measured noise sd 0.00753 vs 0.00754)
+# - which is what makes a per-pixel positional draw affordable.
+# This changes WHICH grains fall where. Same stock, same statistics, a different
+# arrangement of the same emulsion: the golden moves, and only for that reason.
+_GRAIN_BLOCK = 64
+_Y0 = [0]                               # absolute row of the strip being developed
+
+
+def _grain_z(h, w, y0, seed, tag):
+    import numpy as np
+    out = np.empty((h, w))
+    y = 0
+    while y < h:
+        ay = y0 + y
+        blk = ay // _GRAIN_BLOCK
+        off = ay - blk * _GRAIN_BLOCK
+        take = min(_GRAIN_BLOCK - off, h - y)
+        g = np.random.Generator(np.random.Philox(
+            key=int(seed) & 0xFFFFFFFF, counter=((int(blk) << 12) | int(tag)) & 0xFFFFFFFF))
+        out[y:y + take] = g.standard_normal((_GRAIN_BLOCK, w))[off:off + take]
+        y += take
+    return out
+
+
 def _dev_kinetic(light, st, um, rng, gain, ms, gs):
     import numpy as np
     from scipy.ndimage import gaussian_filter as _gf
     i = _CALL[0] % 3
     tau = _TAUS[i]; F = _FIELDS[i]; bed = _BEDS[i]; _CALL[0] += 1
+    # v3.19: the development field is built for the whole frame, so a strip must
+    # take its own rows out of it. This is the "globals" class bandcheck warns
+    # about: a stage that reads frame-sized data cannot see it from inside a
+    # strip unless the data is sliced by absolute position.
+    if F is not None and F.shape[0] != light.shape[0]:
+        F = F[_Y0[0]:_Y0[0] + light.shape[0]]
     soft = _gf(light, sigma=st.film_mtf_um*ms/um)
     H = np.log10(np.maximum(soft*(st.iso/100.0)*gain, 1e-8)); Hm = np.log10(0.18)
     tau_xy = tau*(F if F is not None else 1.0)
@@ -318,7 +360,8 @@ def _dev_kinetic(light, st, um, rng, gain, ms, gs):
         bed = [("quartz", 0.72) + MINERALS["quartz"][1:],
                ("fire opal", 0.28) + MINERALS["fire opal"][1:]]
     dev = 0.0
-    for name, frac, size_um, speed, dev_rate, glint, contrast in bed:
+    _lay = i
+    for _mi, (name, frac, size_um, speed, dev_rate, glint, contrast) in enumerate(bed):
         size = size_um*gs
         spread = np.where(H < Hm, 0.58, 1.40)/contrast
         p = np.clip(st.toe + (1-st.toe)*(0.5*(1 + erf(
@@ -327,7 +370,9 @@ def _dev_kinetic(light, st, um, rng, gain, ms, gs):
         r = np.clip((p - 0.04)/0.55, 0, 1)**0.7          # crystal resolve
         area = np.pi*(size/2)**2*np.exp(2*st.crystal_sigma**2)
         n = max((um**2)*0.40*frac/area, 6.0)
-        pop = rng.binomial(int(round(n)), p)/round(n)
+        nn = float(round(n))
+        z = _grain_z(p.shape[0], p.shape[1], _Y0[0], _GRAIN_SEED[0], _lay*8 + _mi)
+        pop = np.clip(p + np.sqrt(np.maximum(p*(1.0 - p), 0.0)/nn)*z, 0.0, 1.0)
         s0 = max(1.6*size/um, 0.4)*0.5
         pe = r*_gf(pop, s0) + (1-r)*_gf(pop, s0*2.6)
         amp = np.clip(0.72*glint*(0.94 + 0.06*tau), 0, 1)
@@ -456,11 +501,11 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     _BEDS[:] = _draw_beds(int(seed))
     if profile == "scope":
         light = unrender(arr)
-        _TAUS[:] = _meter(np.clip(light, 0, 1)); _CALL[0] = 0
+        _TAUS[:] = _meter(np.clip(light, 0, 1)); _CALL[0] = 0; _GRAIN_SEED[0] = int(seed)
         out = SCOPE70_CANON(light, seed=int(seed))
     else:
         lin = _ana_debias(_s2l(arr))
-        _TAUS[:] = _meter(lin); _CALL[0] = 0
+        _TAUS[:] = _meter(lin); _CALL[0] = 0; _GRAIN_SEED[0] = int(seed)
         out = HONEY70_CANON(_expand(lin), seed=int(seed))
     out = _final_fix(out)
     out = _dodge(out, 0.25)
@@ -641,7 +686,45 @@ def _emulsify2_watched(lit, st, **kw):
         _post_stage("neg", _stage_thumb(neg))
     except Exception:
         pass
-    return _canon_emulsify2_v14(lit, st, **kw)
+    return _band_emulsify2(lit, st, **kw)
+
+
+# ---- v3.19 BANDED DEVELOPMENT ----
+# The develop held ~27 full-frame arrays at once - 618 MB per megapixel, which is
+# why 1100px was the ceiling. The picture is now developed in horizontal strips
+# with an overlap wide enough for every blur inside the emulsion to reach its
+# neighbours, so peak memory is one strip instead of one frame. Three things had
+# to be true first, and bandcheck.py measures each: the overlap covers the widest
+# blur (the 420um halation tail), nothing inside reads a global statistic (the
+# metering is hoisted and passed in as exposure_ev), and the grain is addressed
+# by absolute position (v3.18). Below the threshold a frame develops whole, so
+# small prints take no strip overhead at all.
+_BAND_MIN_PX = 700           # below this a frame develops whole; above it, in strips
+_BAND_ROWS = 256             # strip height; a multiple of the 64-row grain block
+_BAND_OVER = 64              # overlap: 4 sigma of the widest blur, block-aligned
+
+
+def _band_emulsify2(lit, st, **kw):
+    h = lit.shape[0]
+    if h < _BAND_MIN_PX:
+        _Y0[0] = 0
+        return _canon_emulsify2_v14(lit, st, **kw)
+    out = None
+    y = 0
+    while y < h:
+        y1 = min(h, y + _BAND_ROWS)
+        a = max(0, y - _BAND_OVER)
+        b = min(h, y1 + _BAND_OVER)
+        _Y0[0] = a                                   # grain lands by absolute row
+        piece = _canon_emulsify2_v14(lit[a:b], st, **kw)
+        if out is None:
+            out = np.empty((h,) + piece.shape[1:], dtype=piece.dtype)
+        out[y:y1] = piece[y - a: y - a + (y1 - y)]
+        del piece
+        y = y1
+    _Y0[0] = 0
+    gc.collect()
+    return out
 E.emulsify2 = _emulsify2_watched
 
 
