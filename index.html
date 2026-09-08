@@ -1788,7 +1788,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 203;                     /* bump with every ship; lands in EXIF */
+const BUILD = 204;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1894,6 +1894,7 @@ let capOk = 0;
     localStorage.removeItem("memcap"); localStorage.removeItem("memhard");
     localStorage.removeItem("rung"); localStorage.removeItem("cooking");
     localStorage["ladder"] = LADDER_VER;
+    delete localStorage["msreal"];             /* b203: a speed in units of a dead ladder */
     capIdx = 0;
   }
 } catch (e) {} })();
@@ -1950,13 +1951,29 @@ const setRung = r => { rung = Math.max(hardIdx, capIdx, Math.min(RUNGS.length - 
   try { localStorage["rung"] = rung; } catch (e) {} };
 setRung(rung);                             /* the restored rung obeys the cap too */
 let probed = false;
-function sizeFromProbe(ms) {          /* one measurement, before frame one */
-  if (!ms || probed) return; probed = true;
+/* b203: what this phone actually develops at, in probe units, smoothed over
+   finished baths and kept across launches. The boot probe runs on a COLD
+   worker - first import, nothing cached, nothing warm - and reads 2 to 6 times
+   slow, so every relaunch was throwing away what the baths had proven and
+   dropping back down the ladder. A finished bath outranks a cold probe. */
+const trueMs = () => { try { const v = parseFloat(localStorage["msreal"]); return v > 0 ? v : 0; } catch (e) { return 0; } };
+const noteMs = m => { try { const p = trueMs();
+  localStorage["msreal"] = String(p ? p * 0.7 + m * 0.3 : m); } catch (e) {} };
+const fitRung = ms => {               /* the one place a speed becomes a size */
   let pick = RUNGS.length - 1;
   for (let i = 0; i < RUNGS.length; i++)
     if (ms * RUNGS[i].k <= BUDGET) { pick = i; break; }
-  setRung(pick);
+  return pick;
+};
+function sizeFromProbe(ms) {          /* one measurement, before frame one */
+  if (probed) return;
+  const real = trueMs();
+  if (!real && !ms) return;
+  probed = true;
+  setRung(fitRung(real || ms));
 }
+(() => { const real = trueMs();       /* known before the lab has even booted */
+  if (real) { probed = true; setRung(fitRung(real)); } })();
 function adaptRung(secs) {            /* and the truth, after every frame */
   /* b202: the boot probe runs on a COLD worker - first import, no JIT, no
      caches - and on the owner's phone it overestimated by 2.5x, so frame one
@@ -1966,10 +1983,8 @@ function adaptRung(secs) {            /* and the truth, after every frame */
      over budget steps down the same way. setRung still applies the cap and
      the ceiling on top. */
   if (!secs) return;
-  const ms = secs / RUNGS[rung].k;
-  let pick = RUNGS.length - 1;
-  for (let i = 0; i < RUNGS.length; i++)
-    if (ms * RUNGS[i].k <= BUDGET) { pick = i; break; }
+  noteMs(secs / RUNGS[rung].k);       /* b203: remembered, so the next launch knows */
+  const pick = fitRung(trueMs());
   if (pick !== rung) setRung(pick);
 }
 /* iOS suspends the page when the screen sleeps, which freezes a develop
@@ -2456,7 +2471,9 @@ async function deepLog() {
   L.push(kv("rung", () => rung + " -> " + RUNGS[rung].px + "px  dualcoat=" + RUNGS[rung].dc),
          kv("memcap", () => capIdx + " -> floor " + RUNGS[capIdx].px + "px, " + capOk + "/8 clean frames toward trust"),
          kv("memhard", () => hardIdx + " -> ceiling " + RUNGS[hardIdx].px + "px" + (hardIdx ? " (this phone died above it)" : " (no death recorded; no restriction)")),
-         kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size));
+         kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size),
+         kv("msreal", () => { const m = trueMs(); return m ? m.toFixed(1) + " -> fits " + RUNGS[fitRung(m)].px + "px"
+                                                          : "not measured yet"; }));
   H("LOCALSTORAGE (key: chars)");
   try { const ks = Object.keys(localStorage).sort(); L.push("keys: " + ks.length); for (const k of ks) { const v = String(localStorage[k]); L.push("  " + k + ": " + (v.length > 60 ? v.length + " chars" : JSON.stringify(v))); } } catch (e) { L.push("localStorage: ?"); }
   H("STORAGE");
@@ -4610,10 +4627,20 @@ $("stage").addEventListener("pointermove", e => {
 $("stage").addEventListener("pointercancel", () => { HOLD = null; });
 /* THE SHARE CARD. Not the bare file: the print on a dark mount, its edge code
    and bath time set beneath in the app's face, the roll letter in the corner.
-   The plain print rides along as a second file. */
+   b204: it used to ride along WITH the plain print, which is why iOS offered
+   "Save 2 Images" and the roll filled up in pairs. One file leaves now, and it
+   is the photograph - the edge code and the bath time are already in its
+   filename, so nothing is lost by dropping the mount. Flip this to true to
+   send the mount instead; the drawing below is untouched and still works. */
+const SHARE_CARD = false;
 async function shareCard() {
   try {
     if (!armedFile) return;
+    if (!SHARE_CARD) {                                   /* the print, by itself */
+      if (navigator.canShare && navigator.canShare({ files: [armedFile] }))
+        await navigator.share({ files: [armedFile] });
+      return;
+    }
     const im = new Image(); const url = URL.createObjectURL(armedFile);
     await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = url; });
     try { await document.fonts.load("600 40px 'Red Hat Display'"); } catch (e) {}
@@ -4635,9 +4662,8 @@ async function shareCard() {
     const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.92));
     const card = new File([blob], (armedFile.name || "print").replace(/\.jpg$/, "") + "-card.jpg", { type: "image/jpeg" });
     URL.revokeObjectURL(url);
-    const files = [card, armedFile];
+    const files = [card];                                /* b204: never a pair */
     if (navigator.canShare && navigator.canShare({ files })) await navigator.share({ files });
-    else if (navigator.canShare && navigator.canShare({ files: [card] })) await navigator.share({ files: [card] });
   } catch (e) {}
 }
 $("stage").addEventListener("pointerup", () => {
