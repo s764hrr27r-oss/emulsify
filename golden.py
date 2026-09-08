@@ -24,7 +24,24 @@ import numpy as np
 from PIL import Image
 
 CHART_SHA  = "63d93286cc18"
-GOLDEN_V11 = "5ea19a4ea48e310f"
+GOLDEN_V11 = "ea38f54333e5b038"   # v15: position-addressed grain, w3.18
+GOLDEN_V12 = "f835a9981ce01f83"   # v16 THE STREAMED DEVELOP (w3.20): the honey profile, meter,
+                                  # fixer, dodge, pre-flash, sandwich, coat merge and encode all run
+                                  # in 64px-overlapped bands; the only whole-frame arrays are single-
+                                  # channel plus one float32 print. 2200px peaks at 321 MB (was 2400).
+                                  # Matches the whole-frame path to 0.1/255 per channel; the tooth is
+                                  # position-addressed like the grain, so its arrangement differs.
+                                  # Previous: v15 POSITION-ADDRESSED GRAIN (w3.18): the crystal draw is a
+                                  # function of absolute position, not call order, so a strip develops
+                                  # identically to a whole frame. The precondition for banding, and the
+                                  # route past 1100px. Same statistics (grain 11.09 vs 11.10), different
+                                  # arrangement. Approved by the owner from crops. Previous:
+                                  # v14 THE SEAM (w3.16): strata-light band offsets interpolated, so a
+                                  # smooth gradient no longer picks up a 10 deg hue cliff at a band edge.
+                                  # A BUG FIX, not a new look; the stock is unchanged. v13 was c4e7911e38e3f69f.
+                                  # v13 THE STOCK TINT (w3.15): magenta baseline, _STOCK_M = 0.070,
+                                  # chosen by the owner from grids on nine real prints. Previous stock above.
+                                  # (0.050 was c4-less 88eefc06947458d3, never shipped.)
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
@@ -52,6 +69,16 @@ def chart():
 def harness(path):
     src = open(path, encoding="utf-8").read()
     py = src.split("runPythonAsync(`", 1)[1].rsplit("`);", 1)[0]
+    # The template is a JavaScript template literal. JavaScript interprets the
+    # backslash escapes BEFORE Python sees the source, so the harness must run
+    # it through JavaScript too, or it tests a different program than the phone
+    # runs (b151-b157: a b"\\x00" became a real NUL byte and the lab never booted).
+    import subprocess, json, tempfile
+    js = ("const fs=require('fs');const s=fs.readFileSync(process.argv[1],'utf8');"
+          "const m=s.split('runPythonAsync(`')[1];const t=m.slice(0,m.lastIndexOf('`);'));"
+          "process.stdout.write(eval('`'+t+'`'));")
+    py = subprocess.run(["node", "-e", js, path], capture_output=True, text=True, check=True).stdout
+    if "\x00" in py: raise SystemExit("HARNESS: the template as JavaScript delivers it contains NUL bytes; Pyodide will refuse it")
     ns = {}; exec(compile(py, path, "exec"), ns)
     ns["_post_stage"] = lambda *a: None      # suppress the mid-develop watcher
     ns["_BUILD"] = 0; ns["_EV_BIAS"] = 0.0
@@ -77,9 +104,9 @@ def main():
     t = time.time(); b = pixels(ns["develop"](neg, "honey", 99, 1100)["jpg"]); t2 = time.time()-t
     g = hashlib.sha256(a.tobytes()).hexdigest()[:16]
     print(f"\ngolden  {g}   ({t1:.1f}s, {t2:.1f}s)   shape {a.shape}")
-    print(f"        v11 = {GOLDEN_V11}  ->  {'HOLDS' if g == GOLDEN_V11 else 'CHANGED'}")
+    print(f"        v16 = {GOLDEN_V12}  ->  {'HOLDS' if g == GOLDEN_V12 else 'CHANGED'}   (v15 was {GOLDEN_V11})")
     print(f"determinism  same input twice byte-identical: {np.array_equal(a, b)}")
-    return 0 if g == GOLDEN_V11 else 1
+    return 0 if g == GOLDEN_V12 else 1
 
 if __name__ == "__main__":
     sys.exit(main())

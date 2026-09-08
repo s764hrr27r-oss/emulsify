@@ -1771,7 +1771,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 200;                     /* bump with every ship; lands in EXIF */
+const BUILD = 201;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1834,12 +1834,19 @@ let msgId = 0; const waits = new Map();
    can finish. Every develop then reports its real time and the rung adjusts,
    so a hot, throttled, or backgrounded phone drifts down and a cool one
    climbs back. Quality first: rung 0 unless the device says otherwise. */
-const RUNGS = [{ px: 1100, dc: true,  k: 0.371 },
+/* b201 THE LADDER, EXTENDED. w3.20 develops in a stream: at 2200px the lab
+   peaks at 321 MB where 1100px used to cost 597. So the ladder now reaches
+   2200. The k values are time multiples of the probe, measured on the same
+   machine as the old ones (2200 = 4.7x the 1100 bath, 1600 = 2.4x). */
+const LADDER_VER = 2;
+const RUNGS = [{ px: 2200, dc: true,  k: 1.74 },
+               { px: 1600, dc: true,  k: 0.88 },
+               { px: 1100, dc: true,  k: 0.371 },
                { px: 950,  dc: true,  k: 0.249 },
                { px: 800,  dc: false, k: 0.158 },
                { px: 700,  dc: false, k: 0.117 },
                { px: 600,  dc: false, k: 0.091 }];
-const BUDGET = 26;                    /* seconds we are willing to wait */
+const BUDGET = 60;                    /* seconds we are willing to wait - raised for 2200 (b201) */
 let rung = (() => { try { const v = parseInt(localStorage["rung"], 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
 } catch (e) { return 0; } })();
@@ -1859,6 +1866,20 @@ let capIdx = (() => { try { const v = parseInt(localStorage["memcap"], 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
 } catch (e) { return 0; } })();
 let capOk = 0;
+/* b201: memcap and memhard are INDICES into RUNGS, and they record what this
+   phone survived under the OLD memory model. The streamed develop changed that
+   model entirely - 2200 now costs half what 1100 did - so a death recorded
+   against the old ladder says nothing about the new one. When the ladder
+   version changes, the record is cleared once and the phone probes itself
+   fresh. Deaths under THIS ladder are recorded and honoured as before. */
+(() => { try {
+  if (String(localStorage["ladder"]) !== String(LADDER_VER)) {
+    localStorage.removeItem("memcap"); localStorage.removeItem("memhard");
+    localStorage.removeItem("rung"); localStorage.removeItem("cooking");
+    localStorage["ladder"] = LADDER_VER;
+    capIdx = 0;
+  }
+} catch (e) {} })();
 /* b198 THE LEARNED CEILING. b197 was wrong: I read the cap as a time budget and
    raised it because 1100px develops in ~10s of a 26s budget. The cap is about
    MEMORY, which no timing tells you about, and raising it walked the phone into

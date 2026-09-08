@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.19";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.20";              /* reported to the page at boot for the corner badge */
 const boot = (async () => {
   /* v3.17 (9): a determinate boot. "LOADING CHEMISTRY" for eight seconds tells
      you nothing and cannot be distinguished from a hang; five named steps with
@@ -487,6 +487,279 @@ def bake(jpg_bytes, w, t, secs):
     gc.collect()
     return {"jpg": buf.getvalue()}
 
+# ==================== v3.20 THE STREAMED DEVELOP ====================
+# w3.19 banded the emulsion and the peak stopped caring about strip height,
+# which proved the rest of the pipeline was the problem: every stage around
+# emulsify2 - decode, expand, the profile's own timing and swell, the fixer,
+# the dodge, the coat merge - held the whole frame as RGB float64, ~89 MB an
+# array at 2200px, and several at once. This develops the honey profile as a
+# STREAM: the only whole-frame arrays are single-channel (luminance, swell,
+# the dodge mask) and one float32 RGB for the print. Everything RGB happens
+# in 64px-overlapped bands. Global statistics - the profile's reference-pixel
+# gains, its median, the fixer's medians - are accumulated across bands first
+# and applied second, so a band sees exactly what the whole frame would have.
+# The tooth becomes position-addressed like the grain (same reason).
+# Falls back to the whole-frame path for scope, for a leak frame, and for
+# frames below _BAND_MIN_PX, where the saving is not worth two passes.
+_STREAM_ROWS = 128
+
+def _band_edges(h, rows, over):
+    y = 0
+    while y < h:
+        y1 = min(h, y + rows); a = max(0, y - over); b = min(h, y1 + over)
+        yield y, y1, a, b
+        y = y1
+
+_LEAK_FOG = [None]           # the leak's fog field for the frame being streamed, or None
+
+def _leak_fog_for(H, W, amount):
+    """The grown leak is a seeded coarse grid zoomed to the frame, then added
+    per pixel. Zoomed to a BAND it would be a different leak, so the field is
+    taken once for the whole frame: run the canon leak over a black frame and
+    read the fog back out of the red channel. One transient RGB array."""
+    if amount <= 0.0:
+        return None
+    z = np.zeros((H, W, 3), np.float32)
+    r = _leader_leak(z, amount)
+    fog = (np.asarray(r[..., 0], dtype=np.float64) / (1.0 * 0.55)).astype(np.float32)
+    del z, r
+    return fog
+
+def _lin_band(arr, a, b):
+    """uint8 rows -> expanded, scrambled scene light. Pointwise, so exact.
+    The leak, if any, is added from the whole-frame fog field."""
+    lin = _ana_debias(_s2l(arr[a:b]))
+    x = _expand_v39(lin)
+    fog = _LEAK_FOG[0]
+    if fog is not None:
+        tint = np.array([1.0, 0.55, 0.28])
+        x = x + fog[a:b, :, None].astype(np.float64)*tint[None, None, :]*(0.55 + 0.45*np.clip(x.mean(axis=-1, keepdims=True), 0, 1))
+    return lin, x
+
+def _hist_median(hist, edges, count):
+    """Median from a histogram: the fixer used np.median on masked pixels,
+    which needs every value at once. 4096 bins over [0,1] is 1/4096 of error
+    against a 0.05 dead zone."""
+    if count <= 0: return 0.0
+    c = np.cumsum(hist); k = np.searchsorted(c, count/2.0)
+    return float(edges[min(k, len(edges)-1)])
+
+def _tooth_band(h, w, y0, seed):
+    """Position-addressed tooth: the profile drew rng.normal over the frame
+    and blurred it at 0.6. Same statistics, addressed by absolute row."""
+    z = _grain_z(h + 8, w, max(0, y0 - 4), seed + 1, 200)
+    t = gaussian_filter(z, 0.6)
+    off = 4 if y0 >= 4 else y0
+    return t[off:off + h]
+
+def _develop_streamed(arr, seed):
+    """HONEY70_CANON + _meter + _final_fix + _dodge, streamed. Returns the
+    dodged linear print as float32 RGB in [0,1]."""
+    H, W = arr.shape[:2]
+    OV = _BAND_OVER
+    rows = _STREAM_ROWS if H >= 1500 else _BAND_ROWS
+    _LEAK_FOG[0] = _leak_fog_for(H, W, float(_LEAK or 0.0))
+
+    # ---- pass 1: what the meter and the profile need to know about the frame
+    lum_pre = np.empty((H, W), np.float64)          # _meter reads lin, pre-expand
+    base = np.empty(((H + 1)//2, (W + 1)//2, 3), np.float32)   # the drift balancer's half-res stash
+    ref_sum = np.zeros(3); ref_n = 0
+    for y, y1, a, b in _band_edges(H, rows, 0):
+        lin, x = _lin_band(arr, y, y1)
+        lum_pre[y:y1] = lin.mean(-1)
+        ys = (y + 1)//2 if y % 2 else y//2                    # rows y..y1 step 2, in absolute terms
+        base[(y+1)//2:(y1+1)//2] = lin[(y % 2):(y1 - y):2, ::2].astype(np.float32)
+        l0 = x.mean(-1); sat = x.max(-1) - x.min(-1)
+        ref = (l0 > 0.45) & (l0 < 0.92) & (sat < 0.10*np.maximum(l0, 1e-6) + 0.04)
+        n = int(ref.sum())
+        if n:
+            ref_sum += np.array([x[..., c][ref].sum() for c in range(3)]); ref_n += n
+        del lin, x
+    _TAUS[:] = _meter_from_lum(lum_pre); _CALL[0] = 0; _GRAIN_SEED[0] = int(seed)
+    try:
+        _BASE[0] = base                                   # what _meter would have stashed
+    except Exception:
+        pass
+    del lum_pre, base
+    if ref_n > 300:
+        avg = ref_sum / ref_n
+        gains = np.clip((avg.mean()/np.maximum(avg, 1e-6))**0.8, 0.80, 1.25)
+        warmbias = float(np.clip((avg[0]-avg[2])/max(avg.mean(), 1e-6), -0.5, 0.8))
+    else:
+        gains = np.ones(3); warmbias = 0.0
+    wb = np.clip(1.0 - warmbias*1.4, 0.35, 1.0)
+
+    def timed_band(a, b):
+        _, x = _lin_band(arr, a, b)
+        t = np.clip(x*gains[None, None, :], 0, None)
+        r, g, bb = t[..., 0], t[..., 1], t[..., 2]
+        greenness = np.clip((g - np.maximum(r, bb))/np.maximum(g, 1e-6), 0, 1)
+        yellow = np.clip((np.minimum(r, g) - bb)/np.maximum(g, 1e-6), 0, 1)
+        fol = gaussian_filter(np.clip(greenness*2.2, 0, 1)*np.clip(0.35 + yellow, 0, 1), 2.0)
+        t[..., 1] *= (1 - 0.22*fol); t[..., 0] *= (1 - 0.16*fol); t[..., 2] *= (1 - 0.04*fol)
+        return t
+
+    # ---- pass 2: the timed frame's luminance -> median, exposure, swell
+    lum = np.empty((H, W), np.float64)
+    for y, y1, a, b in _band_edges(H, rows, 12):          # fol is sigma 2: 12 covers it
+        t = timed_band(a, b)
+        lum[y:y1] = t[y-a:y-a+(y1-y)].mean(-1)
+        del t
+    med = float(np.median(lum))
+    ev = float(np.clip(np.log2(0.16/max(med, 1e-4))*0.55, -0.4, 1.2) + 0.2)
+    hotl = np.maximum(lum - 0.45, 0)*1.8; del lum
+    h15 = hotl**1.5; del hotl
+    swell = gaussian_filter(h15, 26.0)*0.21 + gaussian_filter(h15, 7.0)*0.10; del h15
+    swell = swell.astype(np.float32)
+
+    st = E.Stock2(gauge_mm=65, iso=200, crystal_fine_um=0.5, crystal_coarse_um=1.3,
+                  coarse_frac=0.28, film_mtf_um=5.0, hal_thresh=0.55,
+                  hal_core=0.55, hal_tail=0.28, interimage=0.42, adjacency=0.45,
+                  print_gamma=2.0)
+    cream = 1.0 - (1.0 - np.array([1.0, 0.968, 0.915]))*wb
+    warmblack = 0.026 + (np.array([0.030, 0.024, 0.019]) - 0.026)*wb
+    rng = np.random.default_rng(seed + 1)
+    rng.normal(0, 1, (8, 8))                              # the tooth draw, spent (positional now)
+    field = rng.normal(0, 1, (6, 8))
+    field = np.array(Image.fromarray((field*127 + 128).astype(np.uint8)).resize((W, H), Image.BICUBIC))
+    xx = ((np.arange(W) - W/2)/(W/2))**2
+
+    # ---- pass 3: develop each band and lay the print down
+    out = np.empty((H, W, 3), np.float32)
+    # the fixer's statistics, gathered as the print is written
+    NB = 4096; edges = np.linspace(0, 1, NB + 1)
+    h_lum = np.zeros(NB); n_lum = 0
+    h_neu = [np.zeros(NB) for _ in range(3)]; n_neu = 0
+    for y, y1, a, b in _band_edges(H, rows, OV):
+        t = timed_band(a, b)
+        sw = swell[a:b].astype(np.float64)
+        t[..., 0] += sw*(0.55 + 0.45*wb); t[..., 1] += sw*0.80; t[..., 2] += sw*(0.83 - 0.23*wb)
+        _Y0[0] = a
+        o = _canon_emulsify2_v14(t, st, exposure_ev=ev, seed=seed)
+        del t
+        o = o[y-a:y-a+(y1-y)]
+        l = o.mean(-1, keepdims=True)
+        tt = np.clip((l - 0.62)/0.38, 0, 1)**1.6
+        o = o*(1 - tt*0.42) + tt*0.42*(l*cream[None, None, :])
+        o = o/(1.0 + 0.11*np.maximum(o - 0.65, 0))
+        s = np.clip(1 - l*3.2, 0, 1)**1.4
+        o = o*(1 - s) + (o*0.70 + warmblack[None, None, :]*0.30)*s
+        tooth = _tooth_band(y1 - y, W, y, int(seed))
+        amp = 0.011*(0.35 + np.clip(l[..., 0], 0, 1)*(1 - np.clip(l[..., 0], 0, 1))*2.6)
+        o = np.clip(o + (tooth*amp)[..., None], 0, 1)
+        fld = field[y:y1].astype(np.float64)/128.0 - 1.0
+        yy = ((np.arange(y, y1) - H/2)/(H/2))**2
+        r2 = xx[None, :] + yy[:, None]
+        o = np.clip(o*(1.0 + 0.012*fld - 0.022*r2**1.5)[..., None], 0, 1)
+        # fixer statistics
+        lm = o.mean(-1); sat = o.max(-1) - o.min(-1)
+        m1 = lm > 0.02
+        h_lum += np.histogram(lm[m1], bins=NB, range=(0, 1))[0]; n_lum += int(m1.sum())
+        neu = (lm > 0.10) & (lm < 0.75) & (sat < 0.10*np.maximum(lm, 1e-6) + 0.03)
+        nn = int(neu.sum())
+        if nn:
+            for c in range(3):
+                h_neu[c] += np.histogram(o[..., c][neu], bins=NB, range=(0, 1))[0]
+            n_neu += nn
+        out[y:y1] = o.astype(np.float32)
+        del o, l, tt, s, sw
+    _Y0[0] = 0
+    _LEAK_FOG[0] = None
+    del swell, field
+    gc.collect()
+
+    # ---- the final fixer, from the gathered statistics
+    medp = _hist_median(h_lum, edges, n_lum)
+    wcol = float(np.clip(1.0 - (medp - 0.16)*4.0, 0.0, 1.0))
+    if n_neu >= 400 and wcol > 0:
+        m = np.maximum(np.array([_hist_median(h_neu[c], edges, n_neu) for c in range(3)]), 1e-5)
+        dv = m/m.mean() - 1.0
+        dvx = np.sign(dv)*np.maximum(np.abs(dv) - 0.05, 0)
+        g = np.clip((1.0 + dvx)**(-0.55*wcol), 0.955, 1.045); g = (g/g.mean()).astype(np.float32)
+        for y, y1, a, b in _band_edges(H, rows, 0):
+            out[y:y1] = np.clip(out[y:y1]*g[None, None, :], 0, 1)
+
+    # ---- the dodge, mask whole-frame single-channel, applied per band
+    # the dodge, streamed. The whole path's _dodge is the canon dodge WRAPPED
+    # by v1.3's paper pre-flash and shadow sandwich (a donor from the negative
+    # stash), all shadow work, all whole-frame with a full float64 upsample of
+    # the stash. Same math here, per band: mask and lift whole-frame single-
+    # channel; flash and sandwich on each band with an 8-row apron for the
+    # 1.1-sigma smooth.
+    lumo = np.mean(out, axis=-1, dtype=np.float64)
+    mask = np.clip(1.0 - lumo*3.0, 0, 1)**1.5; del lumo
+    mask = _bigblur(mask, W/9.0)
+    lift = (1.0/(1.0 + 0.25*mask)).astype(np.float32); del mask
+    for y, y1, a, b in _band_edges(H, rows, 0):
+        out[y:y1] = np.clip(out[y:y1]**lift[y:y1, :, None], 0, 1)
+    del lift
+    Bst = _BASE[0]
+    WY = np.array([0.2126, 0.7152, 0.0722])
+    fin = np.empty_like(out)
+    for y, y1, a, b in _band_edges(H, rows, 8):
+        o = out[a:b].astype(np.float64)
+        d = np.clip(1.0 - o/_FLASH_T, 0.0, None)
+        o = np.clip(o + _FLASH_A*d*d, 0.0, 1.0)
+        if Bst is not None:
+            try:
+                Lb = np.repeat(np.repeat(Bst[a//2:(b + 1)//2], 2, 0), 2, 1)[(a % 2):(a % 2) + (b - a), :W].astype(np.float64)
+                if Lb.shape[0] < b - a:
+                    Lb = np.pad(Lb, ((0, b - a - Lb.shape[0]), (0, 0), (0, 0)), mode="edge")
+                Yp = (o*WY).sum(-1); Yb = (Lb*WY).sum(-1)
+                ww = (_SW_ST*np.clip(1 - Yb/_SW_SW, 0, 1)**1.5
+                      * np.clip((_SW_GATE - Yp)/_SW_GATE + 0.3, 0, 1))
+                if (ww > 1e-4).any():
+                    dY = _FLASH_A + (_SW_TUP - _FLASH_A)*np.power(np.clip(Yb/_SW_SW, 0, 1), _SW_GD)
+                    donor = (Lb/np.maximum(Yb, 1e-6)[..., None])*dY[..., None]
+                    Psm = gaussian_filter(o, (1.1, 1.1, 0)); Ysm = gaussian_filter(Yp, 1.1)
+                    g = np.clip(np.power(np.clip(Yp, 1e-5, None)/np.maximum(Ysm, 3e-3), _SW_GK), _SW_GLO, _SW_GHI)
+                    tone = Psm*(1 - ww[..., None]) + donor*ww[..., None]
+                    o = np.where(ww[..., None] > 1e-4, np.clip(tone*g[..., None], 0, 1), o)
+            except Exception:
+                pass
+        fin[y:y1] = o[y-a:y-a+(y1-y)].astype(np.float32)
+        del o
+    out = fin
+    hook = globals().get("_dodge")
+    _STREAM_FED[0] = False
+    if hook is not _dodge_v0:
+        fed = False
+        try:
+            for cell in (hook.__closure__ or ()):
+                if isinstance(cell.cell_contents, dict):
+                    cell.cell_contents["lin"] = out; fed = True
+        except Exception:
+            fed = False
+        _STREAM_FED[0] = fed
+    return out
+
+_STREAM_FED = [False]
+
+def _encode_print(lin, gains=None, rows=128):
+    """linear print -> sRGB uint8, band by band. The one-liner it replaces
+    built four whole-frame float64 temporaries: 277 MB at 2200px, which was
+    the entire remaining peak. Optional per-channel gains (the drift
+    balancer) are folded into the same pass."""
+    H, W = lin.shape[:2]
+    u8 = np.empty((H, W, 3), np.uint8)
+    for y, y1, a, b in _band_edges(H, rows, 0):
+        o = np.asarray(lin[y:y1], dtype=np.float64)
+        if gains is not None:
+            o = o*np.asarray(gains, dtype=np.float64)[None, None, :]
+        o = E.linear_to_srgb(_stock_tint(np.clip(o, 0, 1)))
+        u8[y:y1] = (o*255).astype(np.uint8)
+        del o
+    return u8
+
+def _meter_from_lum(lum):
+    med = float(np.median(lum[lum > 0.01]))
+    ev = float(np.clip(np.log2(0.16/med), -2.5, 3.0))
+    exc = max(ev - 0.6, 0.0) - max(-ev - 1.3, 0.0)
+    t = float(np.clip(1.0 + 0.08*exc, 0.93, 1.14))
+    return [round(t, 3)]*3
+
+_dodge_v0 = _dodge
+
 def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     import time as _t
     _t0 = _t.time()
@@ -497,19 +770,22 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     else:
         h = long_edge; w = round(src.width*long_edge/src.height)
     arr = np.array(src.resize((w, h), Image.LANCZOS)); src.close()
-    _FIELDS[:] = _make_fields(arr.shape[0], arr.shape[1], int(seed))
+    _FIELDS[:] = [f.astype(np.float32) for f in _make_fields(arr.shape[0], arr.shape[1], int(seed))]   # v3.20: half the memory, 6e-8 relative
     _BEDS[:] = _draw_beds(int(seed))
     if profile == "scope":
         light = unrender(arr)
         _TAUS[:] = _meter(np.clip(light, 0, 1)); _CALL[0] = 0; _GRAIN_SEED[0] = int(seed)
         out = SCOPE70_CANON(light, seed=int(seed))
+    elif arr.shape[0] >= _BAND_MIN_PX:                     # v3.20: leak frames stream too
+        lin = None
+        out = _develop_streamed(arr, int(seed))            # v3.20: fixer and dodge inside
     else:
         lin = _ana_debias(_s2l(arr))
         _TAUS[:] = _meter(lin); _CALL[0] = 0; _GRAIN_SEED[0] = int(seed)
         out = HONEY70_CANON(_expand(lin), seed=int(seed))
-    out = _final_fix(out)
-    out = _dodge(out, 0.25)
-    img = Image.fromarray((E.linear_to_srgb(_stock_tint(out))*255).astype(np.uint8))
+        out = _final_fix(out)
+        out = _dodge(out, 0.25)
+    img = Image.fromarray(_encode_print(out))            # v3.20: banded encode
     img = _desqueeze(img)
     secs = max(_t.time() - _t0, 0.01)          # seconds, to hundredths
     buf = io.BytesIO()
@@ -804,7 +1080,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         Ls = cap.get("lin")
         if Ls is None:
             return slow
-        Ls = np.asarray(Ls, dtype=np.float64)
+        Ls = np.asarray(Ls, dtype=np.float32)              # v3.20: the print stays float32
         cap.clear()
         _note("match")
         if fast is None:
@@ -812,7 +1088,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         else:
             fim = Image.open(io.BytesIO(fast["jpg"])).convert("RGB").resize(
                   (Ls.shape[1], Ls.shape[0]), Image.BICUBIC)
-            Lf = E.srgb_to_linear(np.array(fim))
+            Lf = _s2l(np.array(fim)).astype(np.float32)          # v3.20
             fim.close()
         if Lf is not None:
             m = Ls.mean(-1)
@@ -835,11 +1111,12 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
                     n0 = min(Ps.shape[0], Bs.shape[0]); n1 = min(Ps.shape[1], Bs.shape[1])
                     Ps = Ps[:n0, :n1]; Bs = Bs[:n0, :n1]
                 g = _drift_gains(Ps, Bs)
-                Ls = np.clip(Ls * g[None, None, :], 0.0, 1.0)
                 del Ps, Bs
             except Exception:
-                pass
-        img = Image.fromarray((E.linear_to_srgb(_stock_tint(np.clip(Ls, 0, 1)))*255).astype(np.uint8))
+                g = None
+        else:
+            g = None
+        img = Image.fromarray(_encode_print(Ls, g))         # v3.20: drift + tint + encode, banded
         img = _desqueeze(img)
         _note("print")
         secs = float(slow.get("secs", 0)) + float(fast.get("secs", 0)) or 0.01
