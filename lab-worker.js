@@ -805,7 +805,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
     del arr, out, img
     gc.collect()
-    return {"jpg": buf.getvalue(), "secs": secs}
+    return {"jpg": buf.getvalue(), "secs": round(float(secs), 2)}      # v3.20: hundredths, as the EXIF has it
 
 
 # ---- ADDENDUM v1.3: paper pre-flash (owner-called, 2026-08-18) ----
@@ -1119,7 +1119,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
         img = Image.fromarray(_encode_print(Ls, g))         # v3.20: drift + tint + encode, banded
         img = _desqueeze(img)
         _note("print")
-        secs = float(slow.get("secs", 0)) + float(fast.get("secs", 0)) or 0.01
+        secs = round(float(slow.get("secs", 0)) + float(fast.get("secs", 0)), 2) or 0.01   # v3.20
         buf = io.BytesIO()
         try:
             ex = Image.Exif()
@@ -1136,7 +1136,7 @@ def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
             buf = io.BytesIO(); img.save(buf, "JPEG", quality=93)
         del Ls, img
         gc.collect()
-        return {"jpg": buf.getvalue(), "secs": secs}
+        return {"jpg": buf.getvalue(), "secs": round(float(secs), 2)}      # v3.20: hundredths, as the EXIF has it
     except Exception:
         gc.collect()
         return slow
