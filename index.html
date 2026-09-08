@@ -1153,6 +1153,23 @@ body:not(.cocked) #wind::after{animation:askring 4.6s ease-in-out infinite}
 .bath.quick img.c{animation-duration:.48s;animation-delay:.34s}
 @keyframes comeup{from{opacity:0;filter:brightness(1.8) contrast(.4)}to{opacity:1;filter:none}}
 #stage img.fresh{animation:comeup 1.2s ease-out both}
+/* b203: a frame in the bath is not a broken thumbnail. All the lab can send
+   mid-develop is 140px on its long edge; blown up to fill the print view that
+   read as a bad JPEG rather than as a picture which has not arrived yet. It is
+   now held out of focus - the latent image, under the safelight - and every
+   stage the lab reaches brings it one step nearer sharp. Static filters, one
+   per step, so nothing animates while the phone is busy developing; the scale
+   covers the soft edge the blur leaves against the letterbox. */
+#stage img.latent{filter:blur(15px) saturate(.50) brightness(.80);transform:scale(1.04)}
+#stage img.latent.s1{filter:blur(10px) saturate(.62) brightness(.85)}
+#stage img.latent.s2{filter:blur(6.5px) saturate(.74) brightness(.90)}
+#stage img.latent.s3{filter:blur(4px) saturate(.85) brightness(.95)}
+#stage img.latent.s4{filter:blur(2.2px) saturate(.93)}
+#stage.cooking::before{content:"";position:absolute;inset:-16px;z-index:3;pointer-events:none;
+  background:radial-gradient(115% 85% at 50% 46%,transparent 38%,rgba(0,0,0,.5) 100%);
+  animation:safelight 7s ease-in-out infinite alternate}
+@keyframes safelight{from{opacity:.45}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){#stage.cooking::before{animation:none;opacity:.72}}
 @media(prefers-reduced-motion:reduce){#stage img.fresh{animation:none}}
 #print .foot{position:absolute;left:0;right:0;bottom:0;display:flex;
              justify-content:center;pointer-events:none;
@@ -1771,7 +1788,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 202;                     /* bump with every ship; lands in EXIF */
+const BUILD = 203;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2030,6 +2047,7 @@ const onLabMessage = e => {
   if (e.data.stage) {                 /* the bath, live: the negative forms */
     labStage = String(e.data.stage); paintWind();
     const f = jobFrame.get(id);
+    if (f && f === watching && $("print").classList.contains("on")) focusStep();   /* b203 */
     if (f && cooking.has(f) && e.data.stage === "neg") {
       cookThumbs.set(f, "data:image/jpeg;base64," + e.data.b64);
       try { put("prints", f + ":neg", e.data.b64); } catch (err) {}
@@ -4313,10 +4331,33 @@ async function openContactSheet(roll) {
 
 /* ---------- print view; long-press the print itself to save ---------- */
 let current = null, armedFile = null, watching = null, openTok = 0;
+let watchSteps = 0, cookTick = null;                 /* b203: focus steps, bath clock */
+const stepClass = () => watchSteps ? " s" + Math.min(4, watchSteps) : "";
+function focusStep() {                 /* the lab reached another stage: sharpen one notch */
+  watchSteps++;
+  const ims = $("stage").querySelectorAll("img.latent");
+  const top = ims[ims.length - 1]; if (!top) return;
+  top.classList.remove("s1", "s2", "s3", "s4");
+  top.classList.add("s" + Math.min(4, watchSteps));
+}
+const cookClockStop = () => { if (cookTick) { clearInterval(cookTick); cookTick = null; } };
+function cookCaption(id) {             /* b203: the bar showed the LAST print's
+                                          seconds while this one was still cooking */
+  cookClockStop();
+  const rf = localStorage["rf" + id] || "", t0 = Number(id) || 0;   /* the id IS the shutter time */
+  const paint = () => {
+    if (!cooking.has(id) || watching !== id) { cookClockStop(); return; }
+    const s = t0 ? Math.max(0, Math.round((Date.now() - t0) / 1000)) : 0;
+    try { $("edgecode").textContent =
+      (rf ? rf[0] + " \u00b7 " + rf.slice(1) + "  \u00b7  " : "") + "in the bath  " + s + "s"; } catch (e) {}
+  };
+  paint(); cookTick = setInterval(paint, 1000);      /* once a second, not per frame */
+}
 async function openPrint(id) {
   current = id; watching = null;
   const tok = ++openTok;              /* a faster tap wins; stale opens bail */
   const stage = $("stage"); stage.innerHTML = "";
+  stage.classList.remove("cooking"); cookClockStop(); watchSteps = 0;   /* b203 */
   const u = await printURL(id);
   if (!u || tok !== openTok) return;
   try {                                   /* arm the print for hold-to-save */
@@ -4513,12 +4554,14 @@ function openItem(id) { humStop(); return cooking.has(id) ? openCooking(id) : op
 async function openCooking(id) {
   watching = id; current = null; armedFile = null;
   const stage = $("stage"); stage.innerHTML = "";
+  stage.classList.add("cooking"); watchSteps = 0;              /* b203 */
   const u = cookThumbs.get(id);
   if (u) {
     const img = document.createElement("img");
-    img.className = "in step watch"; img.src = u;
+    img.className = "in step watch latent"; img.src = u;
     stage.appendChild(img);
   }
+  cookCaption(id);                                            /* b203: its own clock */
   await buildStrip(id);
   humStop(); $("print").classList.add("on");
   setPaged(true);
@@ -4531,7 +4574,7 @@ function paintWatched() {              /* a new stage landed while watching */
   const top = ims[ims.length - 1];
   if (top && top.src === u) return;
   const img = document.createElement("img");
-  img.className = "in step watch"; img.src = u;
+  img.className = "in step watch latent" + stepClass(); img.src = u;    /* b203 */
   stage.appendChild(img);
   setTimeout(() => {
     for (const o of stage.querySelectorAll("img")) if (o !== img) o.remove();
@@ -4539,7 +4582,7 @@ function paintWatched() {              /* a new stage landed while watching */
 }
 $("back").onclick = () => { machine("button", 0.09, 1600); collapseToChip(); vt(() => $("print").classList.remove("on"));
   if (fromSheet) { const r = fromSheet; fromSheet = null; setTimeout(() => openContactSheet(r), 60); }   /* came from the rolls: return to them */ setPaged(false); if (cocked) humStart();
-  watching = null;
+  watching = null; cookClockStop(); $("stage").classList.remove("cooking");   /* b203 */
   setTimeout(revokeAll, 220); paintChip(); };
 /* navigation is the strip: tap a thumb below; hold the print to save */
 let HOLD = null;
