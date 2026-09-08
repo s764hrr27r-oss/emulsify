@@ -1788,7 +1788,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 204;                     /* bump with every ship; lands in EXIF */
+const BUILD = 205;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1895,6 +1895,7 @@ let capOk = 0;
     localStorage.removeItem("rung"); localStorage.removeItem("cooking");
     localStorage["ladder"] = LADDER_VER;
     delete localStorage["msreal"];             /* b203: a speed in units of a dead ladder */
+    delete localStorage["pin"];                /* b205: and an index into a dead ladder */
     capIdx = 0;
   }
 } catch (e) {} })();
@@ -1951,6 +1952,20 @@ const setRung = r => { rung = Math.max(hardIdx, capIdx, Math.min(RUNGS.length - 
   try { localStorage["rung"] = rung; } catch (e) {} };
 setRung(rung);                             /* the restored rung obeys the cap too */
 let probed = false;
+/* b205 THE PIN. Four builds spent teaching the ladder to trust a measurement,
+   and the print never once came out at 2200, because every one of those fixes
+   sat downstream of the boot probe - a cold, systematically slow instrument
+   that got the first word every time and only lost it by being patched out of
+   one path at a time. The owner is a better instrument than the probe. A size
+   chosen by hand is now kept: the probe does not overrule it, a finished bath
+   does not overrule it, a relaunch does not lose it. The learned ceiling still
+   clamps it, because a size that has actually killed this phone is a fact and
+   not a preference. Tap past the top rung to hand the decision back. */
+let pinIdx = (() => { try { const v = parseInt(localStorage["pin"], 10);
+  return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : -1;
+} catch (e) { return -1; } })();
+const savePin = () => { try { if (pinIdx < 0) localStorage.removeItem("pin");
+  else localStorage["pin"] = pinIdx; } catch (e) {} };
 /* b203: what this phone actually develops at, in probe units, smoothed over
    finished baths and kept across launches. The boot probe runs on a COLD
    worker - first import, nothing cached, nothing warm - and reads 2 to 6 times
@@ -1972,7 +1987,8 @@ function sizeFromProbe(ms) {          /* one measurement, before frame one */
   probed = true;
   setRung(fitRung(real || ms));
 }
-(() => { const real = trueMs();       /* known before the lab has even booted */
+(() => { if (pinIdx >= 0) { probed = true; setRung(pinIdx); return; }   /* b205: the owner's size */
+  const real = trueMs();              /* known before the lab has even booted */
   if (real) { probed = true; setRung(fitRung(real)); } })();
 function adaptRung(secs) {            /* and the truth, after every frame */
   /* b202: the boot probe runs on a COLD worker - first import, no JIT, no
@@ -1984,6 +2000,7 @@ function adaptRung(secs) {            /* and the truth, after every frame */
      the ceiling on top. */
   if (!secs) return;
   noteMs(secs / RUNGS[rung].k);       /* b203: remembered, so the next launch knows */
+  if (pinIdx >= 0) return;            /* b205: chosen by hand; the ladder does not argue */
   const pick = fitRung(trueMs());
   if (pick !== rung) setRung(pick);
 }
@@ -2472,6 +2489,7 @@ async function deepLog() {
          kv("memcap", () => capIdx + " -> floor " + RUNGS[capIdx].px + "px, " + capOk + "/8 clean frames toward trust"),
          kv("memhard", () => hardIdx + " -> ceiling " + RUNGS[hardIdx].px + "px" + (hardIdx ? " (this phone died above it)" : " (no death recorded; no restriction)")),
          kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size),
+         kv("pin", () => pinIdx < 0 ? "automatic" : "held at " + RUNGS[pinIdx].px + "px"),
          kv("msreal", () => { const m = trueMs(); return m ? m.toFixed(1) + " -> fits " + RUNGS[fitRung(m)].px + "px"
                                                           : "not measured yet"; }));
   H("LOCALSTORAGE (key: chars)");
@@ -2509,14 +2527,23 @@ function ServiceRows(props) {
   if (props.log) rows.push({ key: "log", label: "LAB LOG", colour: "#e0a050",
       act: () => { closeServiceMenu(); showReport(props.log); } });
   rows.push({ key: "size", label: "PRINT SIZE " + RUNGS[rung].px +
-        (hardIdx ? "  (ceiling " + RUNGS[hardIdx].px + ")" : capIdx ? "  (capped " + RUNGS[capIdx].px + ")" : "  (full)"),
+        (pinIdx >= 0 ? "  (pinned)" : hardIdx ? "  (ceiling " + RUNGS[hardIdx].px + ")"
+                     : capIdx ? "  (capped " + RUNGS[capIdx].px + ")" : "  (auto)"),
       colour: rung > hardIdx ? "#e0a050" : "var(--mute)",
       /* b198: one rung at a time, and never above what this phone has survived.
-         A leap to full is how b197 crashed the app. */
+         A leap to full is how b197 crashed the app.  b205: each tap also pins,
+         so the size stops drifting back down between frames. */
       act: () => {
-        if (rung <= hardIdx) { flashState("AT THIS PHONE'S CEILING"); return; }
-        capIdx = Math.max(hardIdx, capIdx - 1); capOk = 0; saveCap(); setRung(rung - 1);
-        flashState("PRINT SIZE " + RUNGS[rung].px); paintServiceMenu();
+        if (rung > hardIdx) {
+          capIdx = Math.max(hardIdx, capIdx - 1); capOk = 0; saveCap(); setRung(rung - 1);
+          pinIdx = rung; savePin();
+          flashState("PRINT SIZE " + RUNGS[rung].px + " PINNED");
+        } else if (pinIdx >= 0) {                  /* at the top: hand it back */
+          pinIdx = -1; savePin();
+          const real = trueMs(); if (real) setRung(fitRung(real));
+          flashState("PRINT SIZE AUTOMATIC");
+        } else flashState("AT THIS PHONE'S CEILING");
+        paintServiceMenu();
       } });
   rows.push({ key: "layout", label: "LAYOUT REPORT", colour: "var(--mute)",
       act: () => { closeServiceMenu(); try { showReport(layoutReport()); } catch (e) { showReport("LAYOUT REPORT failed: " + e); } } });
