@@ -1788,7 +1788,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 205;                     /* bump with every ship; lands in EXIF */
+const BUILD = 206;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1863,7 +1863,16 @@ const RUNGS = [{ px: 2200, dc: true,  k: 1.74 },
                { px: 800,  dc: false, k: 0.158 },
                { px: 700,  dc: false, k: 0.117 },
                { px: 600,  dc: false, k: 0.091 }];
-const BUDGET = 60;                    /* seconds we are willing to wait - raised for 2200 (b201) */
+/* b206 THE LADDER STOPS CHOOSING. Five builds argued about which size the app
+   should pick, and the print never once came out at 2200. The argument was
+   inherited: the ladder was built when 2200 cost 2400 MB and the phone really
+   could not hold it. w3.20 made 2200 cost 321 MB, and from that moment the only
+   thing the ladder was still deciding was how long the owner should be willing
+   to wait - which is not the app's decision to make. So it does not make it.
+   The full size is the default; a bath's seconds are recorded and shown, never
+   acted on; and the only thing that can lower the size is this phone actually
+   dying at it, which is a fact and stays enforced. */
+const BUDGET = 60;                    /* kept only to read the estimate against */
 let rung = (() => { try { const v = parseInt(localStorage["rung"], 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
 } catch (e) { return 0; } })();
@@ -1974,22 +1983,12 @@ const savePin = () => { try { if (pinIdx < 0) localStorage.removeItem("pin");
 const trueMs = () => { try { const v = parseFloat(localStorage["msreal"]); return v > 0 ? v : 0; } catch (e) { return 0; } };
 const noteMs = m => { try { const p = trueMs();
   localStorage["msreal"] = String(p ? p * 0.7 + m * 0.3 : m); } catch (e) {} };
-const fitRung = ms => {               /* the one place a speed becomes a size */
-  let pick = RUNGS.length - 1;
-  for (let i = 0; i < RUNGS.length; i++)
-    if (ms * RUNGS[i].k <= BUDGET) { pick = i; break; }
-  return pick;
-};
-function sizeFromProbe(ms) {          /* one measurement, before frame one */
-  if (probed) return;
-  const real = trueMs();
-  if (!real && !ms) return;
-  probed = true;
-  setRung(fitRung(real || ms));
+function sizeFromProbe(ms) {          /* b206: recorded for the panel, and that is all */
+  if (probed || !ms) return; probed = true;
+  try { if (!trueMs()) localStorage["msprobe"] = String(ms); } catch (e) {}
 }
-(() => { if (pinIdx >= 0) { probed = true; setRung(pinIdx); return; }   /* b205: the owner's size */
-  const real = trueMs();              /* known before the lab has even booted */
-  if (real) { probed = true; setRung(fitRung(real)); } })();
+setRung(pinIdx >= 0 ? pinIdx : 0);    /* b206: the top, unless held lower by hand
+                                         or by a death - setRung clamps both */
 function adaptRung(secs) {            /* and the truth, after every frame */
   /* b202: the boot probe runs on a COLD worker - first import, no JIT, no
      caches - and on the owner's phone it overestimated by 2.5x, so frame one
@@ -1999,10 +1998,7 @@ function adaptRung(secs) {            /* and the truth, after every frame */
      over budget steps down the same way. setRung still applies the cap and
      the ceiling on top. */
   if (!secs) return;
-  noteMs(secs / RUNGS[rung].k);       /* b203: remembered, so the next launch knows */
-  if (pinIdx >= 0) return;            /* b205: chosen by hand; the ladder does not argue */
-  const pick = fitRung(trueMs());
-  if (pick !== rung) setRung(pick);
+  noteMs(secs / RUNGS[rung].k);       /* b206: measured and shown; never acted on */
 }
 /* iOS suspends the page when the screen sleeps, which freezes a develop
    mid-chemistry. Hold a screen wake lock while the lab is busy and release
@@ -2490,8 +2486,9 @@ async function deepLog() {
          kv("memhard", () => hardIdx + " -> ceiling " + RUNGS[hardIdx].px + "px" + (hardIdx ? " (this phone died above it)" : " (no death recorded; no restriction)")),
          kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size),
          kv("pin", () => pinIdx < 0 ? "automatic" : "held at " + RUNGS[pinIdx].px + "px"),
-         kv("msreal", () => { const m = trueMs(); return m ? m.toFixed(1) + " -> fits " + RUNGS[fitRung(m)].px + "px"
-                                                          : "not measured yet"; }));
+         kv("bath", () => { const m = trueMs();
+           return m ? "measured " + m.toFixed(1) + " -> " + RUNGS[rung].px + "px takes about "
+                      + (m * RUNGS[rung].k).toFixed(0) + "s" : "not measured yet"; }));
   H("LOCALSTORAGE (key: chars)");
   try { const ks = Object.keys(localStorage).sort(); L.push("keys: " + ks.length); for (const k of ks) { const v = String(localStorage[k]); L.push("  " + k + ": " + (v.length > 60 ? v.length + " chars" : JSON.stringify(v))); } } catch (e) { L.push("localStorage: ?"); }
   H("STORAGE");
@@ -2529,20 +2526,20 @@ function ServiceRows(props) {
   rows.push({ key: "size", label: "PRINT SIZE " + RUNGS[rung].px +
         (pinIdx >= 0 ? "  (pinned)" : hardIdx ? "  (ceiling " + RUNGS[hardIdx].px + ")"
                      : capIdx ? "  (capped " + RUNGS[capIdx].px + ")" : "  (auto)"),
-      colour: rung > hardIdx ? "#e0a050" : "var(--mute)",
+      colour: rung > 0 ? "#e0a050" : "var(--mute)",
       /* b198: one rung at a time, and never above what this phone has survived.
          A leap to full is how b197 crashed the app.  b205: each tap also pins,
          so the size stops drifting back down between frames. */
+      /* b206: one direction, and no dead taps. Each tap takes one rung off the
+         size - the way to trade detail for a shorter bath - and the tap after
+         the smallest goes back to full. Stepping DOWN is always safe, so the
+         b198 caution about leaps only has to hold at the wrap, where the
+         learned ceiling still clamps. */
       act: () => {
-        if (rung > hardIdx) {
-          capIdx = Math.max(hardIdx, capIdx - 1); capOk = 0; saveCap(); setRung(rung - 1);
-          pinIdx = rung; savePin();
-          flashState("PRINT SIZE " + RUNGS[rung].px + " PINNED");
-        } else if (pinIdx >= 0) {                  /* at the top: hand it back */
-          pinIdx = -1; savePin();
-          const real = trueMs(); if (real) setRung(fitRung(real));
-          flashState("PRINT SIZE AUTOMATIC");
-        } else flashState("AT THIS PHONE'S CEILING");
+        if (rung < RUNGS.length - 1) { pinIdx = rung + 1; savePin(); setRung(pinIdx); }
+        else { pinIdx = -1; savePin(); setRung(0); }
+        capIdx = Math.max(hardIdx, Math.min(capIdx, rung)); capOk = 0; saveCap();
+        flashState("PRINT SIZE " + RUNGS[rung].px + (pinIdx < 0 ? " FULL" : ""));
         paintServiceMenu();
       } });
   rows.push({ key: "layout", label: "LAYOUT REPORT", colour: "var(--mute)",
