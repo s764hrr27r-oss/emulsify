@@ -1823,7 +1823,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 207;                     /* bump with every ship; lands in EXIF */
+const BUILD = 208;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1940,6 +1940,7 @@ let capOk = 0;
     localStorage["ladder"] = LADDER_VER;
     delete localStorage["msreal"];             /* b203: a speed in units of a dead ladder */
     delete localStorage["pin"];                /* b205: and an index into a dead ladder */
+    localStorage.removeItem("surv"); localStorage.removeItem("okrun");   /* b208 */
     capIdx = 0;
   }
 } catch (e) {} })();
@@ -1988,6 +1989,13 @@ addEventListener("visibilitychange", () => {
 });
 const noteCookEnd = ok => {
   try { localStorage.removeItem("cooking"); } catch (e) {}
+  /* b208: a finished bath is the only evidence that a size fits this phone. */
+  if (ok && pinIdx < 0) {
+    if (rung < survIdx) survIdx = rung;
+    okRun += 1;
+    if (okRun >= 3 && rung > hardIdx && rung > 0) { okRun = 0; setRung(rung - 1); }
+    saveSurv();
+  } else if (!ok) { okRun = 0; saveSurv(); }
   if (!ok || capIdx === 0) { capOk = 0; return; }
   capOk += 1;
   if (capOk >= 8 && capIdx > hardIdx) { capIdx -= 1; capOk = 0; saveCap(); }   /* b198: eight frames, and never past the ceiling */
@@ -2005,6 +2013,21 @@ let probed = false;
    does not overrule it, a relaunch does not lose it. The learned ceiling still
    clamps it, because a size that has actually killed this phone is a fact and
    not a preference. Tap past the top rung to hand the decision back. */
+/* b208 EARN THE SIZE. b206 was half right: the ladder should not be deciding
+   how long the owner waits. But it deleted the climb along with the argument,
+   and made the largest size the default on a phone that had never once printed
+   at it - after which the app started dying at the shutter. The lab worker is
+   never torn down, so Pyodide's heap stands at its high-water mark from the
+   last frame and the next develop begins on top of it; the first seconds of
+   processing are the peak of the whole session, which is exactly where the
+   crashes land. So size is earned, not assumed: start where this phone has
+   actually finished a bath, move up one rung after three clean frames, and
+   fall the moment one dies. Speed still decides nothing. */
+let survIdx = (() => { try { const v = parseInt(localStorage["surv"], 10);
+  return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 2;
+} catch (e) { return 2; } })();                    /* 2 = 1100px, proven on this phone */
+let okRun = (() => { try { return parseInt(localStorage["okrun"], 10) || 0; } catch (e) { return 0; } })();
+const saveSurv = () => { try { localStorage["surv"] = survIdx; localStorage["okrun"] = okRun; } catch (e) {} };
 let pinIdx = (() => { try { const v = parseInt(localStorage["pin"], 10);
   return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : -1;
 } catch (e) { return -1; } })();
@@ -2022,8 +2045,8 @@ function sizeFromProbe(ms) {          /* b206: recorded for the panel, and that 
   if (probed || !ms) return; probed = true;
   try { if (!trueMs()) localStorage["msprobe"] = String(ms); } catch (e) {}
 }
-setRung(pinIdx >= 0 ? pinIdx : 0);    /* b206: the top, unless held lower by hand
-                                         or by a death - setRung clamps both */
+setRung(pinIdx >= 0 ? pinIdx : survIdx);   /* b208: where this phone has finished a
+                                              bath - setRung clamps by the ceiling */
 function adaptRung(secs) {            /* and the truth, after every frame */
   /* b202: the boot probe runs on a COLD worker - first import, no JIT, no
      caches - and on the owner's phone it overestimated by 2.5x, so frame one
@@ -2521,6 +2544,9 @@ async function deepLog() {
          kv("memhard", () => hardIdx + " -> ceiling " + RUNGS[hardIdx].px + "px" + (hardIdx ? " (this phone died above it)" : " (no death recorded; no restriction)")),
          kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size),
          kv("pin", () => pinIdx < 0 ? "automatic" : "held at " + RUNGS[pinIdx].px + "px"),
+         kv("earned", () => "printing at " + RUNGS[rung].px + "; best finished "
+              + RUNGS[survIdx].px + "; " + okRun + "/3 clean toward "
+              + (rung > 0 ? RUNGS[rung - 1].px : "the top")),
          kv("lost frames", () => { const seen = parseInt(localStorage["lostseen"], 10) || 0;
            return seen ? seen + " bath(s) interrupted, negatives kept" : "none"; }),
          kv("bath", () => { const m = trueMs();
