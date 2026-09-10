@@ -1671,6 +1671,19 @@ const get = (s, k) => new Promise((res, rej) => {
   const r = DB.transaction(s).objectStore(s).get(k);
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
 });
+const del = (s, k) => new Promise(res => {
+  try {
+    if (!DB.objectStoreNames.contains(s)) return res();
+    const t = DB.transaction(s, "readwrite");
+    t.objectStore(s).delete(k); t.oncomplete = res; t.onerror = res;
+  } catch (e) { res(); }
+});
+const negKeys = () => new Promise(res => {
+  try {
+    const r = DB.transaction("negs").objectStore("negs").getAllKeys();
+    r.onsuccess = () => res(r.result.map(String).sort()); r.onerror = () => res([]);
+  } catch (e) { res([]); }
+});
 /* prints listing skips easel side-records (keys with ":") */
 const allKeys = () => new Promise((res, rej) => {
   const r = DB.transaction("prints").objectStore("prints").getAllKeys();
@@ -1682,6 +1695,27 @@ let pending = 0;
 const cooking = new Set();          /* ids mid-develop right now */
 const cookThumbs = new Map();       /* id -> latent-negative data URL */
 const unchosen = new Set();         /* vestigial: always empty since v2.3 */
+/* b207: anything still in the negs store at boot is a frame whose bath never
+   finished. Re-developed oldest first, one at a time, each attempt counted on
+   disk BEFORE it runs - so a negative that reliably kills the app stops trying
+   after two goes and waits in the tray instead of taking the boot down with it. */
+async function recoverNegs() {
+  let keys = [];
+  try { keys = await negKeys(); } catch (e) { return; }
+  const have = new Set(prints.map(String));
+  const lost = keys.filter(k => !have.has(k) && !cooking.has(k));
+  if (!lost.length) return;
+  try { localStorage["lostseen"] = String((parseInt(localStorage["lostseen"], 10) || 0) + lost.length); } catch (e) {}
+  for (const id of lost) {
+    let rec = null;
+    try { rec = await get("negs", id); } catch (e) {}
+    if (!rec || !rec.blob) { await del("negs", id); continue; }
+    if ((rec.tries || 0) >= 2) { flashState("FRAME " + (rec.rf || id).slice(-3) + " NEEDS A RETRY"); continue; }
+    try { await put("negs", id, Object.assign({}, rec, { tries: (rec.tries || 0) + 1 })); } catch (e) {}
+    flashState("RECOVERING " + (rec.rf || "FRAME"));
+    try { await develop(id, rec.blob, rec.seed || 1, !!rec.full); } catch (e) {}
+  }
+}
 async function scanTray() {
   const raw = await new Promise((res, rej) => {
     const r = DB.transaction("prints").objectStore("prints").getAllKeys();
@@ -1690,6 +1724,7 @@ async function scanTray() {
   unchosen.clear();          /* nothing waits on a person any more */
 }
 await scanTray();
+setTimeout(recoverNegs, 2500);      /* b207: after the camera is up, go get the lost frames */
 
 const urls = new Set();
 const mkURL = b => { const u = URL.createObjectURL(b); urls.add(u); return u; };
@@ -1788,7 +1823,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 206;                     /* bump with every ship; lands in EXIF */
+const BUILD = 207;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2486,6 +2521,8 @@ async function deepLog() {
          kv("memhard", () => hardIdx + " -> ceiling " + RUNGS[hardIdx].px + "px" + (hardIdx ? " (this phone died above it)" : " (no death recorded; no restriction)")),
          kv("RUNGS", () => RUNGS), kv("cookThumbs", () => cookThumbs.size),
          kv("pin", () => pinIdx < 0 ? "automatic" : "held at " + RUNGS[pinIdx].px + "px"),
+         kv("lost frames", () => { const seen = parseInt(localStorage["lostseen"], 10) || 0;
+           return seen ? seen + " bath(s) interrupted, negatives kept" : "none"; }),
          kv("bath", () => { const m = trueMs();
            return m ? "measured " + m.toFixed(1) + " -> " + RUNGS[rung].px + "px takes about "
                       + (m * RUNGS[rung].k).toFixed(0) + "s" : "not measured yet"; }));
@@ -4001,6 +4038,20 @@ async function cook(c, voice, full) {
   if (!blob) { flagError("NEGATIVE FAILED"); c.width = c.height = 0; return; }   /* toBlob can hand back null under memory pressure */
   if (voice) { lastNeg = blob; }              /* the double's memory: the same bytes, no second encode */
   c.width = c.height = 0;
+  /* b207 THE FRAME SURVIVES THE CRASH. Until now the only copy of a negative
+     between the shutter and the print was a local variable. A bath is twenty
+     seconds to a minute of the heaviest work the phone ever does, and if the
+     tab died in there - out of memory, or iOS reclaiming a backgrounded PWA -
+     the picture was gone, with nothing on disk to recover. The negative is now
+     written before the bath starts and deleted only once the print is safely
+     stored, so a crash costs the wait and not the frame. */
+  try { await put("negs", id, { blob, seed, full, px: RUNGS[rung].px,
+                                rf: localStorage["rf" + id] || "", at: Date.now(), tries: 0 }); }
+  catch (e) { flashState("NEGATIVE NOT SAVED"); }
+  await develop(id, blob, seed, full);
+}
+
+async function develop(id, blob, seed, full) {
   pending++; cooking.add(id); labStage = ""; paintWind(); if (pending === 1) bathToneStart();
   dispatch("BATH", { pending });
   try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
@@ -4018,6 +4069,7 @@ async function cook(c, voice, full) {
     await put("prints", id, printBlob);          // balanced in the lab: final
     await put("thumbs", id, await makeThumb(printBlob));
     prints.push(id);
+    await del("negs", id);            /* b207: the print is safe; let the negative go */
     qcSet(id, { status: "success", data: { secs }, error: null });   /* 20 */
   } catch (e) { console.error(e); qcSet(id, { status: "error", error: String(e && e.message || e) });
     flagError(String(e && e.message || e).slice(0, 18).toUpperCase() || "DEVELOP FAILED"); }
