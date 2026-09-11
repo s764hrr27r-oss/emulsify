@@ -1823,7 +1823,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 208;                     /* bump with every ship; lands in EXIF */
+const BUILD = 209;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1871,6 +1871,24 @@ async function labFailed(why) {
     try { flashState("LAB FAILED"); } catch (e) {}
   }
 }
+/* b209 A FRESH LAB EVERY FRAME. The worker was spawned once and kept for the
+   whole session, and Pyodide's heap only ever grows: whatever the largest
+   frame of the session needed, every later frame began on top of. That is why
+   1600 and 1100 started dying on a phone that had printed at both an hour
+   earlier - the size being developed was not what killed it, the session's
+   high-water mark was, and the ceiling ratcheted down blaming the wrong thing.
+   The lab is now retired the moment the bath drains and a new one spawned in
+   its place, so every develop starts from an empty heap. The warm-up runs
+   while the print is being looked at, which is the only reason this is
+   affordable: it costs nothing at the shutter unless two frames are shot back
+   to back, and the worker queues behind its own boot either way. */
+let labCycles = 0;
+function recycleLab() {
+  if (pending > 0 || waits.size) return;      /* never while the lab is holding a job */
+  labCycles++; workerVer = "";
+  try { worker.terminate(); } catch (e) {}
+  spawnWorker();
+}
 function spawnWorker() {
   worker = new Worker("lab-worker.js?v=" + BUILD + "&r=" + labRespawns);
   worker.onmessage = onLabMessage;
@@ -1890,7 +1908,7 @@ let msgId = 0; const waits = new Map();
    peaks at 321 MB where 1100px used to cost 597. So the ladder now reaches
    2200. The k values are time multiples of the probe, measured on the same
    machine as the old ones (2200 = 4.7x the 1100 bath, 1600 = 2.4x). */
-const LADDER_VER = 2;
+const LADDER_VER = 3;
 const RUNGS = [{ px: 2200, dc: true,  k: 1.74 },
                { px: 1600, dc: true,  k: 0.88 },
                { px: 1100, dc: true,  k: 0.371 },
@@ -2509,7 +2527,7 @@ async function deepLog() {
   L.push("EMULSIFY DEEP LOG  b" + BUILD + "  " + new Date().toISOString() + "  " + (Intl.DateTimeFormat().resolvedOptions().timeZone || ""));
   H("BUILD & LAB");
   L.push(kv("build", () => BUILD), kv("worker", () => workerVer), kv("labState", () => labState), kv("labLastError", () => labLastError),
-         kv("labRespawns", () => labRespawns), kv("labStage", () => labStage), kv("pending", () => pending), kv("cooking", () => [...cooking]),
+         kv("labRespawns", () => labRespawns), kv("labCycles", () => labCycles + " fresh labs this session"), kv("labStage", () => labStage), kv("pending", () => pending), kv("cooking", () => [...cooking]),
          kv("pendingBuild", () => pendingBuild), kv("lastUpdateCheck age s", () => lastUpdateCheck ? Math.round((Date.now() - lastUpdateCheck) / 1000) : null),
          kv("href", () => location.href));
   H("DEVICE & VIEWPORT");
@@ -4101,7 +4119,7 @@ async function develop(id, blob, seed, full) {
     flagError(String(e && e.message || e).slice(0, 18).toUpperCase() || "DEVELOP FAILED"); }
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
-  pending--; if (pending <= 0) labAwake(false);
+  pending--; if (pending <= 0) { labAwake(false); setTimeout(recycleLab, 300); }   /* b209 */
   dispatch(pending > 0 ? "BATH" : "DRAINED", { pending });
   paintWind(); if (pending <= 0) bathToneStop();
   lastLanded = { id, t: Date.now() };                                     /* 10: the newest print, still wet */
