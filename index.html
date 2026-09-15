@@ -1823,7 +1823,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 210;                     /* bump with every ship; lands in EXIF */
+const BUILD = 211;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2662,6 +2662,10 @@ function ServiceRows(props) {
       act: async () => { closeServiceMenu(); labRespawns = 0; workerVer = ""; labNote("LAB RESET");
         dispatch("RESTART"); await purgeCDN(); try { worker.terminate(); } catch (e) {}
         failAllWaits("LAB RESTARTED"); setTimeout(spawnWorker, 300); } });
+  rows.push({ key: "served", label: "RUNNING b" + BUILD +
+        (lastServerBuild ? "   SERVER b" + lastServerBuild : "   SERVER NOT ASKED YET"),
+      colour: lastServerBuild && lastServerBuild < BUILD ? "#e0a050" : "var(--mute)",
+      act: () => { checkUpdate(true); } });
   rows.push({ key: "update", label: props.pending ? "UPDATE TO b" + props.pending : "CHECK FOR UPDATES",
       colour: props.pending ? "var(--ready)" : "var(--mute)", sw: true,
       act: () => { closeServiceMenu(); applyUpdate(); } });
@@ -3677,7 +3681,14 @@ async function checkUpdate(manual, auto) {
         setTimeout(applyUpdate, 900);
       }
     }
-    else if (manual) flashState(found ? "UP TO DATE" : "NO CONNECTION");
+    /* b211: "UP TO DATE" could not tell an upload that never landed from an
+       app that would not reload - both said the same thing. Say what the
+       SERVER actually answered, so the next move is obvious: a build behind
+       this one means the upload did not take, an equal one means it did. */
+    else if (manual) flashState(found ? (found === BUILD ? "SERVER HAS b" + found + " - SAME"
+                                                         : "SERVER HAS b" + found + " - OLDER")
+                                      : "NO CONNECTION");
+    lastServerBuild = found;
   } catch (e) { if (manual) flashState("NO CONNECTION"); }
   checkingUpdate = false;
 }
@@ -3686,6 +3697,7 @@ function flashState(text) {
   const prev = st.textContent; st.textContent = text; st.classList.add("flash");
   setTimeout(() => { st.classList.remove("flash"); st.textContent = cocked ? "SHUTTER SET" : "WIND ON"; }, text.startsWith("REWIND?") ? 3000 : 1800);
 }
+let lastServerBuild = 0;                  /* b211: what the server said, for the panel */
 let bathWait = 0, bathWaitPending = -1;   /* declared above applyUpdate; nothing reads them at load */
 function applyUpdate() {
   if (!pendingBuild) { checkUpdate(true); return; }
