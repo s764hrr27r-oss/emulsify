@@ -1,4 +1,4 @@
-// lab-worker.js — v3.10. Verbatim canon; JPEG prints
+// lab-worker.js — v3.21. Verbatim canon; JPEG prints
 // v3.10: the loading leak (flagged first frames only), v3.9: provenance + STOCK metadata. Golden v12 cff518ecfbeda947 holds.
 // v3.8: STRATA LIGHT. Seeded 64 band hue scramble (+-5.6 deg) on the scene light
 // at the _expand seam; chemistry untouched. Golden moves: v11 5ea19a4ea48e310f -> v12 cff518ecfbeda947.
@@ -621,7 +621,16 @@ def _develop_streamed(arr, seed):
     rng = np.random.default_rng(seed + 1)
     rng.normal(0, 1, (8, 8))                              # the tooth draw, spent (positional now)
     field = rng.normal(0, 1, (6, 8))
-    field = np.array(Image.fromarray((field*127 + 128).astype(np.uint8)).resize((W, H), Image.BICUBIC))
+    # v3.21 THE FIELD STOPPED WRAPPING. This slow undulation - plus or minus
+    # about 1% across the frame - was carried out to full size through a uint8
+    # image. But rng.normal(0,1)*127 has a standard deviation of 127, so 0..255
+    # is only plus or minus one sigma, and about a THIRD of the 48 cells landed
+    # outside it. astype does not clip, it wraps: a cell at -81 came back as
+    # 175, a dark patch reborn as a bright one, and bicubic then carried the
+    # damage across the whole print. On a flat, bright, backlit frame - where
+    # there is no subject detail to hide behind - that read as striations.
+    # Same field, same seed, same interpolation, carried in float.
+    field = np.array(Image.fromarray((field*127 + 128).astype(np.float32), "F").resize((W, H), Image.BICUBIC))
     xx = ((np.arange(W) - W/2)/(W/2))**2
 
     # ---- pass 3: develop each band and lay the print down
