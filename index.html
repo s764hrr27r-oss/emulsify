@@ -1823,7 +1823,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 209;                     /* bump with every ship; lands in EXIF */
+const BUILD = 210;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -2204,16 +2204,43 @@ const _labBake_unused = (buf, w, t, secs) => {
 
 /* ---------- camera: multi-lens, no rotation handling by design ---------- */
 let stream = null, restarting = false;
+/* b210 THE BATH GETS THE PHONE TO ITSELF. A develop is the heaviest thing this
+   app does, and it was running with a live camera pipeline, an audio context
+   with oscillators in it, and up to three more develops queued behind it. The
+   develop itself measures 268 MB at 1100px; none of the rest of it is free.
+   For the length of a bath the camera is released, the sound is stopped, and
+   the shutter takes one frame at a time. It comes back when the print lands. */
+let camHeld = false;
+function bathHold() {
+  if (camHeld) return; camHeld = true;
+  try { stream?.getTracks().forEach(t => t.stop()); } catch (e) {}
+  stream = null;
+  try { $("video").srcObject = null; } catch (e) {}
+  try { droneStop(true); humStop(true); bathToneStop(); } catch (e) {}
+  try { if (AC && AC.state === "running") AC.suspend(); } catch (e) {}
+}
+function bathRelease() {
+  if (!camHeld) return; camHeld = false;
+  try { if (AC && AC.state !== "running") AC.resume().catch(() => {}); } catch (e) {}
+  startCamera(GLASS.id);
+}
 async function startCamera(deviceId) {
   if (restarting) return; restarting = true;
   try {
     stream?.getTracks().forEach(t => t.stop());
     $("video").srcObject = null;
+    /* b210: the preview used to run at 4032x3024 - twelve megapixels, thirty
+       times a second, for a picture shown at phone size and a negative capped
+       at MAX_NEG. The only thing that ever needed those pixels is the digital
+       crop on the long glass, so the stream now asks for exactly what the
+       selected lens can use and no more. At 33mm that is 6.4 MP instead of
+       12.2, continuously, for an identical negative. */
+    const need = Math.min(4032, Math.ceil(MAX_NEG * (GLASS.crop || 1) * 1.15 / 16) * 16);
     const video = deviceId
       ? { deviceId: { exact: deviceId },
-          width: { ideal: 4032 }, height: { ideal: 3024 } }
+          width: { ideal: need }, height: { ideal: Math.round(need * 3 / 4) } }
       : { facingMode: "environment",
-          width: { ideal: 4032 }, height: { ideal: 3024 } };
+          width: { ideal: need }, height: { ideal: Math.round(need * 3 / 4) } };
     stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
     $("video").srcObject = stream;
     $("denied").style.display = "none";
@@ -3616,7 +3643,7 @@ function drawScopes() {
 /* the loop: ~14 Hz, and only while there is something to show and someone to see it */
 const scopeLoop = boundary("scopes", function scopeLoopInner() {
   scopeRAF = 0;
-  if (!scopesOn.size || cocked || document.hidden || $("print").classList.contains("on") || asleep || document.body.classList.contains("curtain")) return;
+  if (!scopesOn.size || cocked || pending > 0 || document.hidden || $("print").classList.contains("on") || asleep || document.body.classList.contains("curtain")) return;
   drawScopes();
   scopeRAF = requestAnimationFrame(scopeLoop);
 });
@@ -4006,7 +4033,8 @@ $("shutterwrap").onclick = async () => {
     return;
   }
   if (!v.videoWidth || restarting) return;                  /* wind is kept, not spent */
-  if (pending > 2) { refuse($("shutter"), "BATH IS FULL"); return; }   /* 6: refused, and it says why */
+  if (pending > 0) { refuse($("shutter"), "ONE AT A TIME"); return; }   /* b210: the bath holds one */
+  if (camHeld) { refuse($("shutter"), "STILL DEVELOPING"); return; }
   if (anaBlocked()) {                 /* the squeeze needs the wide gate */
     refuse($("ana"), "TURN FOR THE SQUEEZE");
     try { navigator.vibrate && navigator.vibrate([12, 60, 12]); } catch (e) {}
@@ -4096,7 +4124,8 @@ async function cook(c, voice, full) {
 }
 
 async function develop(id, blob, seed, full) {
-  pending++; cooking.add(id); labStage = ""; paintWind(); if (pending === 1) bathToneStart();
+  pending++; cooking.add(id); labStage = ""; paintWind();
+  bathHold();                          /* b210: camera and sound, down, for the bath */
   dispatch("BATH", { pending });
   try { await paintChip(); } catch (e) { try { flashState("CHIP: " + String(e && e.message || e).slice(0, 14).toUpperCase()); } catch (e2) {} }
   qcSet(id, { status: "loading", tries: 0 });      /* 21: the frame exists the moment it is shot */
@@ -4119,7 +4148,8 @@ async function develop(id, blob, seed, full) {
     flagError(String(e && e.message || e).slice(0, 18).toUpperCase() || "DEVELOP FAILED"); }
   const wasWatched = (watching === id);
   cooking.delete(id); cookThumbs.delete(id);
-  pending--; if (pending <= 0) { labAwake(false); setTimeout(recycleLab, 300); }   /* b209 */
+  pending--;
+  if (pending <= 0) { labAwake(false); bathRelease(); setTimeout(recycleLab, 300); }   /* b209, b210 */
   dispatch(pending > 0 ? "BATH" : "DRAINED", { pending });
   paintWind(); if (pending <= 0) bathToneStop();
   lastLanded = { id, t: Date.now() };                                     /* 10: the newest print, still wet */
