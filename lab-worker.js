@@ -782,8 +782,10 @@ _dodge_v0 = _dodge
 # Pincushion then wants source from OUTSIDE the frame at the edge midpoints,
 # which does not exist, so the sampling pulls in by a fit scale - and that pull is a
 # crop, a narrower field of view, which is the other half of looking longer.
-# At k1 = -0.10 the frame tightens 1.068x: 94% of the field, lines bowing
-# 3.6px mid-frame.
+# At k1 = -0.05 the frame tightens 1.032x: 97% of the field, lines bowing
+# 1.8px mid-frame. It shipped at -0.10 for one build and read a little strong,
+# so it is half that: the bow should be something you notice in the picture
+# afterwards, not something you see happening.
 #
 # It runs on the CAPTURE, before the downscale to the print size, so the
 # resampling it costs is swallowed by the reduction that follows. Measured on
@@ -793,7 +795,7 @@ _dodge_v0 = _dodge
 # The fit scale is solved rather than searched: for a purely radial map the
 # binding constraint sits at the edge midpoints, so it is g() at the two edge
 # radii and nothing else needs computing.
-_WARP_K1 = -0.10        # 94% of the field
+_WARP_K1 = -0.05        # 97% of the field
 _WARP_K2 = 0.0
 
 def _lens_warp(src):

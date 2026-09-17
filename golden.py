@@ -25,6 +25,11 @@ from PIL import Image
 
 CHART_SHA  = "63d93286cc18"
 GOLDEN_V11 = "ea38f54333e5b038"   # v15: position-addressed grain, w3.18
+GOLDEN_V15 = "86acb160608fa784"   # v19 THE GLASS, HALVED (w3.22). k1 -0.05: 97% of the field,
+                                  # lines bowing 1.8px mid-frame. -0.10 read a little strong in
+                                  # the owner's hand. Edge movement 22-24 levels against 11-13
+                                  # in the centre - the pincushion shape intact at half the
+                                  # amount. Print detail unchanged: 16.22 and 12.59.
 GOLDEN_V14 = "e58ddb151904df54"   # v18 THE GLASS (w3.22). A telephoto's pincushion, k1 -0.10,
                                   # run on the CAPTURE before the downscale: lines bow 3.6px
                                   # mid-frame and the frame tightens 1.068x to 94% of the field.
@@ -117,9 +122,9 @@ def main():
     t = time.time(); b = pixels(ns["develop"](neg, "honey", 99, 1100)["jpg"]); t2 = time.time()-t
     g = hashlib.sha256(a.tobytes()).hexdigest()[:16]
     print(f"\ngolden  {g}   ({t1:.1f}s, {t2:.1f}s)   shape {a.shape}")
-    print(f"        v18 = {GOLDEN_V14}  ->  {'HOLDS' if g == GOLDEN_V14 else 'CHANGED'}   (v17 was {GOLDEN_V13})")
+    print(f"        v19 = {GOLDEN_V15}  ->  {'HOLDS' if g == GOLDEN_V15 else 'CHANGED'}   (v18 was {GOLDEN_V14})")
     print(f"determinism  same input twice byte-identical: {np.array_equal(a, b)}")
-    return 0 if g == GOLDEN_V14 else 1
+    return 0 if g == GOLDEN_V15 else 1
 
 if __name__ == "__main__":
     sys.exit(main())
