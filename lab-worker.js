@@ -103,7 +103,11 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.20";              /* reported to the page at boot for the corner badge */
+const WORKER_VER = "3.22";              /* reported to the page at boot for the corner badge.
+   Kept honest by vercheck.mjs: this and the version on line 1 must agree. They
+   drifted for two releases - the header said 3.22, this said 3.20 - and the
+   panel told the owner the deploy had failed when the deploy was fine. A
+   version that can disagree with itself is worse than no version at all. */
 const boot = (async () => {
   /* v3.17 (9): a determinate boot. "LOADING CHEMISTRY" for eight seconds tells
      you nothing and cannot be distinguished from a hang; five named steps with
