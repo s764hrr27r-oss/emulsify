@@ -25,6 +25,12 @@ from PIL import Image
 
 CHART_SHA  = "63d93286cc18"
 GOLDEN_V11 = "ea38f54333e5b038"   # v15: position-addressed grain, w3.18
+GOLDEN_V14 = "e58ddb151904df54"   # v18 THE GLASS (w3.22). A telephoto's pincushion, k1 -0.10,
+                                  # run on the CAPTURE before the downscale: lines bow 3.6px
+                                  # mid-frame and the frame tightens 1.068x to 94% of the field.
+                                  # Geometry only - no blur, nothing removed. Print detail
+                                  # 16.52 -> 16.25 and 12.90 -> 12.58 on the owner's frames,
+                                  # which is the bow itself, not resampling loss.
 GOLDEN_V13 = "5c0115c0266d0455"   # v17 THE FIELD STOPPED WRAPPING (w3.21). The slow development
                                   # field went out to full size through a uint8 image, but
                                   # rng.normal(0,1)*127 has sigma 127, so a THIRD of its 48 cells
@@ -111,9 +117,9 @@ def main():
     t = time.time(); b = pixels(ns["develop"](neg, "honey", 99, 1100)["jpg"]); t2 = time.time()-t
     g = hashlib.sha256(a.tobytes()).hexdigest()[:16]
     print(f"\ngolden  {g}   ({t1:.1f}s, {t2:.1f}s)   shape {a.shape}")
-    print(f"        v17 = {GOLDEN_V13}  ->  {'HOLDS' if g == GOLDEN_V13 else 'CHANGED'}   (v16 was {GOLDEN_V12})")
+    print(f"        v18 = {GOLDEN_V14}  ->  {'HOLDS' if g == GOLDEN_V14 else 'CHANGED'}   (v17 was {GOLDEN_V13})")
     print(f"determinism  same input twice byte-identical: {np.array_equal(a, b)}")
-    return 0 if g == GOLDEN_V13 else 1
+    return 0 if g == GOLDEN_V14 else 1
 
 if __name__ == "__main__":
     sys.exit(main())

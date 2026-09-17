@@ -1823,7 +1823,7 @@ async function thumbOf(id) {
 const revealSeen = new Set();   // circuit breaker: one reveal per frame per session
 
 /* ---------- lab ---------- */
-const BUILD = 211;                     /* bump with every ship; lands in EXIF */
+const BUILD = 212;                     /* bump with every ship; lands in EXIF */
 /* Pyodide, numpy, scipy and pillow come off jsdelivr on every cold launch.
    sw.js caches those and ONLY those - it never intercepts same-origin, so
    index.html, lab-worker.js and the canon trio the worker fetches at boot all
@@ -1908,10 +1908,12 @@ let msgId = 0; const waits = new Map();
    peaks at 321 MB where 1100px used to cost 597. So the ladder now reaches
    2200. The k values are time multiples of the probe, measured on the same
    machine as the old ones (2200 = 4.7x the 1100 bath, 1600 = 2.4x). */
-const LADDER_VER = 3;
-const RUNGS = [{ px: 2200, dc: true,  k: 1.74 },
-               { px: 1600, dc: true,  k: 0.88 },
-               { px: 1100, dc: true,  k: 0.371 },
+const LADDER_VER = 4;   /* b212: indices into a five-rung ladder */
+/* b212: the ladder stops at 1100. Above it the app was unstable and the prints
+   went strange, and nothing measured up there was worth the trouble - grain in
+   smooth areas was no better at 1600 than at 1100, and every crash this session
+   began at a size the owner never asked for. 1100 is the top and the default. */
+const RUNGS = [{ px: 1100, dc: true,  k: 0.371 },
                { px: 950,  dc: true,  k: 0.249 },
                { px: 800,  dc: false, k: 0.158 },
                { px: 700,  dc: false, k: 0.117 },
@@ -2042,8 +2044,8 @@ let probed = false;
    actually finished a bath, move up one rung after three clean frames, and
    fall the moment one dies. Speed still decides nothing. */
 let survIdx = (() => { try { const v = parseInt(localStorage["surv"], 10);
-  return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 2;
-} catch (e) { return 2; } })();                    /* 2 = 1100px, proven on this phone */
+  return Number.isFinite(v) ? Math.max(0, Math.min(RUNGS.length - 1, v)) : 0;
+} catch (e) { return 0; } })();                    /* b212: 0 = 1100px, the top rung */
 let okRun = (() => { try { return parseInt(localStorage["okrun"], 10) || 0; } catch (e) { return 0; } })();
 const saveSurv = () => { try { localStorage["surv"] = survIdx; localStorage["okrun"] = okRun; } catch (e) {} };
 let pinIdx = (() => { try { const v = parseInt(localStorage["pin"], 10);

@@ -1,4 +1,4 @@
-// lab-worker.js — v3.21. Verbatim canon; JPEG prints
+// lab-worker.js — v3.22. Verbatim canon; JPEG prints
 // v3.10: the loading leak (flagged first frames only), v3.9: provenance + STOCK metadata. Golden v12 cff518ecfbeda947 holds.
 // v3.8: STRATA LIGHT. Seeded 64 band hue scramble (+-5.6 deg) on the scene light
 // at the _expand seam; chemistry untouched. Golden moves: v11 5ea19a4ea48e310f -> v12 cff518ecfbeda947.
@@ -121,7 +121,7 @@ const boot = (async () => {
   await pyodide.runPythonAsync(`
 import io, gc, numpy as np
 from PIL import Image, ImageOps
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, map_coordinates   # v3.22: the glass
 import emulsify2 as E
 from honey_sr import unrender
 from canon_profiles import HONEY70_CANON, SCOPE70_CANON
@@ -769,10 +769,66 @@ def _meter_from_lum(lum):
 
 _dodge_v0 = _dodge
 
+# ---- v3.22 THE GLASS ----------------------------------------------------
+# Geometry only. Nothing is blurred and nothing is taken away: every pixel is
+# still in the picture, sitting where a longer lens would have put it.
+#
+# A telephoto's signature is PINCUSHION - straight lines bowing inward, the
+# opposite of the barrel a wide gives you. The standard radial model:
+#
+#     r_source = r_dest * (1 + k1*r^2 + k2*r^4) / (1 + k1 + k2)
+#
+# with r normalised to 1 at the corner, so the corner maps to the corner.
+# Pincushion then wants source from OUTSIDE the frame at the edge midpoints,
+# which does not exist, so the sampling pulls in by a fit scale - and that pull is a
+# crop, a narrower field of view, which is the other half of looking longer.
+# At k1 = -0.10 the frame tightens 1.068x: 94% of the field, lines bowing
+# 3.6px mid-frame.
+#
+# It runs on the CAPTURE, before the downscale to the print size, so the
+# resampling it costs is swallowed by the reduction that follows. Measured on
+# the owner's frames, detail after warp and downscale: 24.47 -> 24.58 on one,
+# 17.12 -> 17.08 on another. Free, because the capture has pixels to spend.
+#
+# The fit scale is solved rather than searched: for a purely radial map the
+# binding constraint sits at the edge midpoints, so it is g() at the two edge
+# radii and nothing else needs computing.
+_WARP_K1 = -0.10        # 94% of the field
+_WARP_K2 = 0.0
+
+def _lens_warp(src):
+    k1 = float(_WARP_K1); k2 = float(_WARP_K2)
+    if k1 == 0.0 and k2 == 0.0:
+        return src
+    a = np.asarray(src)
+    h, w = a.shape[:2]
+    cx = (w - 1)/2.0; cy = (h - 1)/2.0
+    rmax = float(np.hypot(cx, cy))
+    den = 1.0 + k1 + k2
+    def g(r):
+        r2 = r*r
+        return (1.0 + k1*r2 + k2*r2*r2)/den
+    fit = 1.0/max(1.0, g(cx/rmax), g(cy/rmax))
+    ny = ((np.arange(h, dtype=np.float32) - cy)/rmax)[:, None]
+    nx = ((np.arange(w, dtype=np.float32) - cx)/rmax)[None, :]
+    r2 = nx*nx + ny*ny
+    gg = ((1.0 + k1*r2 + k2*r2*r2)/den)*fit
+    sy = (ny*gg)*rmax + cy
+    sx = (nx*gg)*rmax + cx
+    del r2, gg, ny, nx
+    out = np.empty_like(a)
+    for c in range(3):                    # one channel at a time; the capture is large
+        out[..., c] = np.clip(map_coordinates(a[..., c], [sy, sx], order=1,
+                                              mode="nearest"), 0, 255).astype(np.uint8)
+    del sx, sy
+    src.close()
+    return Image.fromarray(out)
+
 def develop(neg_bytes, profile, seed, long_edge=LONG_EDGE):
     import time as _t
     _t0 = _t.time()
     src = ImageOps.exif_transpose(Image.open(io.BytesIO(bytes(neg_bytes)))).convert("RGB")
+    src = _lens_warp(src)                 # v3.22: the glass, at capture resolution
     long_edge = int(long_edge)
     if src.width >= src.height:
         w = long_edge; h = round(src.height*long_edge/src.width)
