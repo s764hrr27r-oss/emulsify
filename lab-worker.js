@@ -800,6 +800,12 @@ _WARP_K2 = 0.0
 
 def _lens_warp(src):
     k1 = float(_WARP_K1); k2 = float(_WARP_K2)
+    # v3.22a: the print says which glass made it. _recipe has carried an
+    # _OPTIC slot since v3.9 and the warp shipped without filling it, so a
+    # print read "33mm  8.4s bath" whether the glass was in or not - which
+    # left no way to tell from a file whether a worker had been deployed.
+    globals()["_OPTIC"] = "" if (k1 == 0.0 and k2 == 0.0) else (
+        "pincushion k1 %.3g%s" % (k1, "" if k2 == 0.0 else " k2 %.3g" % k2))
     if k1 == 0.0 and k2 == 0.0:
         return src
     a = np.asarray(src)
