@@ -42,7 +42,8 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #bath img { filter:blur(14px) saturate(.5) brightness(.55); }
 #bath span { position:relative; }
 #foot { height:calc(112px + env(safe-area-inset-bottom)); padding:0 16px env(safe-area-inset-bottom); display:flex; align-items:center; justify-content:space-between; }
-#strip { display:flex; gap:6px; overflow-x:auto; flex:1; height:56px; align-items:center; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+#tray { display:flex; flex:1; min-width:0; height:56px; align-items:center; }
+#strip { display:flex; gap:6px; overflow-x:auto; flex:1; min-width:0; height:56px; align-items:center; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 #strip::-webkit-scrollbar { display:none; }
 #strip img { height:56px; width:auto; flex:0 0 auto; border-radius:2px; opacity:.9; }
 #lens { width:44px; height:44px; border-radius:50%; margin-left:12px; flex:0 0 auto; border:1px solid var(--mute); color:var(--ink); font-size:11px; letter-spacing:.02em; }
@@ -82,12 +83,16 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
   #top span { white-space:normal; line-height:1.35; }
   #gate { margin:10px 0; }
   #finder { aspect-ratio:calc(5 * var(--sq)) / 4; width:auto; height:100%; max-width:100%; }
-  /* the foot is the portrait foot turned on its side: strip fills the space, then
-     lens, shutter, menu - the same order, the same neighbours */
-  #foot { height:auto; width:104px; flex:0 0 auto; flex-direction:column; justify-content:flex-end; gap:16px; padding:12px 12px 12px 8px; }
-  #strip { flex:1 1 auto; min-height:0; flex-direction:column; width:56px; height:auto; overflow-y:auto; overflow-x:hidden; justify-content:flex-end; }
+  /* the shutter sits at the exact middle of the right edge - under the thumb, the
+     way the portrait shutter is under it - with the lens just above and the menu
+     just below, as in portrait. The strip grows upward from the lens. Three grid
+     rows, 1fr / auto / 1fr, so the shutter is centred whatever the strip holds. */
+  #foot { display:grid; grid-template-rows:1fr auto 1fr; justify-items:center; align-items:center; height:auto; width:104px; flex:0 0 auto; gap:16px; padding:12px 12px 12px 8px; }
+  #tray { flex-direction:column; justify-content:flex-end; align-items:center; align-self:stretch; height:auto; min-height:0; width:56px; gap:16px; }
+  #strip { flex:1 1 auto; min-height:0; height:auto; width:56px; flex-direction:column-reverse; overflow-y:auto; overflow-x:hidden; }
   #strip img { width:56px; height:auto; }
   #lens, #shutter, #menu { margin:0; }
+  #menu { align-self:start; }
   #print { flex-direction:row; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   #pbar { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 8px; font-size:10px; }
   #pbar span { white-space:normal; line-height:1.35; }
@@ -104,7 +109,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
     <video id="video" autoplay playsinline muted></video>
     <div id="bath"><img id="latent" alt=""><span id="bathtext">IN THE BATH</span></div>
   </div></div>
-  <div id="foot"><div id="strip"></div><button id="lens" aria-label="Lens">33</button><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
+  <div id="foot"><div id="tray"><div id="strip"></div><button id="lens" aria-label="Lens">33</button></div><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
 </div>
 
 <div id="print" class="screen">
@@ -124,7 +129,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 216;
+const BUILD = 217;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
