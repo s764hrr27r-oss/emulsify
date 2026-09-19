@@ -121,7 +121,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
   <div id="top"><span id="rf">A 01</span><span id="state">LAB LOADING</span><span id="ver"></span></div>
   <div id="gate"><div id="finder">
     <video id="video" autoplay playsinline muted></video>
-    <div id="bath"><img id="latent" alt=""><span id="bathtext">IN THE BATH</span></div>
+    <div id="bath"><img id="latent" alt=""><span id="bathtext">DEVELOPING</span></div>
   </div></div>
   <div id="foot"><div id="tray"><div id="strip"></div><button id="lens" aria-label="Lens">33</button></div><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
 </div>
@@ -143,7 +143,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 219;
+const BUILD = 220;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -197,7 +197,7 @@ function spawnLab() {
     if (d.progress) { setState((d.step ? d.step + "/" + d.steps + " " : "") + String(d.progress).toUpperCase()); return; }
     if (d.ready) { workerVer = d.ver || ""; paintTop(); if (!busy) { setState("READY"); $("shutter").disabled = false; } return; }
     if (d.bootError) { labLog = String(d.bootError); labDead = true; const last = labLog.trim().split("\n").pop(); setState("LAB FAILED: " + last.slice(0, 60), "dead"); return; }
-    if (d.stage) { if (d.stage === "neg" && d.b64) { $("latent").src = "data:image/jpeg;base64," + d.b64; } setState("BATH · " + String(d.stage).toUpperCase(), "busy"); return; }
+    if (d.stage) { if (d.stage === "neg" && d.b64) { $("latent").src = "data:image/jpeg;base64," + d.b64; } setState("DEVELOPING · " + String(d.stage).toUpperCase(), "busy"); return; }
     const w = waits.get(d.id); if (!w) return; waits.delete(d.id);
     d.ok ? w.res({ jpg: d.result, secs: d.secs }) : w.rej(new Error(d.error));
   };
@@ -295,10 +295,10 @@ async function shoot() {
 
 async function bath(id, blob, seed, leak, px) {
   if (busy) return;                    /* one frame at a time, always */
-  busy = true; cooking.add(id); $("shutter").disabled = true; $("bath").classList.add("on"); setState("IN THE BATH", "busy");
+  busy = true; cooking.add(id); $("shutter").disabled = true; $("bath").classList.add("on"); setState("DEVELOPING", "busy");
   stopCamera();                        /* the bath gets the phone to itself */
   let wake = null; try { wake = await navigator.wakeLock.request("screen"); } catch (e) {}
-  const t0 = Date.now(); const tick = setInterval(() => { $("bathtext").textContent = "IN THE BATH  " + Math.round((Date.now() - t0) / 1000) + "s"; }, 1000);
+  const t0 = Date.now(); const tick = setInterval(() => { $("bathtext").textContent = "DEVELOPING  " + Math.round((Date.now() - t0) / 1000) + "s"; }, 1000);
   let ok = false;
   try {
     const { jpg, secs } = await develop(await blob.arrayBuffer(), seed, leak, px);
@@ -388,7 +388,7 @@ $("menu").onclick = () => { paintPanel(); $("panel").classList.add("on"); };
 $("pclose").onclick = () => $("panel").classList.remove("on");
 $("panel").onclick = e => { if (e.target === $("panel")) $("panel").classList.remove("on"); };
 $("psize").onclick = () => { size = SIZES[(SIZES.indexOf(size) + 1) % SIZES.length]; try { localStorage.size = size; } catch (e) {} paintPanel(); paintTop(); flash("PRINT SIZE " + size); };
-$("prestart").onclick = () => { $("panel").classList.remove("on"); if (busy) { flash("AFTER THE BATH"); return; } spawnLab(); flash("LAB RESTARTED"); };
+$("prestart").onclick = () => { $("panel").classList.remove("on"); if (busy) { flash("AFTER DEVELOPING"); return; } spawnLab(); flash("LAB RESTARTED"); };
 $("plog").onclick = () => { $("panel").classList.remove("on"); $("log").textContent = "b" + BUILD + "  w" + (workerVer || "?") + "  size " + size + "  " + turned + "\n\n" + (labLog || "(nothing logged)") + "\n\n(tap to close)"; $("log").classList.add("on"); };
 $("log").onclick = () => $("log").classList.remove("on");
 $("pupdate").onclick = () => { $("panel").classList.remove("on"); checkUpdate(true); };
