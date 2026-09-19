@@ -1,4 +1,4 @@
-// lab-worker.js — v3.22. Verbatim canon; JPEG prints
+// lab-worker.js — v3.23. Verbatim canon; JPEG prints
 // v3.10: the loading leak (flagged first frames only), v3.9: provenance + STOCK metadata. Golden v12 cff518ecfbeda947 holds.
 // v3.8: STRATA LIGHT. Seeded 64 band hue scramble (+-5.6 deg) on the scene light
 // at the _expand seam; chemistry untouched. Golden moves: v11 5ea19a4ea48e310f -> v12 cff518ecfbeda947.
@@ -103,7 +103,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.22";              /* reported to the page at boot for the corner badge.
+const WORKER_VER = "3.23";              /* reported to the page at boot for the corner badge.
    Kept honest by vercheck.mjs: this and the version on line 1 must agree. They
    drifted for two releases - the header said 3.22, this said 3.20 - and the
    panel told the owner the deploy had failed when the deploy was fine. A
@@ -339,8 +339,21 @@ def _grain_z(h, w, y0, seed, tag):
         blk = ay // _GRAIN_BLOCK
         off = ay - blk * _GRAIN_BLOCK
         take = min(_GRAIN_BLOCK - off, h - y)
+        # v3.23 THE STRIATIONS. The block and the tag used to go into Philox's
+        # COUNTER. The counter is not a stream selector - it is a position in
+        # one stream, and each step of it is four outputs. So every draw for a
+        # frame was a window into the same sequence: mineral 1 was mineral 0
+        # shifted 4 samples (measured corr +1.000 at shift 4), the green layer
+        # was the red layer shifted 31 (corr +1.000), and block N+1 began 16384
+        # samples into block N, so 77% of every 64-row block was a copy of the
+        # block above it, 646px sideways. On a flat wall that read as a comb
+        # in the grain and a repeat every 64 rows. The block and the tag now
+        # go into the KEY, which is what selects an independent stream; the
+        # counter stays at its origin. Still addressed by absolute position, so
+        # a strip renders the same as the whole frame (bandcheck holds).
         g = np.random.Generator(np.random.Philox(
-            key=int(seed) & 0xFFFFFFFF, counter=((int(blk) << 12) | int(tag)) & 0xFFFFFFFF))
+            key=[int(seed) & 0xFFFFFFFFFFFFFFFF,
+                 ((int(blk) << 12) | int(tag)) & 0xFFFFFFFFFFFFFFFF]))
         out[y:y + take] = g.standard_normal((_GRAIN_BLOCK, w))[off:off + take]
         y += take
     return out

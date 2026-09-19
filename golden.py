@@ -25,6 +25,13 @@ from PIL import Image
 
 CHART_SHA  = "63d93286cc18"
 GOLDEN_V11 = "ea38f54333e5b038"   # v15: position-addressed grain, w3.18
+GOLDEN_V16 = "1d98c30d46224867"   # v20 THE STRIATIONS (w3.23). _grain_z put the block and the tag
+                                  # into Philox's COUNTER - a position in one stream, four outputs
+                                  # a step - so every draw for a frame was a window into the same
+                                  # sequence: mineral 1 = mineral 0 shifted 4 (corr +1.000), green
+                                  # = red shifted 31 (+1.000), block N+1 = 77% of block N. Grain
+                                  # measured x +0.24/+0.55 at lags 3/4 against y +0.01/-0.01. Now
+                                  # in the KEY: x +0.01/+0.01. Same stock, independent grains.
 GOLDEN_V15 = "86acb160608fa784"   # v19 THE GLASS, HALVED (w3.22). k1 -0.05: 97% of the field,
                                   # lines bowing 1.8px mid-frame. -0.10 read a little strong in
                                   # the owner's hand. Edge movement 22-24 levels against 11-13
@@ -122,9 +129,9 @@ def main():
     t = time.time(); b = pixels(ns["develop"](neg, "honey", 99, 1100)["jpg"]); t2 = time.time()-t
     g = hashlib.sha256(a.tobytes()).hexdigest()[:16]
     print(f"\ngolden  {g}   ({t1:.1f}s, {t2:.1f}s)   shape {a.shape}")
-    print(f"        v19 = {GOLDEN_V15}  ->  {'HOLDS' if g == GOLDEN_V15 else 'CHANGED'}   (v18 was {GOLDEN_V14})")
+    print(f"        v20 = {GOLDEN_V16}  ->  {'HOLDS' if g == GOLDEN_V16 else 'CHANGED'}   (v19 was {GOLDEN_V15})")
     print(f"determinism  same input twice byte-identical: {np.array_equal(a, b)}")
-    return 0 if g == GOLDEN_V15 else 1
+    return 0 if g == GOLDEN_V16 else 1
 
 if __name__ == "__main__":
     sys.exit(main())

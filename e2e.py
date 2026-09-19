@@ -1,0 +1,58 @@
+import asyncio, base64, io, json, sys, time
+from playwright.async_api import async_playwright
+from PIL import Image
+STUB = open((sys.argv[1] if len(sys.argv) > 1 else "/home/claude/emulsify/e2e-stub.js")).read()
+URL = "http://127.0.0.1:8765/index.html"
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch(executable_path="/opt/pw-browsers/chromium-1194/chrome-linux/chrome" if False else None,
+            args=["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--no-sandbox"])
+        ctx = await b.new_context(viewport={"width": 430, "height": 932}, device_scale_factor=2, is_mobile=True, has_touch=True, permissions=["camera"])
+        pg = await ctx.new_page()
+        errors = []; console = []
+        pg.on("pageerror", lambda e: errors.append(str(e)))
+        pg.on("console", lambda m: console.append(f"[{m.type}] {m.text}") if m.type in ("error", "warning") else None)
+        await pg.route("**/lab-worker.js*", lambda r: r.fulfill(status=200, content_type="text/javascript", body=STUB))
+        await pg.goto(URL); t0 = time.time()
+        await pg.wait_for_function("document.getElementById('state').textContent === 'READY'", timeout=20000)
+        print(f"1. boot -> READY in {time.time()-t0:.1f}s   badge: {await pg.text_content('#ver')}   rf: {await pg.text_content('#rf')}")
+        await pg.wait_for_function("document.getElementById('video').videoWidth > 0", timeout=10000)
+        vw = await pg.evaluate("[document.getElementById('video').videoWidth, document.getElementById('video').videoHeight]")
+        en = await pg.evaluate("!document.getElementById('shutter').disabled")
+        print(f"2. camera up: {vw[0]}x{vw[1]}   shutter enabled: {en}")
+        await pg.click("#shutter"); t1 = time.time()
+        await pg.wait_for_function("document.getElementById('bath').classList.contains('on')", timeout=5000)
+        rel = await pg.evaluate("document.getElementById('video').srcObject === null")
+        print(f"3. shutter -> bath on   state: {await pg.text_content('#state')}   camera released: {rel}")
+        negs = await pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('emulsify-one', 3); r.onsuccess = () => { const t = r.result.transaction('negs').objectStore('negs').getAllKeys(); t.onsuccess = () => res(t.result.length); }; })""")
+        print(f"   negative on disk before the bath finished: {negs} in negs store")
+        await pg.wait_for_function("document.getElementById('print').classList.contains('on')", timeout=120000)
+        print(f"4. print view opened after {time.time()-t1:.1f}s   code: '{await pg.text_content('#pcode')}'   rf now: {await pg.text_content('#rf')}")
+        counts = await pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('emulsify-one', 3); r.onsuccess = () => { const db = r.result; const out = {}; let n = 0; for (const s of ['prints','thumbs','negs']) { const t = db.transaction(s).objectStore(s).getAllKeys(); t.onsuccess = () => { out[s] = t.result.length; if (++n === 3) res(out); }; } }; })""")
+        print(f"   store: {counts}   (negs must be 0: the negative is released once the print is safe)")
+        b64 = await pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('emulsify-one', 3); r.onsuccess = () => { const t = r.result.transaction('prints').objectStore('prints').getAll(); t.onsuccess = () => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(t.result[0]); }; }; })""")
+        im = Image.open(io.BytesIO(base64.b64decode(b64))); ex = im.getexif(); uc = ex.get(37510)
+        print(f"5. the print: {im.size}   EXIF: {' | '.join(str(v) for v in ex.values() if isinstance(v, str))}")
+        print(f"   recipe: {(uc.decode('utf-8','ignore').replace(chr(0),'') if isinstance(uc, bytes) else uc)}")
+        await pg.screenshot(path="/home/claude/emulsify/e2e-print.png")
+        await pg.click("#back")
+        await pg.wait_for_function("document.getElementById('cam').classList.contains('on')", timeout=5000)
+        await pg.wait_for_function("document.getElementById('state').textContent === 'READY'", timeout=20000)
+        thumbs = await pg.evaluate("document.querySelectorAll('#strip img').length")
+        cam = await pg.evaluate("document.getElementById('video').srcObject !== null")
+        print(f"6. back to camera: fresh lab READY, camera restarted: {cam}   strip thumbs: {thumbs}")
+        await pg.screenshot(path="/home/claude/emulsify/e2e-camera.png")
+        # panel
+        await pg.click("#menu"); await pg.click("#psize"); sz = await pg.text_content("#psize"); await pg.click("#pclose")
+        print(f"7. panel: size cycled to '{sz}'   badge: {await pg.text_content('#ver')}")
+        # crash recovery: plant a negative that never finished, reload, watch it develop
+        await pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('emulsify-one', 3); r.onsuccess = () => { const c = document.createElement('canvas'); c.width = 600; c.height = 750; const g = c.getContext('2d'); g.fillStyle = '#7a6a5a'; g.fillRect(0,0,600,750); g.fillStyle = '#d8c8a8'; g.fillRect(150,200,300,300); c.toBlob(b => { const t = r.result.transaction('negs','readwrite'); t.objectStore('negs').put({ blob: b, seed: 77, leak: 0, size: 1100, rf: 'Z09', at: Date.now(), tries: 0 }, '1700000000000'); t.oncomplete = res; }, 'image/jpeg', 0.9); }; })""")
+        await pg.reload(); t2 = time.time()
+        await pg.wait_for_function("document.getElementById('print').classList.contains('on')", timeout=150000)
+        print(f"8. crash recovery: planted negative Z09 developed on reload in {time.time()-t2:.1f}s   code: '{await pg.text_content('#pcode')}'")
+        counts = await pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('emulsify-one', 3); r.onsuccess = () => { const db = r.result; const out = {}; let n = 0; for (const s of ['prints','negs']) { const t = db.transaction(s).objectStore(s).getAllKeys(); t.onsuccess = () => { out[s] = t.result.length; if (++n === 2) res(out); }; } }; })""")
+        print(f"   store after recovery: {counts}")
+        print(f"\npage errors: {errors or 'none'}")
+        print(f"console errors/warnings: {console or 'none'}")
+        await b.close()
+asyncio.run(main())
