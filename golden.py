@@ -25,6 +25,15 @@ from PIL import Image
 
 CHART_SHA  = "63d93286cc18"
 GOLDEN_V11 = "ea38f54333e5b038"   # v15: position-addressed grain, w3.18
+GOLDEN_V17 = "4be892e9e27c70ec"   # v21 THE SATURATED SOURCE (w3.24). The honey swell's wide term
+                                  # (0.21 x G26 of hot^1.5) was built from EXPANDED light, so a
+                                  # blown area wider than the blur glowed 5.7x an unexpanded white
+                                  # with nothing to dilute it: a car window threw a 75 px veil
+                                  # over the cabin, 7x the cabin's own light 8 px in. Now a blown
+                                  # area that fills more than a fifth of the blur's reach is scaled
+                                  # down to a fifth. Small blown highlights are bit-identical; the
+                                  # tight 7 px term and the canon halation are never touched. Chart:
+                                  # 10% of pixels move >2 levels (the sun disc's wide halo), 0.5% >20.
 GOLDEN_V16 = "1d98c30d46224867"   # v20 THE STRIATIONS (w3.23). _grain_z put the block and the tag
                                   # into Philox's COUNTER - a position in one stream, four outputs
                                   # a step - so every draw for a frame was a window into the same
@@ -129,9 +138,9 @@ def main():
     t = time.time(); b = pixels(ns["develop"](neg, "honey", 99, 1100)["jpg"]); t2 = time.time()-t
     g = hashlib.sha256(a.tobytes()).hexdigest()[:16]
     print(f"\ngolden  {g}   ({t1:.1f}s, {t2:.1f}s)   shape {a.shape}")
-    print(f"        v20 = {GOLDEN_V16}  ->  {'HOLDS' if g == GOLDEN_V16 else 'CHANGED'}   (v19 was {GOLDEN_V15})")
+    print(f"        v21 = {GOLDEN_V17}  ->  {'HOLDS' if g == GOLDEN_V17 else 'CHANGED'}   (v20 was {GOLDEN_V16})")
     print(f"determinism  same input twice byte-identical: {np.array_equal(a, b)}")
-    return 0 if g == GOLDEN_V16 else 1
+    return 0 if g == GOLDEN_V17 else 1
 
 if __name__ == "__main__":
     sys.exit(main())

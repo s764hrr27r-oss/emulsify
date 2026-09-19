@@ -1,4 +1,5 @@
-// lab-worker.js — v3.23. Verbatim canon; JPEG prints
+// lab-worker.js — v3.24. Verbatim canon; JPEG prints
+// v3.24: THE SATURATED SOURCE. A blown area larger than a fifth of the glow's reach glows no harder than one that fills a fifth (_swell): the car-interior veil. Golden moves v20 -> v21.
 // v3.10: the loading leak (flagged first frames only), v3.9: provenance + STOCK metadata. Golden v12 cff518ecfbeda947 holds.
 // v3.8: STRATA LIGHT. Seeded 64 band hue scramble (+-5.6 deg) on the scene light
 // at the _expand seam; chemistry untouched. Golden moves: v11 5ea19a4ea48e310f -> v12 cff518ecfbeda947.
@@ -103,7 +104,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.23";              /* reported to the page at boot for the corner badge.
+const WORKER_VER = "3.24";              /* reported to the page at boot for the corner badge.
    Kept honest by vercheck.mjs: this and the version on line 1 must agree. They
    drifted for two releases - the header said 3.22, this said 3.20 - and the
    panel told the owner the deploy had failed when the deploy was fine. A
@@ -520,6 +521,40 @@ def bake(jpg_bytes, w, t, secs):
 # frames below _BAND_MIN_PX, where the saving is not worth two passes.
 _STREAM_ROWS = 128
 
+# ---- v3.24 THE SATURATED SOURCE: a big blown area glows no harder than a small one ----
+# The honey swell adds 0.21 x G26(hot^1.5) + 0.10 x G7(hot^1.5) around hot light,
+# and hot is the EXPANDED light: a blown pixel sits at 2.2, so blown light feeds
+# the glow 5.7x what an unexpanded white does. Around a small blown highlight -
+# a glint, a lamp, a daisy - the 26 px blur dilutes that, and the glow the owner
+# approved is the diluted one. Around a blown area wider than the blur - a car
+# window, a quarter of the frame, on three sides - nothing dilutes: the wide
+# term saturates at 0.21 x 5.6 = 1.17 of white, and the meter's push for the
+# dark cabin doubles it. Measured on a cabin frame: a 75 px ramp that ate the
+# pillars, the headliner and the mirror; the glow 8 px into the cabin was 7x
+# the cabin's own light. So the wide term is built from a SATURATED source:
+# where blown light fills more than _SAT_A0 of the blur's reach, the source is
+# scaled down to what a fifth-filling area would give. A source that fills a
+# fifth or less is untouched, so frames without a large blown area develop
+# bit for bit as before, and the tight 7 px term - the halation-like rim - is
+# never touched. Keyed on blown light, not hot light: a bright beach or an open
+# sky under 1.0 keeps its cream. Measured on the cabin frame: the ramp that
+# reached the cabin's own tone at 60 px now reaches it at 30; 15 px in, the
+# lift over that tone drops from 0.22 to 0.09 (print luminance); the small
+# lamp at night is untouched, a lamp wider than the blur loses some of its
+# wide halo and keeps its rim. The halation rim, which the veil buried, shows.
+# The whole-frame path below _BAND_MIN_PX (never taken by the app) is canon.
+_SAT_A0, _SAT_BLOWN = 0.20, 1.0
+def _swell(h15, lum):
+    if _SAT_A0 and _SAT_A0 > 0:
+        blown = (lum > _SAT_BLOWN).astype(np.float64)
+        k = np.minimum(1.0, _SAT_A0 / np.maximum(gaussian_filter(blown, 26.0), 1e-6))
+        del blown
+        wide = gaussian_filter(h15*k, 26.0)*0.21; del k
+    else:
+        wide = gaussian_filter(h15, 26.0)*0.21
+    return wide + gaussian_filter(h15, 7.0)*0.10
+
+
 def _band_edges(h, rows, over):
     y = 0
     while y < h:
@@ -624,10 +659,9 @@ def _develop_streamed(arr, seed):
         del t
     med = float(np.median(lum))
     ev = float(np.clip(np.log2(0.16/max(med, 1e-4))*0.55, -0.4, 1.2) + 0.2)
-    hotl = np.maximum(lum - 0.45, 0)*1.8; del lum
+    hotl = np.maximum(lum - 0.45, 0)*1.8
     h15 = hotl**1.5; del hotl
-    swell = gaussian_filter(h15, 26.0)*0.21 + gaussian_filter(h15, 7.0)*0.10; del h15
-    swell = swell.astype(np.float32)
+    swell = _swell(h15, lum).astype(np.float32); del h15, lum       # v3.24: the saturated source
 
     st = E.Stock2(gauge_mm=65, iso=200, crystal_fine_um=0.5, crystal_coarse_um=1.3,
                   coarse_frac=0.28, film_mtf_um=5.0, hal_thresh=0.55,
