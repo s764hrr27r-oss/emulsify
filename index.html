@@ -30,17 +30,23 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #state.busy { color:var(--warn); }
 #state.dead { color:#d0605a; }
 #gate { flex:1; position:relative; min-height:0; margin:0 16px; display:flex; align-items:center; justify-content:center; }
-#finder { position:relative; width:100%; aspect-ratio:4/5; max-height:100%; overflow:hidden; background:#000; }
-#video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+/* --sq is the anamorphic squeeze (1 = spherical). The gate widens by it and
+   the video is stretched to fill, so the finder shows the framing the PRINT
+   will have once the lab desqueezes it. */
+:root { --sq:1; }
+#finder { position:relative; width:100%; aspect-ratio:calc(4 * var(--sq)) / 5; max-height:100%; overflow:hidden; background:#000; }
+#video, #bath img { position:absolute; top:0; left:50%; height:100%; width:calc(100% / var(--sq)); transform:translateX(-50%) scaleX(var(--sq)); object-fit:cover; }
 #finder::after { content:""; position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); pointer-events:none; }
 #bath { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:#000; color:var(--warn); text-transform:uppercase; }
 #bath.on { display:flex; }
-#bath img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:blur(14px) saturate(.5) brightness(.55); }
+#bath img { filter:blur(14px) saturate(.5) brightness(.55); }
 #bath span { position:relative; }
 #foot { height:calc(112px + env(safe-area-inset-bottom)); padding:0 16px env(safe-area-inset-bottom); display:flex; align-items:center; justify-content:space-between; }
 #strip { display:flex; gap:6px; overflow-x:auto; flex:1; height:56px; align-items:center; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 #strip::-webkit-scrollbar { display:none; }
 #strip img { height:56px; width:auto; flex:0 0 auto; border-radius:2px; opacity:.9; }
+#lens { width:44px; height:44px; border-radius:50%; margin-left:12px; flex:0 0 auto; border:1px solid var(--mute); color:var(--ink); font-size:11px; letter-spacing:.02em; }
+#lens.ana::after { content:"A"; position:absolute; margin:-16px 0 0 20px; font-size:8px; color:var(--warn); }
 #shutter { width:72px; height:72px; border-radius:50%; margin-left:16px; border:3px solid var(--ink); background:radial-gradient(circle,#dcd8d0 0 58%,transparent 60%); flex:0 0 auto; transition:transform .12s; }
 #shutter:active { transform:scale(.92); }
 #shutter:disabled { opacity:.35; }
@@ -75,12 +81,13 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
   #top { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 12px; font-size:10px; }
   #top span { white-space:normal; line-height:1.35; }
   #gate { margin:10px 0; }
-  #finder { aspect-ratio:5/4; width:auto; height:100%; max-width:100%; }
-  #foot { height:auto; width:104px; flex:0 0 auto; flex-direction:column; justify-content:center; gap:18px; padding:0 12px 0 8px; }
-  #shutter { margin:0; order:1; }
-  #menu { margin:0; order:2; }
-  #strip { order:3; flex:0 1 auto; flex-direction:column; width:56px; height:auto; max-height:34vh; overflow-y:auto; overflow-x:hidden; }
+  #finder { aspect-ratio:calc(5 * var(--sq)) / 4; width:auto; height:100%; max-width:100%; }
+  /* the foot is the portrait foot turned on its side: strip fills the space, then
+     lens, shutter, menu - the same order, the same neighbours */
+  #foot { height:auto; width:104px; flex:0 0 auto; flex-direction:column; justify-content:flex-end; gap:16px; padding:12px 12px 12px 8px; }
+  #strip { flex:1 1 auto; min-height:0; flex-direction:column; width:56px; height:auto; overflow-y:auto; overflow-x:hidden; justify-content:flex-end; }
   #strip img { width:56px; height:auto; }
+  #lens, #shutter, #menu { margin:0; }
   #print { flex-direction:row; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   #pbar { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 8px; font-size:10px; }
   #pbar span { white-space:normal; line-height:1.35; }
@@ -97,7 +104,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
     <video id="video" autoplay playsinline muted></video>
     <div id="bath"><img id="latent" alt=""><span id="bathtext">IN THE BATH</span></div>
   </div></div>
-  <div id="foot"><div id="strip"></div><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
+  <div id="foot"><div id="strip"></div><button id="lens" aria-label="Lens">33</button><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
 </div>
 
 <div id="print" class="screen">
@@ -107,6 +114,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 
 <div id="panel"><div class="sheet">
   <button id="psize">PRINT SIZE 1100</button>
+  <button id="pana">ANAMORPHIC 1.33 OFF</button>
   <button id="pupdate">CHECK FOR UPDATES</button>
   <button id="prestart">RESTART LAB</button>
   <button id="plog">LAB LOG</button>
@@ -116,13 +124,22 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 214;
+const BUILD = 215;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
 const SIZES = [1100, 950, 800];
 const MAX_NEG = 2200;           /* long edge of the negative handed to the lab */
-const LENS_MM = 33, CROP = 33 / 26;   /* the phone's main camera is ~26mm; 33 is a centre crop of it */
+/* THE GLASS. WIDE is the ultra-wide's own eye; the numbers are realised from the
+   longest physical camera at or under them, cropped for the rest (33 on a 26mm
+   main is a 1.27x centre crop). Which cameras exist is only known once the
+   first stream is up and the labels can be read. */
+const LENSES = [{ label: "WIDE", mm: 13 }, { label: "22", mm: 22 }, { label: "33", mm: 33 }, { label: "44", mm: 44 }];
+let lensIdx = (() => { try { const i = LENSES.findIndex(l => l.label === localStorage.lens); return i < 0 ? 2 : i; } catch (e) { return 2; } })();
+let phys = [];                                  /* [{id, e}] back cameras by 35mm-equivalent */
+let glass = { id: null, e: 26, crop: 33 / 26, mm: 33 };
+const SQUEEZE = 1.33;
+let anaOn = (() => { try { return localStorage.ana === "1"; } catch (e) { return false; } })();
 let size = (() => { try { const v = parseInt(localStorage.size, 10); return SIZES.includes(v) ? v : 1100; } catch (e) { return 1100; } })();
 let frameNo = 0, ROLL = "A";
 try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; ROLL = localStorage.roll || "A"; } catch (e) {}
@@ -134,7 +151,9 @@ let lastCheck = 0, pending = 0;
 
 const flash = (t, ms = 1800) => { const f = $("flash"); f.textContent = t; f.classList.add("on"); clearTimeout(flash.t); flash.t = setTimeout(() => f.classList.remove("on"), ms); };
 const setState = (t, cls = "") => { const s = $("state"); s.textContent = t; s.className = cls; };
-const paintTop = () => { $("rf").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size; };
+const paintTop = () => { $("rf").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size;
+  $("lens").textContent = LENSES[lensIdx].label; $("lens").classList.toggle("ana", anaOn);
+  document.documentElement.style.setProperty("--sq", anaOn ? SQUEEZE : 1); };
 
 /* ---------- the store: same database and stores as every build before, so the
    prints already on the phone are still here ---------- */
@@ -169,20 +188,56 @@ function spawnLab() {
 const develop = (buf, seed, leak, px) => new Promise((res, rej) => {
   const id = ++msgId; waits.set(id, { res, rej });
   setTimeout(() => { const w = waits.get(id); if (w) { waits.delete(id); w.rej(new Error("LAB TIMEOUT")); } }, 180000);
-  worker.postMessage({ id, neg: buf, profile: "honey", seed, ev: 0, build: BUILD, ana: 1, mm: LENS_MM,
+  worker.postMessage({ id, neg: buf, profile: "honey", seed, ev: 0, build: BUILD, ana: anaOn ? SQUEEZE : 1, mm: glass.mm,
                        leak, optic: "", tint: "", tintS: 0, size: px, dc: true }, [buf]);
 });
 
 /* ---------- the camera ---------- */
+function realize(mm) {                /* the longest glass at or under mm; crop makes up the rest */
+  let c = null; for (const p of phys) if (p.e <= mm) c = p;
+  if (!c) c = phys[0] || null;
+  const e = c ? c.e : 26;
+  return { id: c ? c.id : null, e, crop: Math.max(1, mm / e), mm: Math.max(mm, e) };
+}
+async function discover() {           /* labels are readable only once a stream has been granted */
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const back = devs.filter(d => d.kind === "videoinput" && !/front|user/i.test(d.label));
+    const E = l => /ultra/i.test(l) ? 13 : /tele/i.test(l) ? 77 : 26;
+    const virt = l => /dual|triple/i.test(l) ? 1 : 0;      /* iOS's auto-switching multi-cams: real lenses first */
+    const seen = new Set();
+    phys = back.map(d => ({ id: d.deviceId, e: E(d.label || ""), v: virt(d.label || "") }))
+               .sort((a, b) => a.e - b.e || a.v - b.v).filter(q => !seen.has(q.e) && seen.add(q.e));
+  } catch (e) { phys = []; }
+}
 async function startCamera() {
   if (stream) return;
   try {
-    const need = Math.min(4032, Math.ceil(MAX_NEG * CROP * 1.15 / 16) * 16);
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: "environment", width: { ideal: need }, height: { ideal: Math.round(need * 3 / 4) } } });
-    $("video").srcObject = stream;
+    glass = realize(LENSES[lensIdx].mm);
+    const need = Math.min(4032, Math.ceil(MAX_NEG * glass.crop * 1.15 / 16) * 16);
+    const video = { width: { ideal: need }, height: { ideal: Math.round(need * 3 / 4) } };
+    if (glass.id) video.deviceId = { exact: glass.id }; else video.facingMode = "environment";
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+    const v = $("video"); v.srcObject = stream; v.play && v.play().catch(() => {});
+    if (!phys.length) {                 /* first stream: now the cameras can be read, and the lens realised properly */
+      await discover();
+      const want = realize(LENSES[lensIdx].mm);
+      const have = (stream.getVideoTracks()[0].getSettings() || {}).deviceId;
+      if (want.id && want.id !== have) { stopCamera(); return startCamera(); }
+      glass = want;
+    }
   } catch (e) { flash("CAMERA: " + String(e && e.name || e).toUpperCase(), 4000); }
 }
 function stopCamera() { try { stream && stream.getTracks().forEach(t => t.stop()); } catch (e) {} stream = null; $("video").srcObject = null; }
+async function setLens(i) {
+  lensIdx = (i + LENSES.length) % LENSES.length; try { localStorage.lens = LENSES[lensIdx].label; } catch (e) {}
+  paintTop();
+  if (busy) return;                     /* the bath owns the camera; the new glass is picked up when it returns */
+  const want = realize(LENSES[lensIdx].mm);
+  const have = stream ? (stream.getVideoTracks()[0].getSettings() || {}).deviceId : null;
+  if (!stream || want.id !== have || want.crop !== glass.crop) { stopCamera(); await startCamera(); }
+  flash(LENSES[lensIdx].label === "WIDE" ? "WIDE" + (glass.e !== 13 ? " - NO ULTRA-WIDE, " + glass.e + "MM" : "") : glass.mm + "MM");
+}
 const aspect = () => matchMedia("(orientation: landscape)").matches ? 5 / 4 : 4 / 5;
 
 function capture() {                 /* the negative: centre crop for the 33, long edge capped */
@@ -190,7 +245,7 @@ function capture() {                 /* the negative: centre crop for the 33, lo
   const vw = v.videoWidth, vh = v.videoHeight, A = aspect();
   let cw, ch;
   if (vw / vh > A) { ch = vh; cw = Math.round(vh * A); } else { cw = vw; ch = Math.round(vw / A); }
-  cw = Math.round(cw / CROP); ch = Math.round(ch / CROP);
+  cw = Math.round(cw / glass.crop); ch = Math.round(ch / glass.crop);
   const sx = Math.round((vw - cw) / 2), sy = Math.round((vh - ch) / 2);
   const s = Math.min(1, MAX_NEG / Math.max(cw, ch));
   const c = document.createElement("canvas");
@@ -307,7 +362,9 @@ $("pstage").addEventListener("pointerup", async () => {
 $("pstage").addEventListener("contextmenu", e => e.preventDefault());
 
 /* ---------- panel ---------- */
-const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; };
+const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); };
+$("pana").onclick = () => { anaOn = !anaOn; try { localStorage.ana = anaOn ? "1" : "0"; } catch (e) {} paintPanel(); paintTop(); flash(anaOn ? "SQUEEZE " + SQUEEZE + "X - THE LAB DESQUEEZES" : "SPHERICAL"); };
+$("lens").onclick = () => setLens(lensIdx + 1);
 $("menu").onclick = () => { paintPanel(); $("panel").classList.add("on"); };
 $("pclose").onclick = () => $("panel").classList.remove("on");
 $("panel").onclick = e => { if (e.target === $("panel")) $("panel").classList.remove("on"); };
@@ -339,6 +396,8 @@ paintStrip();
 setTimeout(recover, 1500);
 setTimeout(() => checkUpdate(false), 4000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) { if (!busy) stopCamera(); } else { if (!busy) startCamera(); checkUpdate(false); } });
+/* iOS can leave a live <video> black after the reflow of a rotation until it is told to play again */
+addEventListener("orientationchange", () => setTimeout(() => { const v = $("video"); if (v.srcObject && v.play) v.play().catch(() => {}); }, 300));
 </script>
 </body>
 </html>

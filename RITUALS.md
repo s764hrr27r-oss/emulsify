@@ -13,3 +13,8 @@ Run all before every stage. Each has caught a real fault.
 
 Template rules for lab-worker.js (the Python lives in a JS template literal):
 no backticks, no ${, no single backslashes. The golden harness refuses NUL.
+
+    python3 e2e-glass.py                 the lens ladder (crop per lens, EXIF mm), the anamorphic
+                                         toggle (finder aspect, desqueezed print width), landscape column order.
+                                         The stub forwards EVERY field the page sends (ana, dc, mm, leak) - it
+                                         hid a missing desqueeze once by not forwarding ana.
