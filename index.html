@@ -44,21 +44,20 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #bath.on { display:flex; }
 #bath img { filter:blur(14px) saturate(.5) brightness(.55); }
 #bath span { position:relative; }
-/* ONE FOOT, TWO ORIENTATIONS. The shutter sits at the exact middle of the edge,
-   the lens beside it on the strip side, the menu beside it on the other, and the
-   strip grows away from the lens with the newest print nearest it. Portrait lays
-   this along the bottom edge, landscape along the right edge; same three cells. */
-#foot { height:calc(112px + env(safe-area-inset-bottom)); padding:0 16px env(safe-area-inset-bottom); display:grid; grid-template-columns:1fr auto 1fr; align-items:center; justify-items:center; gap:16px; }
-#tray { display:flex; min-width:0; width:100%; height:56px; align-items:center; justify-content:flex-end; justify-self:end; }
-#strip { display:flex; gap:6px; overflow-x:auto; flex:1; min-width:0; height:56px; align-items:center; flex-direction:row-reverse; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+/* THE FOOT. Strip on the left, then lens, shutter, menu on the right: the
+   portrait row. Landscape is this same row turned WITH THE PHONE - see the
+   landscape block - so the shutter is wherever the rotation carried it. */
+#foot { height:calc(112px + env(safe-area-inset-bottom)); padding:0 16px env(safe-area-inset-bottom); display:flex; align-items:center; }
+#tray { display:flex; flex:1; min-width:0; height:56px; align-items:center; }
+#strip { display:flex; gap:6px; overflow-x:auto; flex:1; min-width:0; height:56px; align-items:center; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
 #strip::-webkit-scrollbar { display:none; }
 #strip img { height:56px; width:auto; flex:0 0 auto; border-radius:2px; opacity:.9; }
 #lens { width:44px; height:44px; border-radius:50%; margin-left:12px; flex:0 0 auto; border:1px solid var(--mute); color:var(--ink); font-size:11px; letter-spacing:.02em; }
 #lens.ana::after { content:"A"; position:absolute; margin:-16px 0 0 20px; font-size:8px; color:var(--warn); }
-#shutter { width:72px; height:72px; border-radius:50%; margin:0; border:3px solid var(--ink); background:radial-gradient(circle,#dcd8d0 0 58%,transparent 60%); flex:0 0 auto; transition:transform .12s; }
+#shutter { width:72px; height:72px; border-radius:50%; margin-left:16px; border:3px solid var(--ink); background:radial-gradient(circle,#dcd8d0 0 58%,transparent 60%); flex:0 0 auto; transition:transform .12s; }
 #shutter:active { transform:scale(.92); }
 #shutter:disabled { opacity:.35; }
-#menu { width:44px; height:44px; color:var(--mute); font-size:18px; margin:0; flex:0 0 auto; justify-self:start; }
+#menu { width:44px; height:44px; color:var(--mute); font-size:18px; margin-left:8px; flex:0 0 auto; }
 
 /* the print */
 #print { background:#000; }
@@ -81,29 +80,37 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #flash { position:fixed; left:50%; top:calc(56px + env(safe-area-inset-top)); transform:translateX(-50%); background:#1a1c20; border:1px solid var(--line); padding:8px 14px; text-transform:uppercase; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:92vw; overflow:hidden; text-overflow:ellipsis; }
 #flash.on { opacity:1; }
 
-/* b214 LANDSCAPE. The top bar and the foot become columns either side of the
-   finder, so the picture gets the whole height instead of what is left after
-   two horizontal bars have taken 156px of a 430px screen. */
+/* LANDSCAPE. The phone turned counter-clockwise (island on the left) carries the
+   bottom edge to the RIGHT edge, running bottom-to-top: so the foot is a column on
+   the right, strip at the bottom, then lens, shutter, menu at the top - the
+   portrait row seen through the rotation, every margin kept. Turned clockwise
+   (island on the right: html.landr) the bottom edge lands on the LEFT edge,
+   top-to-bottom, and the whole thing mirrors. The top bar becomes the opposite
+   column, reading top-to-bottom because it is text. */
 @media (orientation:landscape) {
   #cam { flex-direction:row; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   #top { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 12px; font-size:10px; }
   #top span { white-space:normal; line-height:1.35; }
-  #gate { margin:10px 0; }
+  #gate { margin:16px 0; }
   #finder { aspect-ratio:calc(5 * var(--sq)) / 4; width:auto; height:100%; max-width:100%; }
-  /* the shutter sits at the exact middle of the right edge - under the thumb, the
-     way the portrait shutter is under it - with the lens just above and the menu
-     just below, as in portrait. The strip grows upward from the lens. Three grid
-     rows, 1fr / auto / 1fr, so the shutter is centred whatever the strip holds. */
-  #foot { grid-template-columns:none; grid-template-rows:1fr auto 1fr; height:auto; width:104px; flex:0 0 auto; padding:12px 12px 12px 8px; }
-  #tray { flex-direction:column; align-items:center; align-self:stretch; justify-self:center; height:auto; min-height:0; width:56px; gap:16px; }
-  #strip { flex:1 1 auto; min-height:0; height:auto; width:56px; flex-direction:column-reverse; overflow-y:auto; overflow-x:hidden; }
+  #foot { height:auto; width:112px; flex:0 0 auto; flex-direction:column-reverse; justify-content:flex-start; align-items:center; padding:16px 0 16px 0; }
+  #tray { flex:1; min-height:0; height:auto; width:56px; flex-direction:column-reverse; align-items:center; }
+  #strip { flex:1; min-height:0; height:auto; width:56px; flex-direction:column-reverse; overflow-y:auto; overflow-x:hidden; }
   #strip img { width:56px; height:auto; }
-  #lens, #shutter, #menu { margin:0; }
-  #menu { align-self:start; }
+  #lens { margin:0 0 12px 0; }
+  #shutter { margin:0 0 16px 0; }
+  #menu { margin:0 0 8px 0; }
+  html.landr #cam { flex-direction:row-reverse; }
+  html.landr #foot, html.landr #tray, html.landr #strip { flex-direction:column; }
+  html.landr #lens { margin:12px 0 0 0; }
+  html.landr #shutter { margin:16px 0 0 0; }
+  html.landr #menu { margin:8px 0 0 0; }
   #print { flex-direction:row; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  html.landr #print { flex-direction:row-reverse; }
   #pbar { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 8px; font-size:10px; }
   #pbar span { white-space:normal; line-height:1.35; }
-  #pstage { margin:10px 12px 10px 0; }
+  #pstage { margin:16px 12px 16px 0; }
+  html.landr #pstage { margin:16px 0 16px 12px; }
   #phint { display:none; }
 }
 </style>
@@ -136,7 +143,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 218;
+const BUILD = 219;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -382,7 +389,7 @@ $("pclose").onclick = () => $("panel").classList.remove("on");
 $("panel").onclick = e => { if (e.target === $("panel")) $("panel").classList.remove("on"); };
 $("psize").onclick = () => { size = SIZES[(SIZES.indexOf(size) + 1) % SIZES.length]; try { localStorage.size = size; } catch (e) {} paintPanel(); paintTop(); flash("PRINT SIZE " + size); };
 $("prestart").onclick = () => { $("panel").classList.remove("on"); if (busy) { flash("AFTER THE BATH"); return; } spawnLab(); flash("LAB RESTARTED"); };
-$("plog").onclick = () => { $("panel").classList.remove("on"); $("log").textContent = "b" + BUILD + "  w" + (workerVer || "?") + "  size " + size + "\n\n" + (labLog || "(nothing logged)") + "\n\n(tap to close)"; $("log").classList.add("on"); };
+$("plog").onclick = () => { $("panel").classList.remove("on"); $("log").textContent = "b" + BUILD + "  w" + (workerVer || "?") + "  size " + size + "  " + turned + "\n\n" + (labLog || "(nothing logged)") + "\n\n(tap to close)"; $("log").classList.add("on"); };
 $("log").onclick = () => $("log").classList.remove("on");
 $("pupdate").onclick = () => { $("panel").classList.remove("on"); checkUpdate(true); };
 
@@ -410,7 +417,18 @@ setTimeout(() => checkUpdate(false), 4000);
 document.addEventListener("visibilitychange", () => { if (document.hidden) { if (!busy) stopCamera(); } else { if (!busy) startCamera(); checkUpdate(false); } });
 /* iOS can drop a live <video> to black after the reflow of a rotation. play() alone
    was not enough on the owner's phone; re-attaching the stream rebuilds the layer. */
-const reattach = () => { const v = $("video"); if (!stream || busy) return; v.srcObject = null; v.srcObject = stream; v.play && v.play().catch(() => {}); };
+/* which way the phone turned. Apple: window.orientation 90 is the screen turned to
+   the left (island on the left), -90 to the right. Reported in the LAB LOG. */
+let turned = "";
+function orient() {
+  let a = (typeof window.orientation === "number") ? window.orientation
+        : (screen.orientation && screen.orientation.type === "landscape-secondary") ? -90 : 90;
+  const land = matchMedia("(orientation: landscape)").matches;
+  document.documentElement.classList.toggle("landr", land && (a === -90 || a === 270));
+  turned = !land ? "portrait" : (a === -90 || a === 270) ? "landscape, top of phone on the RIGHT" : "landscape, top of phone on the LEFT";
+}
+orient();
+const reattach = () => { orient(); const v = $("video"); if (!stream || busy) return; v.srcObject = null; v.srcObject = stream; v.play && v.play().catch(() => {}); };
 addEventListener("orientationchange", () => setTimeout(reattach, 350));
 matchMedia("(orientation: landscape)").addEventListener("change", () => setTimeout(reattach, 350));
 </script>
