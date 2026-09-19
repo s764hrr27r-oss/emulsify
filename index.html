@@ -124,7 +124,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 215;
+const BUILD = 216;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -134,7 +134,7 @@ const MAX_NEG = 2200;           /* long edge of the negative handed to the lab *
    longest physical camera at or under them, cropped for the rest (33 on a 26mm
    main is a 1.27x centre crop). Which cameras exist is only known once the
    first stream is up and the labels can be read. */
-const LENSES = [{ label: "WIDE", mm: 13 }, { label: "22", mm: 22 }, { label: "33", mm: 33 }, { label: "44", mm: 44 }];
+const LENSES = [{ label: "WIDE", mm: 13 }, { label: "22", mm: 22 }, { label: "33", mm: 33 }];
 let lensIdx = (() => { try { const i = LENSES.findIndex(l => l.label === localStorage.lens); return i < 0 ? 2 : i; } catch (e) { return 2; } })();
 let phys = [];                                  /* [{id, e}] back cameras by 35mm-equivalent */
 let glass = { id: null, e: 26, crop: 33 / 26, mm: 33 };
