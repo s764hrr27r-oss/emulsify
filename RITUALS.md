@@ -1,10 +1,10 @@
-# EMULSIFY rituals — b213 / w3.23
+# EMULSIFY rituals — b222 / w3.24
 
 Run all before every stage. Each has caught a real fault.
 
     ./runcheck.sh                        page: module syntax + every $("id") exists
     node vercheck.mjs                    worker: header version == WORKER_VER (the panel lied for two builds)
-    timeout 900 python3 golden.py lab-worker.js    chemistry: must print HOLDS (v20 = 1d98c30d46224867)
+    timeout 900 python3 golden.py lab-worker.js    chemistry: must print HOLDS (v21 = 4be892e9e27c70ec; v20 was 1d98c30d46224867)
     python3 bandcheck.py                 chemistry: strips == whole frame, exact
     python3 e2e-server.py &  sleep 9;  python3 e2e.py     THE PAGE, RUNNING: headless Chromium, fake
                                          camera, stub worker on the real protocol, real develop()
@@ -22,3 +22,8 @@ no backticks, no ${, no single backslashes. The golden harness refuses NUL.
                                          toggle (finder aspect, desqueezed print width), landscape column order.
                                          The stub forwards EVERY field the page sends (ana, dc, mm, leak) - it
                                          hid a missing desqueeze once by not forwarding ana.
+                                         b222: THE FINDER SHOWS THE NEGATIVE - the gate's window, read back
+                                         from the video element's geometry in frame pixels, must equal the
+                                         negative capture() cut (size within 1.5 px, centred within 1 px) for
+                                         every lens, under the squeeze, and turned. b221 showed the whole frame
+                                         at the 33 (the print was the middle 79%); this line fails on it 5 times.

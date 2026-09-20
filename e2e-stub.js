@@ -1,5 +1,5 @@
 /* the worker's protocol, verbatim; the chemistry runs in CPython behind /develop */
-const WORKER_VER = "3.23";
+const WORKER_VER = "3.24";
 let CURJOB = 0;
 const step = (n, t) => postMessage({ progress: t, step: n, steps: 5 });
 const boot = (async () => { for (const [n,t] of [[1,"warming the lab…"],[2,"mixing chemistry…"],[3,"loading the canon…"],[4,"probing…"],[5,"ready"]]) { step(n,t); await new Promise(r=>setTimeout(r,60)); } postMessage({ ready: true, probe: 100, ver: WORKER_VER }); })();
