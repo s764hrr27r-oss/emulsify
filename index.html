@@ -31,14 +31,20 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #state.dead { color:#d0605a; }
 #gate { flex:1; position:relative; min-height:0; margin:0 16px; display:flex; align-items:center; justify-content:center; }
 /* --sq is the anamorphic squeeze (1 = spherical). The gate widens by it and
-   the video is stretched to fill, so the finder shows the framing the PRINT
+   the frame is stretched to fill, so the finder shows the framing the PRINT
    will have once the lab desqueezes it. */
-:root { --sq:1; }
+:root { --sq:1; --zw:1; --zh:1; }
 #finder { position:relative; width:100%; aspect-ratio:calc(4 * var(--sq)) / 5; max-height:100%; overflow:hidden; background:#000; }
-#video, #bath img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-/* only under the squeeze does the video carry a transform - iOS composites a
-   transformed <video> on its own layer, and that layer is the one it drops black */
-#finder.sq #video, #finder.sq #bath img { inset:auto; top:0; left:50%; width:calc(100% / var(--sq)); transform:translateX(-50%) scaleX(var(--sq)); }
+/* b222 THE FINDER SHOWS THE NEGATIVE. capture() cuts the centre 4:5 (5:4 turned)
+   of the frame, then the centre 1/crop of that for the 22 and the 33. Until b221
+   the finder showed the whole frame, so the print was the middle 79% of what
+   was framed at 33. Now the video element is sized (--zw, --zh from fitFinder)
+   so that exactly the negative's window fills the gate and the gate clips the
+   rest. No transform: iOS drops a transformed video layer black (b218). The
+   squeeze is object-fit:fill - the gate is --sq wider than the negative and the
+   frame is stretched to it; the latent shown in the bath is the negative itself. */
+#video { position:absolute; left:calc(50% - 50% * var(--zw)); top:calc(50% - 50% * var(--zh)); width:calc(100% * var(--zw)); height:calc(100% * var(--zh)); object-fit:fill; }
+#bath img { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; }
 #finder::after { content:""; position:absolute; inset:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); pointer-events:none; }
 #bath { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:#000; color:var(--warn); text-transform:uppercase; }
 #bath.on { display:flex; }
@@ -143,7 +149,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 221;
+const BUILD = 222;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -245,6 +251,7 @@ async function startCamera() {
       if (want.id && want.id !== have) { stopCamera(); return startCamera(); }
       glass = want;
     }
+    fitFinder();
   } catch (e) { flash("CAMERA: " + String(e && e.name || e).toUpperCase(), 4000); }
 }
 function stopCamera() { try { stream && stream.getTracks().forEach(t => t.stop()); } catch (e) {} stream = null; $("video").srcObject = null; }
@@ -255,9 +262,18 @@ async function setLens(i) {
   const want = realize(LENSES[lensIdx].mm);
   const have = stream ? (stream.getVideoTracks()[0].getSettings() || {}).deviceId : null;
   if (!stream || want.id !== have || want.crop !== glass.crop) { stopCamera(); await startCamera(); }
+  fitFinder();
   flash(LENSES[lensIdx].label === "WIDE" ? "WIDE" + (glass.e !== 13 ? " - NO ULTRA-WIDE, " + glass.e + "MM" : "") : glass.mm + "MM");
 }
 const aspect = () => matchMedia("(orientation: landscape)").matches ? 5 / 4 : 4 / 5;
+/* the finder shows what capture() will cut: the A-box's share of the frame (wf, hf), then 1/crop of it */
+function fitFinder() {
+  const v = $("video"); const vw = v.videoWidth, vh = v.videoHeight; if (!vw || !vh) return;
+  const A = aspect(), va = vw / vh;
+  const wf = va >= A ? A / va : 1, hf = va >= A ? 1 : va / A;
+  const r = document.documentElement.style;
+  r.setProperty("--zw", (glass.crop / wf).toFixed(5)); r.setProperty("--zh", (glass.crop / hf).toFixed(5));
+}
 
 function capture() {                 /* the negative: centre crop for the 33, long edge capped */
   const v = $("video"); if (!v.videoWidth) return null;
@@ -426,8 +442,10 @@ function orient() {
   const land = matchMedia("(orientation: landscape)").matches;
   document.documentElement.classList.toggle("landr", land && (a === -90 || a === 270));
   turned = !land ? "portrait" : (a === -90 || a === 270) ? "landscape, top of phone on the RIGHT" : "landscape, top of phone on the LEFT";
+  fitFinder();
 }
 orient();
+$("video").addEventListener("loadedmetadata", fitFinder); $("video").addEventListener("resize", fitFinder);
 const reattach = () => { orient(); const v = $("video"); if (!stream || busy) return; v.srcObject = null; v.srcObject = stream; v.play && v.play().catch(() => {}); };
 addEventListener("orientationchange", () => setTimeout(reattach, 350));
 matchMedia("(orientation: landscape)").addEventListener("change", () => setTimeout(reattach, 350));
