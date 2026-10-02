@@ -1,4 +1,4 @@
-# EMULSIFY rituals — b227 / w3.24
+# EMULSIFY rituals — b228 / w3.24
 
 Run all before every stage. Each has caught a real fault.
 
@@ -27,7 +27,7 @@ no backticks, no ${, no single backslashes. The golden harness refuses NUL.
                                          negative capture() cut (size within 1.5 px, centred within 1 px) for
                                          every lens, under the squeeze, and turned. b221 showed the whole frame
                                          at the 33 (the print was the middle 79%); this line fails on it 5 times.
-    python3 e2e-visitor.py               b223-b227 THE VISITOR: the SIGN IN pill sits top left (one tap opens the sheet; signed in it reads the initials and opens the panel, SIGN OUT first); the sheet opens with Rachel G typed in, her picture above (192 px JPEG carried in the page, hidden for other initials; the pill wears it signed in) and
+    python3 e2e-visitor.py               b223-b228 THE VISITOR: the SIGN IN pill sits top left (one tap opens the sheet; signed in it reads the initials and opens the panel, SIGN OUT first); the sheet opens with Rachel G typed in, no picture anywhere before sign-in (the pill wears her 192 px JPEG, carried in the page, only once signed in) and
                                          the cursor in the password; a wrong password is refused; every one of the
                                          twelve passwords opens the sky in any case; nothing is stored and a reload
                                          signs out; sign-out from the panel; a plain sign-in has no sky; a frame

@@ -88,13 +88,11 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #who { display:inline-flex; align-items:center; gap:5px; min-height:28px; padding:0 10px; border:1px solid var(--line); border-radius:999px; color:var(--mute); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
 #who.on { color:var(--ink); border-color:var(--mute); }
 #who svg { display:none; }
-/* a profile picture, where one is kept for the initials: the pill wears it and the sheet shows it */
+/* a profile picture, where one is kept for the initials: the pill wears it once signed in, and nowhere before */
 #who img { width:22px; height:22px; border-radius:50%; object-fit:cover; margin-left:-6px; }
 #who img[hidden] { display:none; }
 #who.pic svg { display:none !important; }
-#si-who { justify-content:flex-start; gap:16px; color:var(--ink); text-transform:none; letter-spacing:.02em; font-size:14px; }
-#si-who[hidden] { display:none; }
-#si-who img { width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid var(--line); flex:0 0 auto; }
+
 #signin .row { display:flex; align-items:center; gap:14px; padding:12px 24px; border-bottom:1px solid var(--line); text-transform:uppercase; color:var(--mute); }
 #signin .row span { width:84px; flex:0 0 auto; }
 #signin input { flex:1; min-width:0; background:#0a0a0a; border:1px solid var(--line); border-radius:6px; color:var(--ink); font:inherit; letter-spacing:inherit; padding:10px 12px; outline:none; }
@@ -121,7 +119,6 @@ html.alien body { background:
 html.alien #who svg { display:inline; width:17px; height:17px; }
 html.alien #who { color:var(--ok); border-color:rgba(157,255,90,.55); box-shadow:0 0 10px rgba(157,255,90,.3); }
 html.alien #who img { box-shadow:0 0 0 1.5px var(--ok); }
-html.alien #si-who img { border-color:var(--ok); box-shadow:0 0 14px rgba(157,255,90,.35); }
 html.alien #state { text-shadow:0 0 8px rgba(157,255,90,.55); }
 html.alien #state.busy { color:var(--warn); text-shadow:0 0 8px rgba(255,126,224,.6); }
 /* the saucer over the finder: a pseudo-element of the gate, painted before the
@@ -214,7 +211,6 @@ html.alien #signin input { background:#070a1c; }
   <button id="plog">LAB LOG</button>
   <button id="pclose">CLOSE</button>
 </div><div class="sheet" id="signin" hidden>
-  <div class="row" id="si-who" hidden><img id="siimg" alt=""><span id="si-name"></span></div>
   <label class="row"><span>INITIALS</span><input id="si-ini" maxlength="24" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="RG"></label>
   <label class="row"><span>PASSWORD</span><input id="si-pw" type="password" autocomplete="off" placeholder="password"></label>
   <button id="si-go">SIGN IN</button>
@@ -224,7 +220,7 @@ html.alien #signin input { background:#070a1c; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 227;
+const BUILD = 228;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -275,7 +271,7 @@ const setState = (t, cls = "") => { const s = $("state"); s.textContent = t; s.c
 const paintWho = () => { $("whot").textContent = WHO || "SIGN IN"; $("who").classList.toggle("on", !!WHO); $("who").setAttribute("aria-label", WHO ? "Signed in as " + WHO : "Sign in");
   const f = FACES[WHO]; $("whoimg").hidden = !f; if (f) $("whoimg").src = f.src; else $("whoimg").removeAttribute("src"); $("who").classList.toggle("pic", !!f);
   document.documentElement.classList.toggle("alien", alien); };
-const paintFace = () => { const f = FACES[initials($("si-ini").value)]; $("si-who").hidden = !f; if (f) { $("siimg").src = f.src; $("si-name").textContent = f.name; } };
+
 const paintTop = () => { $("rf").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size;
   $("lens").textContent = LENSES[lensIdx].label; $("lens").classList.toggle("ana", anaOn);
   document.documentElement.style.setProperty("--sq", anaOn ? SQUEEZE : 1); $("finder").classList.toggle("sq", anaOn); };
@@ -544,8 +540,7 @@ function signOut() { sfx("powerdown"); WHO = ""; alien = false; paintWho(); pain
 
 /* ---------- panel ---------- */
 const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
-const openSignIn = () => { paintPanel(); $("panel").classList.add("on"); $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = "Rachel G"; $("si-pw").value = ""; paintFace(); setTimeout(() => $("si-pw").focus(), 50); };
-$("si-ini").addEventListener("input", paintFace);
+const openSignIn = () => { paintPanel(); $("panel").classList.add("on"); $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = "Rachel G"; $("si-pw").value = ""; setTimeout(() => $("si-pw").focus(), 50); };
 $("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } openSignIn(); };
 $("who").onclick = () => { if (WHO) { paintPanel(); $("panel").classList.add("on"); return; } openSignIn(); };
 const closeSign = () => { $("signin").hidden = true; $("psheet").hidden = false; };
