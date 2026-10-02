@@ -201,7 +201,7 @@ html.alien #signin input { background:#070a1c; }
   <button id="pclose">CLOSE</button>
 </div><div class="sheet" id="signin" hidden>
   <label class="row"><span>INITIALS</span><input id="si-ini" maxlength="24" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="RG"></label>
-  <label class="row"><span>PASSWORD</span><input id="si-pw" type="password" autocomplete="off" placeholder="only some of us need one"></label>
+  <label class="row"><span>PASSWORD</span><input id="si-pw" type="password" autocomplete="off" placeholder="password"></label>
   <button id="si-go">SIGN IN</button>
   <button id="si-x">CANCEL</button>
 </div></div>
@@ -209,7 +209,7 @@ html.alien #signin input { background:#070a1c; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 224;
+const BUILD = 225;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -233,11 +233,25 @@ let busy = false, current = null, currentFile = null, hold = null;
 const cooking = new Set();      /* frames in the bath right now: recovery must not touch them */
 let msgId = 0; const waits = new Map();
 let lastCheck = 0, pending = 0;
-/* THE VISITOR: who signed in, and whether the sky is theirs. The themed sign-in
-   keeps only a hash of its password; this is a theme, not a lock. */
-const THEMED = { RG: "569fd0b29e0157a990d45750827b2959d5e9cd2f03a1269cb43d59ba6d2b31bd" };
+/* THE VISITOR: who signed in, and whether the sky is theirs. Lasts until the app
+   is closed - nothing is stored, a fresh launch is signed out. The themed sign-in
+   accepts any of its passwords, case-blind, and keeps only their hashes; this is
+   a theme, not a lock. */
+const THEMED = { RG: [
+  "569fd0b29e0157a990d45750827b2959d5e9cd2f03a1269cb43d59ba6d2b31bd",
+  "8038b615ac82fdce422945f223acb825079d969d6ebca7e8ce97e6db8460f639",
+  "686f746a95b6f836d7d70567c302c3f9ebb5ee0def3d1220ee9d4e9f34f5e131",
+  "f07d989f1acc093b83de885830225dee36fe364df71b995fef3008184ea7a6dd",
+  "ed05dd4d068fc00dd22381f9261bf6a8598937b134adb1b29befe90b49a82e03",
+  "628fecb264d2e97260acac7da9be7651fe85f64c85334e8026a30eeed7ee460d",
+  "a49c1d0380688dd9e1898df37e8a7f9e7747212a5b47494173bd2e4a91452fb7",
+  "3152c94df8660eda4c9ac69aa149847543904b35fdf5a3a9fe41856fb079e564",
+  "188764ef6856bdf0c43c9b4f735ab72f853cb0bbb85f7a45b2233bdd9179f524",
+  "000c566dff62dff18df25387f472a8c518d53ab9fa8fbfd99d3541718fa95ee7",
+  "b1e79532d5b97c775ed657e6aea1de1cb3728443c6b35ad80fa7c3c4ed0f4d1e",
+  "f379ccb92b9116442dc65bdc35648a85d3786b34779db7f704a901fa07b00cb6"
+] };
 let WHO = "", alien = false;
-try { WHO = localStorage.who || ""; alien = localStorage.alien === "1" && !!THEMED[WHO]; } catch (e) {}
 
 const flash = (t, ms = 1800) => { const f = $("flash"); f.textContent = t; f.classList.add("on"); clearTimeout(flash.t); flash.t = setTimeout(() => f.classList.remove("on"), ms); };
 const setState = (t, cls = "") => { const s = $("state"); s.textContent = t; s.className = cls; };
@@ -497,20 +511,20 @@ async function signIn(typed, pw) {
   const who = initials(typed);
   if (!who) { flash("INITIALS?"); return false; }
   if (THEMED[who]) {
-    let h = ""; try { h = await sha256(pw || ""); } catch (e) {}
-    if (h !== THEMED[who]) { sfx("nope", alien ? null : audio()); flash("THAT IS NOT THE PASSWORD"); return false; }
-    alien = true; try { localStorage.alien = "1"; } catch (e) {}
+    let h = ""; try { h = await sha256(String(pw || "").trim().toLowerCase()); } catch (e) {}
+    if (!THEMED[who].includes(h)) { sfx("nope", alien ? null : audio()); flash("THAT IS NOT THE PASSWORD"); return false; }
+    alien = true;
   }
-  WHO = who; try { localStorage.who = who; } catch (e) {}
+  WHO = who;
   paintWho(); paintPanel();
   if (alien) { sfx("landing"); flash("WELCOME ABOARD, " + who, 2600); } else flash("SIGNED IN - " + who);
   return true;
 }
-function signOut() { sfx("powerdown"); WHO = ""; alien = false; try { delete localStorage.who; delete localStorage.alien; } catch (e) {} paintWho(); paintPanel(); flash("SIGNED OUT"); }
+function signOut() { sfx("powerdown"); WHO = ""; alien = false; paintWho(); paintPanel(); flash("SIGNED OUT"); }
 
 /* ---------- panel ---------- */
 const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
-$("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = ""; $("si-pw").value = ""; setTimeout(() => $("si-ini").focus(), 50); };
+$("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = "Rachel G"; $("si-pw").value = ""; setTimeout(() => $("si-pw").focus(), 50); };
 const closeSign = () => { $("signin").hidden = true; $("psheet").hidden = false; };
 $("si-x").onclick = closeSign;
 $("si-go").onclick = async () => { if (await signIn($("si-ini").value, $("si-pw").value)) { closeSign(); $("panel").classList.remove("on"); } };
@@ -541,6 +555,7 @@ function applyUpdate() { if (busy) { setTimeout(applyUpdate, 1500); return; } lo
 
 /* ---------- boot ---------- */
 if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }); } catch (e) {} }
+try { delete localStorage.who; delete localStorage.alien; } catch (e) {}   /* b223-b224 stored the sign-in; it is a session now */
 paintWho(); paintTop(); paintPanel();
 $("shutter").onclick = shoot;
 spawnLab();
