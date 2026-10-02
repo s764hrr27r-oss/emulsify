@@ -13,8 +13,9 @@ OUT = "/home/claude/emulsify/"
 SOUNDS = {"blip": 0.4, "theremin": 0.6, "loon": 2.2, "fanfare": 1.0, "landing": 3.2, "nope": 0.8, "powerdown": 0.9}
 RENDER = """async ([name, secs]) => { const c = new OfflineAudioContext(1, Math.ceil(44100 * secs), 44100); self.__sfx(name, c);
   const b = await c.startRendering(); return Array.from(b.getChannelData(0)); }"""
-async def sign(pg, ini, pw):
-    await pg.click("#menu"); await pg.click("#psign")
+async def sign(pg, ini, pw, via="pill"):
+    if via == "pill": await pg.click("#who")
+    else: await pg.click("#menu"); await pg.click("#psign")
     if ini is not None: await pg.fill("#si-ini", ini)
     await pg.fill("#si-pw", pw); await pg.click("#si-go"); await asyncio.sleep(0.4)
     return await pg.evaluate("[document.documentElement.classList.contains('alien'), document.getElementById('whot').textContent, document.getElementById('flash').textContent, localStorage.who || '', localStorage.alien || '']")
@@ -29,21 +30,26 @@ async def main():
         fails = 0
         def check(ok, what):
             nonlocal fails; fails += (not ok); print(("  PASS  " if ok else "  FAIL  ") + what)
-        await pg.click("#menu"); await pg.click("#psign"); await asyncio.sleep(0.15); pre = await pg.input_value("#si-ini"); foc = await pg.evaluate("document.activeElement && document.activeElement.id")
-        check(pre == "Rachel G" and foc == "si-pw", f"the sheet opens with 'Rachel G' typed in and the cursor in the password: '{pre}', focus={foc}")
+        pill = await pg.evaluate("(() => { const r = document.getElementById('who').getBoundingClientRect(); return [document.getElementById('whot').textContent, Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)]; })()")
+        check(pill[0] == "SIGN IN" and pill[2] < 60 and pill[4] >= 26, f"the pill at the top left reads '{pill[0]}' at ({pill[1]},{pill[2]}) {pill[3]}x{pill[4]} px")
+        await pg.click("#who"); await asyncio.sleep(0.15); pre = await pg.input_value("#si-ini"); foc = await pg.evaluate("document.activeElement && document.activeElement.id")
+        sheet = await pg.evaluate("[document.getElementById('panel').classList.contains('on'), !document.getElementById('signin').hidden]")
+        check(sheet == [True, True] and pre == "Rachel G" and foc == "si-pw", f"one tap on the pill opens the sheet with 'Rachel G' typed in and the cursor in the password: '{pre}', focus={foc}")
         await pg.click("#si-x"); await pg.click("#pclose")
-        r = await sign(pg, None, "mandolin")
-        check(not r[0] and r[1] == "" and "NOT THE PASSWORD" in r[2], f"wrong password refused: alien={r[0]} who='{r[1]}' flash='{r[2]}'")
+        r = await sign(pg, None, "mandolin", via="panel")
+        check(not r[0] and r[1] == "SIGN IN" and "NOT THE PASSWORD" in r[2], f"wrong password refused (via the panel's first line): alien={r[0]} pill='{r[1]}' flash='{r[2]}'")
         await pg.click("#si-x"); await pg.click("#pclose")
         r = await sign(pg, None, "BANJO")
         check(r[0] and r[1] == "RG" and r[3] == "" and r[4] == "" and "WELCOME ABOARD, RG" in r[2], f"pre-typed name + BANJO (upper case): alien={r[0]} who='{r[1]}' nothing stored (who='{r[3]}' alien='{r[4]}') flash='{r[2]}'")
         # every password, in a different case each time
-        await pg.click("#menu"); await pg.click("#psign"); await asyncio.sleep(0.2)      # sign out
+        await pg.click("#who"); first = await pg.evaluate("document.querySelector('#psheet button').id + ':' + document.querySelector('#psheet button').textContent")
+        check(first == "psign:SIGN OUT - RG", f"signed in, the pill opens the panel and its first line is '{first.split(':')[1]}'")
+        await pg.click("#psign"); await asyncio.sleep(0.2)      # sign out
         okpw = []
         for i, w in enumerate(PASSWORDS):
             typed = w.upper() if i % 3 == 0 else (w.capitalize() if i % 3 == 1 else w)
             r = await sign(pg, None, typed); okpw.append(bool(r[0] and r[1] == "RG"))
-            await pg.click("#menu"); await pg.click("#psign"); await asyncio.sleep(0.15)   # sign out again
+            await pg.click("#who"); await pg.click("#psign"); await asyncio.sleep(0.15)   # sign out again
         check(all(okpw), f"all {len(PASSWORDS)} passwords open the sky regardless of case: {sum(okpw)}/{len(PASSWORDS)}")
         r = await sign(pg, None, "banjo")
         svg = await pg.evaluate("getComputedStyle(document.querySelector('#who svg')).display")
@@ -51,17 +57,17 @@ async def main():
         check(svg != "none" and bg >= 14, f"the sky: alien icon shown (display={svg}), {bg} fixed stars in the body background")
         await pg.wait_for_function("document.getElementById('video').videoWidth > 0", timeout=10000); await asyncio.sleep(0.3)
         await pg.screenshot(path=OUT + "visitor-camera.png")
-        await pg.click("#menu"); await asyncio.sleep(0.2); await pg.screenshot(path=OUT + "visitor-panel.png"); await pg.click("#psign"); await asyncio.sleep(0.2)
+        await pg.click("#who"); await asyncio.sleep(0.2); await pg.screenshot(path=OUT + "visitor-panel.png"); await pg.click("#psign"); await asyncio.sleep(0.2)
         # psign now reads SIGN OUT and signs out; undo that for the sheet screenshot
         r = await pg.evaluate("[document.documentElement.classList.contains('alien'), document.getElementById('whot').textContent]")
-        check(not r[0] and r[1] == "", f"SIGN OUT from the panel: alien={r[0]} who='{r[1]}'")
-        await pg.click("#menu"); await pg.click("#psign"); await asyncio.sleep(0.2); await pg.screenshot(path=OUT + "visitor-signin.png")
+        check(not r[0] and r[1] == "SIGN IN", f"SIGN OUT from the panel: alien={r[0]} pill='{r[1]}'")
+        await pg.click("#who"); await asyncio.sleep(0.2); await pg.screenshot(path=OUT + "visitor-signin.png")
         await pg.fill("#si-ini", "rg"); await pg.fill("#si-pw", "Loon"); await pg.click("#si-go"); await asyncio.sleep(0.4)
         r = await pg.evaluate("[document.documentElement.classList.contains('alien'), document.getElementById('whot').textContent]")
         check(r[0] and r[1] == "RG", f"'rg' + Loon: alien={r[0]} who='{r[1]}'")
         await pg.reload(); await pg.wait_for_function("document.getElementById('state').textContent === 'READY'", timeout=20000)
         r = await pg.evaluate("[document.documentElement.classList.contains('alien'), document.getElementById('whot').textContent]")
-        check(not r[0] and r[1] == "", f"a restart signs out: alien={r[0]} who='{r[1]}'")
+        check(not r[0] and r[1] == "SIGN IN", f"a restart signs out: alien={r[0]} pill='{r[1]}'")
         await pg.wait_for_function("document.getElementById('video').videoWidth > 0", timeout=10000)
         await sign(pg, None, "stable")
         await pg.wait_for_function("document.getElementById('video').videoWidth > 0", timeout=10000)
@@ -80,7 +86,7 @@ async def main():
                 w.setnchannels(1); w.setsampwidth(2); w.setframerate(44100)
                 w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, x)) * 32767)) for x in data))
             check(peak > 0.02 and peak < 0.6 and dur > 0.05, f"sfx {name:9s} {dur:.2f}s  peak {peak:.2f}  rms {rms:.3f}  -> sfx-{name}.wav")
-        await pg.click("#menu"); await pg.click("#psign"); await asyncio.sleep(0.2)    # sign out
+        await pg.click("#who"); await pg.click("#psign"); await asyncio.sleep(0.2)    # sign out
         r = await sign(pg, "L B", "")
         check(not r[0] and r[1] == "LB" and r[4] == "" and "SIGNED IN - LB" in r[2], f"a plain sign-in has no sky: alien={r[0]} who='{r[1]}' flash='{r[2]}'")
         await ctx.close()

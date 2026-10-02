@@ -81,8 +81,12 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #panel button:last-child { border-bottom:0; color:var(--mute); }
 #panel button.warn { color:var(--warn); }
 #panel button.ok { color:var(--ok); }
-#who { display:none; align-items:center; gap:5px; margin-right:10px; }
-#who.on { display:inline-flex; }
+/* THE SIGN-IN PILL: top left, always there. Reads SIGN IN until someone has,
+   then their initials. One tap opens the sign-in sheet; signed in, it opens
+   the panel, where SIGN OUT is the first line. */
+#left { display:inline-flex; flex-wrap:wrap; align-items:center; gap:10px; }
+#who { display:inline-flex; align-items:center; gap:5px; min-height:28px; padding:0 10px; border:1px solid var(--line); border-radius:999px; color:var(--mute); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+#who.on { color:var(--ink); border-color:var(--mute); }
 #who svg { display:none; }
 #signin .row { display:flex; align-items:center; gap:14px; padding:12px 24px; border-bottom:1px solid var(--line); text-transform:uppercase; color:var(--mute); }
 #signin .row span { width:84px; flex:0 0 auto; }
@@ -108,7 +112,7 @@ html.alien body { background:
   radial-gradient(1px 1px at 58% 50%, #fff 60%, transparent 61%), radial-gradient(1.3px 1.3px at 33% 56%, #fff 60%, transparent 61%),
   radial-gradient(ellipse 60% 40% at 50% 110%, #1b1550 0%, transparent 70%), var(--bg); }
 html.alien #who svg { display:inline; width:17px; height:17px; }
-html.alien #who { color:var(--ok); }
+html.alien #who { color:var(--ok); border-color:rgba(157,255,90,.55); box-shadow:0 0 10px rgba(157,255,90,.3); }
 html.alien #state { text-shadow:0 0 8px rgba(157,255,90,.55); }
 html.alien #state.busy { color:var(--warn); text-shadow:0 0 8px rgba(255,126,224,.6); }
 /* the saucer over the finder: a pseudo-element of the gate, painted before the
@@ -149,6 +153,7 @@ html.alien #signin input { background:#070a1c; }
   #cam { flex-direction:row; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   #top { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 12px; font-size:10px; }
   #top span { white-space:normal; line-height:1.35; }
+  #left { gap:6px; }
   #gate { margin:16px 0; }
   #finder { aspect-ratio:calc(5 * var(--sq)) / 4; width:auto; height:100%; max-width:100%; }
   #foot { height:auto; width:112px; flex:0 0 auto; flex-direction:column-reverse; justify-content:flex-start; align-items:center; padding:16px 0 16px 0; }
@@ -178,7 +183,7 @@ html.alien #signin input { background:#070a1c; }
 <body>
 
 <div id="cam" class="screen on">
-  <div id="top"><span id="rf"><b id="who"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="7.5" ry="8.5" fill="#9dff5a"/><ellipse cx="9.2" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><ellipse cx="14.8" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><path d="M12 5V2" stroke="#9dff5a" stroke-width="1.6"/><circle cx="12" cy="1.6" r="1.4" fill="#ff7ee0"/></svg><span id="whot"></span></b><span id="rfn">A 01</span></span><span id="state">LAB LOADING</span><span id="ver"></span></div>
+  <div id="top"><span id="left"><button id="who" aria-label="Sign in"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="7.5" ry="8.5" fill="#9dff5a"/><ellipse cx="9.2" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><ellipse cx="14.8" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><path d="M12 5V2" stroke="#9dff5a" stroke-width="1.6"/><circle cx="12" cy="1.6" r="1.4" fill="#ff7ee0"/></svg><span id="whot">SIGN IN</span></button><span id="rf">A 01</span></span><span id="state">LAB LOADING</span><span id="ver"></span></div>
   <div id="gate"><div id="finder">
     <video id="video" autoplay playsinline muted></video>
     <div id="bath"><img id="latent" alt=""><span id="bathtext">DEVELOPING</span></div>
@@ -192,9 +197,9 @@ html.alien #signin input { background:#070a1c; }
 </div>
 
 <div id="panel"><div class="sheet" id="psheet">
+  <button id="psign">SIGN IN</button>
   <button id="psize">PRINT SIZE 1100</button>
   <button id="pana">ANAMORPHIC 1.33 OFF</button>
-  <button id="psign">SIGN IN</button>
   <button id="pupdate">CHECK FOR UPDATES</button>
   <button id="prestart">RESTART LAB</button>
   <button id="plog">LAB LOG</button>
@@ -209,7 +214,7 @@ html.alien #signin input { background:#070a1c; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 225;
+const BUILD = 226;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -255,8 +260,8 @@ let WHO = "", alien = false;
 
 const flash = (t, ms = 1800) => { const f = $("flash"); f.textContent = t; f.classList.add("on"); clearTimeout(flash.t); flash.t = setTimeout(() => f.classList.remove("on"), ms); };
 const setState = (t, cls = "") => { const s = $("state"); s.textContent = t; s.className = cls; };
-const paintWho = () => { $("whot").textContent = WHO; $("who").classList.toggle("on", !!WHO); document.documentElement.classList.toggle("alien", alien); };
-const paintTop = () => { $("rfn").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size;
+const paintWho = () => { $("whot").textContent = WHO || "SIGN IN"; $("who").classList.toggle("on", !!WHO); $("who").setAttribute("aria-label", WHO ? "Signed in as " + WHO : "Sign in"); document.documentElement.classList.toggle("alien", alien); };
+const paintTop = () => { $("rf").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size;
   $("lens").textContent = LENSES[lensIdx].label; $("lens").classList.toggle("ana", anaOn);
   document.documentElement.style.setProperty("--sq", anaOn ? SQUEEZE : 1); $("finder").classList.toggle("sq", anaOn); };
 
@@ -524,7 +529,9 @@ function signOut() { sfx("powerdown"); WHO = ""; alien = false; paintWho(); pain
 
 /* ---------- panel ---------- */
 const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
-$("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = "Rachel G"; $("si-pw").value = ""; setTimeout(() => $("si-pw").focus(), 50); };
+const openSignIn = () => { paintPanel(); $("panel").classList.add("on"); $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = "Rachel G"; $("si-pw").value = ""; setTimeout(() => $("si-pw").focus(), 50); };
+$("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } openSignIn(); };
+$("who").onclick = () => { if (WHO) { paintPanel(); $("panel").classList.add("on"); return; } openSignIn(); };
 const closeSign = () => { $("signin").hidden = true; $("psheet").hidden = false; };
 $("si-x").onclick = closeSign;
 $("si-go").onclick = async () => { if (await signIn($("si-ini").value, $("si-pw").value)) { closeSign(); $("panel").classList.remove("on"); } };
