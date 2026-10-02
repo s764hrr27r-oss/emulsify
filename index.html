@@ -88,6 +88,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #who { display:inline-flex; align-items:center; gap:5px; min-height:28px; padding:0 10px; border:1px solid var(--line); border-radius:999px; color:var(--mute); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
 #who.on { color:var(--ink); border-color:var(--mute); }
 #who svg { display:none; }
+html.hive #whobee { display:inline; width:17px; height:17px; }
 /* a profile picture, where one is kept for the initials: the pill wears it once signed in, and nowhere before */
 #who img { width:22px; height:22px; border-radius:50%; object-fit:cover; margin-left:-6px; }
 #who img[hidden] { display:none; }
@@ -143,6 +144,36 @@ html.alien #phint { color:var(--ok); }
 html.alien #panel .sheet { background:#0e1133; border-top-color:#2f3a7a; }
 html.alien #panel button { border-bottom-color:#1f2658; }
 html.alien #signin input { background:#070a1c; }
+/* b229-b230 THE HIVE. RITA's sign-in has its own sky, and it is bees: honey and
+   black on dark wood, a honeycomb behind everything (one tile, nothing moves),
+   a bee looping over the finder on a dotted trail, the shutter a bee seen from
+   above, the lens a honey cell, a bee badge in the pill, a serif face. Colours,
+   glows, artwork and a typeface only, like the alien sky above. */
+html.hive { --bg:#140f08; --ink:#f7e8c4; --mute:#a68e5e; --line:#3a2d17; --warn:#f2b632; --ok:#ffd56b; --ui:ui-serif,"New York",Georgia,"Times New Roman",serif; }
+html.hive body { background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 64'%3E%3Cpath d='M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z' fill='none' stroke='%23f2b632' stroke-opacity='.16' stroke-width='1.2'/%3E%3C/svg%3E") center/56px 64px repeat, radial-gradient(ellipse 70% 50% at 50% 110%, #3a2708 0%, transparent 70%), var(--bg); letter-spacing:.04em; }
+html.hive #who { color:var(--warn); border-color:rgba(242,182,50,.6); box-shadow:0 0 10px rgba(242,182,50,.25); }
+html.hive #who img { box-shadow:0 0 0 1.5px var(--warn); }
+html.hive #state { text-shadow:0 0 8px rgba(242,182,50,.45); }
+html.hive #state.busy { color:var(--warn); }
+html.hive #gate::before { content:""; position:absolute; left:50%; top:-2px; width:160px; height:110px; margin-left:-80px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 110'%3E %3Cpath d='M14 92 C 30 40, 60 30, 80 56 S 120 90, 128 48' fill='none' stroke='%23f2b632' stroke-opacity='.55' stroke-width='1.6' stroke-dasharray='2 5' stroke-linecap='round'/%3E %3Cg transform='translate%28128 40%29 rotate%28-20%29'%3E %3Cellipse cx='-3' cy='-8' rx='9' ry='5' fill='%23fff' fill-opacity='.8' transform='rotate%28-30 -3 -8%29'/%3E%3Cellipse cx='6' cy='-8' rx='9' ry='5' fill='%23fff' fill-opacity='.8' transform='rotate%2830 6 -8%29'/%3E %3Cellipse cx='0' cy='2' rx='13' ry='8.5' fill='%23f2b632'/%3E%3Cpath d='M-6 -5v14M0 -6.5v17M6 -5v14' stroke='%231a1208' stroke-width='3.2' stroke-linecap='round'/%3E %3Ccircle cx='-14' cy='2' r='5' fill='%231a1208'/%3E%3Ccircle cx='-15.5' cy='0.5' r='1.2' fill='%23fff'/%3E%3Cpath d='M13 2l6 2' stroke='%231a1208' stroke-width='1.8' stroke-linecap='round'/%3E %3Cpath d='M-16 -2 l-4 -6 M-13 -3 l-1 -7' stroke='%231a1208' stroke-width='1.2' stroke-linecap='round'/%3E%3C/g%3E %3Ccircle cx='40' cy='70' r='1.3' fill='%23f2b632' fill-opacity='.5'/%3E%3Ccircle cx='96' cy='78' r='1' fill='%23f2b632' fill-opacity='.5'/%3E %3C/svg%3E") center/contain no-repeat; pointer-events:none; }
+html.hive #finder { background:#0a0704; }
+html.hive #finder::after { box-shadow:inset 0 0 0 2px rgba(242,182,50,.7), inset 0 0 0 5px rgba(20,15,8,.95), inset 0 0 0 6px rgba(242,182,50,.35), 0 0 24px rgba(242,182,50,.2); }
+html.hive #bath { color:var(--ok); }
+html.hive #bath::before { content:""; position:absolute; inset:0; background:radial-gradient(ellipse 70% 60% at 50% 50%, rgba(242,182,50,.35), rgba(242,182,50,0) 70%); }
+html.hive #bath img { filter:blur(14px) grayscale(1) brightness(.55) sepia(1) saturate(2.2); }
+html.hive #bath span { text-shadow:0 0 10px rgba(242,182,50,.8); }
+html.hive #shutter { border-color:transparent; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72'%3E %3Cdefs%3E%3CradialGradient id='w' cx='50%25' cy='50%25' r='60%25'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.85'/%3E%3Cstop offset='1' stop-color='%23cfe8ff' stop-opacity='.35'/%3E%3C/radialGradient%3E%3C/defs%3E %3Cellipse cx='22' cy='28' rx='15' ry='8' fill='url%28%23w%29' transform='rotate%28-32 22 28%29'/%3E%3Cellipse cx='50' cy='28' rx='15' ry='8' fill='url%28%23w%29' transform='rotate%2832 50 28%29'/%3E %3Cellipse cx='24' cy='40' rx='11' ry='6' fill='url%28%23w%29' transform='rotate%28-14 24 40%29'/%3E%3Cellipse cx='48' cy='40' rx='11' ry='6' fill='url%28%23w%29' transform='rotate%2814 48 40%29'/%3E %3Cellipse cx='36' cy='46' rx='10' ry='15' fill='%23f2b632'/%3E %3Cpath d='M26.5 40h19M26 47h20M27.5 54h17' stroke='%231a1208' stroke-width='4' stroke-linecap='round'/%3E %3Cellipse cx='36' cy='29' rx='8.5' ry='7' fill='%235a3b10'/%3E%3Ccircle cx='36' cy='18' r='5.5' fill='%231a1208'/%3E %3Ccircle cx='33.5' cy='17' r='1.3' fill='%23fff'/%3E%3Ccircle cx='38.5' cy='17' r='1.3' fill='%23fff'/%3E %3Cpath d='M33 13 l-3 -6 M39 13 l3 -6' stroke='%231a1208' stroke-width='1.6' stroke-linecap='round'/%3E%3Ccircle cx='30' cy='7' r='1.3' fill='%231a1208'/%3E%3Ccircle cx='42' cy='7' r='1.3' fill='%231a1208'/%3E %3Cpath d='M36 61 l0 5' stroke='%231a1208' stroke-width='2' stroke-linecap='round'/%3E %3C/svg%3E") center/100% 100% no-repeat; box-shadow:0 0 22px rgba(242,182,50,.45); }
+html.hive #shutter:disabled { opacity:.35; box-shadow:none; }
+html.hive #lens { border-color:transparent; color:#1a1208; font-weight:700; background:linear-gradient(160deg, #ffd56b, #e59a1e 70%); clip-path:polygon(50% 0, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%); box-shadow:none; }
+html.hive #lens.ana::after { color:#1a1208; }
+html.hive #menu { color:var(--warn); text-shadow:0 0 8px rgba(242,182,50,.4); }
+html.hive #strip img { outline:1px solid rgba(242,182,50,.4); }
+html.hive #flash { background:#2a1d08; border-color:var(--warn); color:#ffe9b3; box-shadow:0 0 16px rgba(242,182,50,.3); font-style:italic; letter-spacing:.05em; }
+html.hive #print { background:var(--bg); }
+html.hive #phint { color:var(--ok); }
+html.hive #panel .sheet { background:#1a130a; border-top-color:#4a3a1c; }
+html.hive #panel button { border-bottom-color:#2e2311; }
+html.hive #signin input { background:#140f08; }
 #log { display:none; position:fixed; inset:0; background:#000; color:var(--ink); padding:calc(16px + env(safe-area-inset-top)) 16px 16px; font:11px/1.4 ui-monospace,Menlo,monospace; letter-spacing:0; white-space:pre-wrap; overflow:auto; }
 #log.on { display:block; }
 #flash { position:fixed; left:50%; top:calc(56px + env(safe-area-inset-top)); transform:translateX(-50%); background:#1a1c20; border:1px solid var(--line); padding:8px 14px; text-transform:uppercase; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:92vw; overflow:hidden; text-overflow:ellipsis; }
@@ -175,6 +206,7 @@ html.alien #signin input { background:#070a1c; }
   html.landr #shutter { margin:16px 0 0 0; }
   html.landr #menu { margin:8px 0 0 0; }
   html.alien #gate::before { left:4px; top:50%; margin:-75px 0 0 0; }
+  html.hive #gate::before { left:4px; top:50%; margin:-55px 0 0 0; }
   html.landr #gate::before { left:auto; right:4px; }
   #print { flex-direction:row; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   html.landr #print { flex-direction:row-reverse; }
@@ -189,7 +221,7 @@ html.alien #signin input { background:#070a1c; }
 <body>
 
 <div id="cam" class="screen on">
-  <div id="top"><span id="left"><button id="who" aria-label="Sign in"><img id="whoimg" alt="" hidden><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="7.5" ry="8.5" fill="#9dff5a"/><ellipse cx="9.2" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><ellipse cx="14.8" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><path d="M12 5V2" stroke="#9dff5a" stroke-width="1.6"/><circle cx="12" cy="1.6" r="1.4" fill="#ff7ee0"/></svg><span id="whot">SIGN IN</span></button><span id="rf">A 01</span></span><span id="state">LAB LOADING</span><span id="ver"></span></div>
+  <div id="top"><span id="left"><button id="who" aria-label="Sign in"><img id="whoimg" alt="" hidden><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="7.5" ry="8.5" fill="#9dff5a"/><ellipse cx="9.2" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><ellipse cx="14.8" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><path d="M12 5V2" stroke="#9dff5a" stroke-width="1.6"/><circle cx="12" cy="1.6" r="1.4" fill="#ff7ee0"/></svg><svg id="whobee" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="9" cy="8" rx="4" ry="2.6" fill="#fff" fill-opacity=".75" transform="rotate(-25 9 8)"/><ellipse cx="15" cy="8" rx="4" ry="2.6" fill="#fff" fill-opacity=".75" transform="rotate(25 15 8)"/><ellipse cx="12" cy="14" rx="7" ry="5" fill="#f2b632"/><path d="M8.5 10.5v7M12 9.4v9.2M15.5 10.5v7" stroke="#1a1208" stroke-width="2"/><circle cx="5.5" cy="14" r="2.6" fill="#1a1208"/><path d="M19 14l2.6 1" stroke="#1a1208" stroke-width="1.2"/></svg><span id="whot">SIGN IN</span></button><span id="rf">A 01</span></span><span id="state">LAB LOADING</span><span id="ver"></span></div>
   <div id="gate"><div id="finder">
     <video id="video" autoplay playsinline muted></video>
     <div id="bath"><img id="latent" alt=""><span id="bathtext">DEVELOPING</span></div>
@@ -220,7 +252,7 @@ html.alien #signin input { background:#070a1c; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 228;
+const BUILD = 230;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -244,25 +276,28 @@ let busy = false, current = null, currentFile = null, hold = null;
 const cooking = new Set();      /* frames in the bath right now: recovery must not touch them */
 let msgId = 0; const waits = new Map();
 let lastCheck = 0, pending = 0;
-/* THE VISITOR: who signed in, and whether the sky is theirs. Lasts until the app
-   is closed - nothing is stored, a fresh launch is signed out. The themed sign-in
+/* THE VISITORS: who signed in, and which sky is theirs. Lasts until the app is
+   closed - nothing is stored, a fresh launch is signed out. A themed sign-in
    accepts any of its passwords, case-blind, and keeps only their hashes; this is
-   a theme, not a lock. */
-const THEMED = { RG: [
-  "569fd0b29e0157a990d45750827b2959d5e9cd2f03a1269cb43d59ba6d2b31bd",
-  "8038b615ac82fdce422945f223acb825079d969d6ebca7e8ce97e6db8460f639",
-  "686f746a95b6f836d7d70567c302c3f9ebb5ee0def3d1220ee9d4e9f34f5e131",
-  "f07d989f1acc093b83de885830225dee36fe364df71b995fef3008184ea7a6dd",
-  "ed05dd4d068fc00dd22381f9261bf6a8598937b134adb1b29befe90b49a82e03",
-  "628fecb264d2e97260acac7da9be7651fe85f64c85334e8026a30eeed7ee460d",
-  "a49c1d0380688dd9e1898df37e8a7f9e7747212a5b47494173bd2e4a91452fb7",
-  "3152c94df8660eda4c9ac69aa149847543904b35fdf5a3a9fe41856fb079e564",
-  "188764ef6856bdf0c43c9b4f735ab72f853cb0bbb85f7a45b2233bdd9179f524",
-  "000c566dff62dff18df25387f472a8c518d53ab9fa8fbfd99d3541718fa95ee7",
-  "b1e79532d5b97c775ed657e6aea1de1cb3728443c6b35ad80fa7c3c4ed0f4d1e",
-  "f379ccb92b9116442dc65bdc35648a85d3786b34779db7f704a901fa07b00cb6"
-] };
-let WHO = "", alien = false;
+   a theme, not a lock. RG has the saucer sky; RITA has the hive. */
+const THEMED = {
+  RG:   { theme: "alien", welcome: "WELCOME ABOARD, RG", pw: [
+    "569fd0b29e0157a990d45750827b2959d5e9cd2f03a1269cb43d59ba6d2b31bd",
+    "8038b615ac82fdce422945f223acb825079d969d6ebca7e8ce97e6db8460f639",
+    "686f746a95b6f836d7d70567c302c3f9ebb5ee0def3d1220ee9d4e9f34f5e131",
+    "f07d989f1acc093b83de885830225dee36fe364df71b995fef3008184ea7a6dd",
+    "ed05dd4d068fc00dd22381f9261bf6a8598937b134adb1b29befe90b49a82e03",
+    "628fecb264d2e97260acac7da9be7651fe85f64c85334e8026a30eeed7ee460d",
+    "a49c1d0380688dd9e1898df37e8a7f9e7747212a5b47494173bd2e4a91452fb7",
+    "3152c94df8660eda4c9ac69aa149847543904b35fdf5a3a9fe41856fb079e564",
+    "188764ef6856bdf0c43c9b4f735ab72f853cb0bbb85f7a45b2233bdd9179f524",
+    "000c566dff62dff18df25387f472a8c518d53ab9fa8fbfd99d3541718fa95ee7",
+    "b1e79532d5b97c775ed657e6aea1de1cb3728443c6b35ad80fa7c3c4ed0f4d1e",
+    "f379ccb92b9116442dc65bdc35648a85d3786b34779db7f704a901fa07b00cb6"
+  ] },
+  RITA: { theme: "hive", welcome: "WELCOME, RITA", pw: ["59334f7b2ecbe06c39a3e6499ceb94a905de9595c4682114a2cf93dd8dbcad62"] }
+};
+let WHO = "", theme = "";                 /* "" | "alien" | "hive" */
 /* profile pictures, by initials: a small JPEG carried in the page itself */
 const FACES = { RG: { name: "Rachel G", src: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCADAAMADASIAAhEBAxEB/8QAHAAAAgIDAQEAAAAAAAAAAAAAAwQFBgECBwAI/8QAOBAAAQQBAwIEBAYBAwMFAAAAAQACAxEEBSExEkEGE1FhBxQicSMyQoGRsaEVM1JDU2IWgpLR4f/EABkBAAIDAQAAAAAAAAAAAAAAAAMEAQIFAP/EACIRAAICAgIDAQEBAQAAAAAAAAABAhEDISIxBBJBMlETQv/aAAwDAQACEQMRAD8A5ODssih2Wt/svCieVYzzp3w9zK8POh7iUlXaJ9whc/8Ah6L0ogfm6yP8q9xGo+Fk+Q+TNfAuKFctpc41a1wcf6y5yNIOrnlFgHSANktdjAeQgNG/AXO/io4mDAH/AJOP+AugyjbZc9+Ku0eD93D/AAm/G/Yp5X4Zzy+Qrb8O3lupZFf9sf2qlsrR4Da9+Zl+WNxEOfun834YhgfNF91SWsd191RPFmQ2SbHDeQzdWHVch8cD43PLiBz6Kh5Mkkzi6QuJtBwR+h/IyaoWkJJQw/2WZBR2tDdY7ptCJtYDXfZAvcbI1gtdvvSA2iQrI43j52R7PSl2ncopO1fuoZB4miixvooDnUBXKyxxBtcciTYbhHFoZNQy+pbS3b/sNNdkOQ1C/wCyouyxGC+m0WA1IEJv5eUWE3IEVlDZu9m14HYUtWWButr2FD91UIdI+HLb01xr9ZV7Y2mVwqh8Oo2Dw/E4CnGR3UrvHCCB6rH8hcmbGF8UIlhJG3CLG3gDuUSaItduaWY2bj15S1UGs1yPpAFrnnxVI8vAG+xdf8Lo2VVBc7+KLDK/CY29r7eqb8Z8xXyfwc5rela/Bun5bHTSgmOORtCxVouleGocGL5vUR1HlkY7lW3DYyLHbPM0RNq2tHACeyZE1QnjxtOxHI0pzojbiOrknuqprOAcJ3S0gj2Vq1TVslwIx4KjH/VfwqZqM8uRK4um8wn0VcbJzIThhM8gaCN/VMZOhzMb1VY9QgOxJWQianN3oFP4etS4vQ3Ia5zONxyjOT+C6ivpBy40kPV1NrZKg+oV6djYupQGaLpcO4HZQOpaEOky4t2OWqY5EyJQaIVvP3W5urPCGAQS07ELfq6huiFDw4Ww3oBajcgolAHhcciQv8BovakGR34Mje1ItgQjbagl3OuJ/wBkNEsRbyESAnrFbFDFGit4yQ8HuisqbA2eVs3mitGu9lsXfyqFzq3w0cH6D0Dlsh/tX6CgB7Ki/DB0btCb0inB5Dj+6vsTP4WVnXJmtifFGsnSe6XDCDse6YlYA0nulep7nGktJBkYnNO+r1Ve1/Di1DLhLm9TY96UvmzFoNlRE0luc5x7bIuLWweTaojXYrcrPDpb8mEbDsSgymTU8oxB3RBFyfVNvO5aOzS790IM8nFa0f7kxs/ZFcgajYDKwvnj5ILhE3YV3RMfwjiiiQXHkqZwMZrYwaB9VJRtAGwXRkwnoiAzPD2LJiGJsYHvSg26FFH1QTxh7KoGlfJA3p4URn4/UD0cqXkaIeKLKG3BfomqxtjeRjyGvb7J7U8cwkZcP5e4TOr43zULoyPrb9TSOxXogcrT/LkNkij91dTvYtLHVop2q4Ie/wA2IUXbkBIDAyHcMJClJ5jHK+E7FpUxowimjLS0Fze6ZllcUKKHs6KwzRst3EZTUfh/LdRIoK7RxsHDQEVuw4CWl5bDxwL6VYeHsiRobwkdT0aXTMeRzwenp591eHP6fZVbxLkSy4eQXkiiAAfT1VsGeUpUVy44pFQY7ZGjP132S7dhvaPBTnhaIoeBP8LYG1ruBSyxULHXPhXG7/Q3HavMcQugwkgDcKj/AArYP/TbSO8jv7V6YK4WblXJmti/KMS7t3pJv6WOsJyYmtyPuo7Jf0k3sl5oKiK1ef6w0c2owyB73XwBZtZyMp0uRI83QNBBAJadrDjSutIG3ZobLC/a3uofZEx4TNkkkbMFBKZ2W3HsEGo23QUfg+LIY39L4JW2eSFFNkxkl2XnHjAaKrhMMDeDuobA1iHIb1RvH/0pGPJsXf7q9hA0m/ZIZTQ0EjdZyNThxgTLIAFE5HiXTg7pdOLUPZ1oS1CMxS+Y0WCk8dvT1jizYT2RnYkzCRO1xPABSEMnXMOkilCYKa2VHxKz5XUXPA2futtCzwzLDXO2fsm/HEQaI5O/Cq+JOWSsO4o3a0EveBmS4zOmwyW2+UYPvtwovTXNlxmPEh+oX9k81ob+pzlmTVMei7QRxadxyqt4rFQSH1ACspa0m7Kq/io/gyAdgD/lH8X9A835Kq3tdIsBqRLh2w9UWIgPvlaz6M8MPUbrLW7+626QBwtmNrtwhsk7B8LXV4ZiHB63A/yruJG1yue/DXKLPD7W81I7+1czknb05WZlyK2bGJcUNyyGqPCiNVl8uB77IoXakHvY5oPV70q/4nyujF6Ad3kBAu2ElpEI2QuBdfJR35DYgRfDd1GMkPnxx7jdI6hq3+5Xd3QEVoX9qDZ2qx4QY97et8hsADsl4vGGM94jlwKs1dbqQxNMbmyRzvILmNAojZOt8PxPPW7HbYPNLk4/S/rL4LY08D3CSBpYBy1WNklYZeNgRaipMBmNGXBgDjtsmMuV0OCIhsaVbDJOiHnc3Ke4yv6WA1ulRh6E11SyNBJ2sqSZhNysfoLQHeyi9Q8Kw5VB5kjLeCO6mLKTT+IJNgaY5jRjkj3aUths+XmdbyQ07ITNBnw29OK+Qj/yRZgcaPpfXVQs+pUso/7Qt4xi87T+sC+k8qgNcQbsroesSx5GkvojjhUDyXOc/paT0p/x3xoz865WXHwvk+ZjNFk1tSnwSOO/qqn4QlaPNZdOBqrVtia53V0tuuUjnjydDGJ8T12fZVfxM4dGVuLAAVoLmD8z2CvUqo+I3NccwNc11gEUr+NF+xTM9FXB5FosTrcgjj3RIvzEhajEiWEJFAgrYR9lJHHaNqJKwILNhqE5Fki7/DqI/wChfT/3Xf2rS9xY2r35Va+HljQqrmV4/wAqy5FgDb0tYud8mbeFcUCMryCBdKE1Ql+QwOJpptTjGjpN9goDNdcpdfJr9lXD2TleiKyZxFl2QKaC77qpfMGfKa08l5JVqym9eaWnf8MlVYY3RqMgr8u4+60IJUxCf6R0fQ2RtxmOduXC1NOkYI9iFVdOyizFZsdgE2zOkyXU00PRJmiug2RJ5uQ1hP0g2Fpqt9LN72UdnMyWy9bHGgbpKTTZuRV8D1U7JsndOIHT1bfdTAYx4JoKpYLcqUgzyANHAClotQdjP6ZHWOxKjonsLnRhjDVNVR8RydETXf8AHZWLMzhICerlVbxA4S4r3Dsi49yA5tRZDSZ4djujJPGyX0/TpMuwD0NvdKRMc94A4ulPTzs03TnusBx+lvuU6+OkZsV7W5FYeHYuXNHDK4dLqsFT+g6t5GnamyfId5j4wI7dyozDgwntc7LlLZHHqsJtmBpF2MsgHtavKn2RDHJ7TEvNceXON+6BNJYmAuiKUu7A02jWoN9r7KOy8OGKGZ0OS2U+gHZWg42VyY5LbIscUiQk9RQwmcHFflziNrmtNXbuyM3SApW6RfJMJ1ktb/C2Zi9UdFlOPf0U98nW5uvstPluBWyUbG/8w3gR3laKLNXK/wDtWWZ7ZI9jZVN8K5LYdKLeqvxn/wBqQy9aGLu1247LMyQcpOjQxySiiZyMgRY7hZBOyrkr+qQi9gvHVvnIXP8Ay0DsgRPurq+UTHj9QeSdiz5OrW4YybDozaWfpJGUZALD37j0CzjOdN4mArZjCVNhzGteR+kEosnWgWNXs2gw+uAR3VbbKPzdQGiygSxkgnkKc0maPKha5rmlD1rS48+ExuA+/ogpb2O9rQqM+WeNj247ulwBBpbRyuaCTjPJA9FvgRZWHEyNjrY3bdSBysssIEbON1UlEK7U44yXOhewX/xSp1KDLk6I3hzruk5mZGQ8OYY2C+9IOlaJG3IORIQ55HpsFOkc7sxJjO6RYKjdXw3HDfG0buCtOVj9DG/dQ+a5jskRni+FMHTspkSaor50aPT9K8+QW7Yn1VWyc2TPyLO0bNmj0XQfETQ7TZOkbBtgBczi/Od+60fH5L2ZleRxfqjeU/V7dkImjxujTM6T62h9JJrumRc0ra65KK3Zrx7LHRtytgwhjifRcQ2AAoj1WQ8tNgkH2WDzyshpJpTRFneXY9t/wtJMboHG3Sb/AIUszHBoVssZGOOkitqKTo1GtHGG61NhiWBhrpleR/K0yNenygG30+6Rzx0ZmRRv8Vw/ygRW54CJ/nHsTeWXRcNOnccFvW6ybR3ag2ORxLq6W0o+IGKCLfYhR+ZP+K4A3ugKFst7tFi8LNdPmZWYeAOhp91MzO6GuH/L6f5Uf4XaItGa4cvkJKa1OQsxXSD9Lhugy3MbhqBXtC8Qu0nUJcHINNEhDSfuugQzMzIQ4Ou1yXxXjmLVTK3YSgPBCsHhjXpMIMbO4mN9AEnhFyYlXsiMObfqy/xtAoXt2tMuhqMuICj8fMimDXtcD+6eOUwx0XhJs0ERWRjtfJx3RoWRxAFxoDlAzM+HHtzntFe6rmf4lE/U2KxGFKg2UnkjEm9U1WKAGUmmgU0eqqkepHNzy8XQHKUkyMjVpHOkJbAzgeqd0nEs3Wzv6TEcaitiUsrk9D2fMX4T2OBILFznoIe4H1K6VnNEUDmdgwrnT2hsrqur5TPj9Cvkdh4WfMscNrAS5jcx/S4UVmDIME4d24Kk8/GEsYyGdh/IRXKnQJRtWiKeN9+y87Zp59ll+w9dlpIbaK9ERAmDA33CyzZxWBxVbrZgtWIPpeOGxeyHkxkD9v5TzI7r1WmQwgG+4opNdmxLo+ctTNZ2SBz5rv7KFhsMs7WepTGps6c/KHpM/wDsrGltaMyInb6gjPoy/wDondUeMdjI27dAFquvmuQgnkqW8Q5I+YLPRV4yW/8AdVhHRMns6R4aBOhsru5xH2W+pW/Tp2d6J/dL+Ec6OTG+UDvyt6h+6ksiMEPjPDrSbVSNCLuBSfEwM2Ngz9nRgH7hFxouvAZQvfdbZDRmabLjX9eNIS33Ca0iAvgDANu9o8pVEXhG5Ejp8DyWNEz2gtGwKmjpcz2bZMijoI/JmbXFUpuGYhrfYUkZPZoQWiHydCaAXSzPf7EpGfT2MiIYBwrDkkllmkg6PqvbZSpnSx2Qox/JxXDhO4DmxxBx4sBb5kYEdCqul7FiAwHBw+q9vsiXaAONMJrJAwp3jtGf6XOWVI1wd+YFXvWchrNJnBeNmUuexvLXgji05464ieeVs8+2kghS+hZQkJxJtx+m0hkNDwHt9N0GF7oZRKw0WmwjTj7LQPHP1kNaniPw5nbfQTYKT7fsrNP5es6b5oI8xo3HoVWy0tLgRuAoxStbOzQ9XoDyfsVu078rDRt91sG2fb2RWBPqiFlNCFks2PrRTDDTeEDJcek9tjykUbEuj511VhGZk1Vec/8AspTEcW5MZJ4cEfUpLz8oA/8AVf8A2k2mg5/pvaZrRlfR7XLk1AjpIBAN+yhn0HkN4tWDK1TBzoRTHics6bI2CgvIMjnOYL+66HR0ux7T9Vn03KinYb6eW+oVyf4jxJomP6qLvdc7tzXFpRPNNUNgFWeJS2EhlcVRKT5hh1hz4nWx54B5B7K26RGOlxA2Jv7BUbTo/Py22LrddB0+MMhaexS/kaVDPipt2Ouip1hpIT8DLbwBa0ia2RgI3KOwFqQZpJC+QzpaQgtiseybfGXbnhCmcY2GgQVFksjMqIltVudliDGe6J5umtFLM75BIKFg8pXM1VzB8tGyh+oo8VoVyaK34jyulr4ASSf6VbogVRVnztNOTmMnneWwvNOfX5QkNak05krY9Pid0sFOe79Z9Vp4lx0ZeW72R+O8fkdwRytHs6HV2U/4f0TG1SST5jIbAxjeokmrSep4+Hj5MkWPIZ2tP0v9UWqYK9A9GzxhzlrwfKkFfutdTZH5jpIuHKch8P4DdAZnzZQEzgSGD/AVfnDS3a+FX0V+yLyyNxUWJBNafjHKbktbfUxheP2SgHdT/g2LzdRyGEbOiIXTlSsiEbdH0N8yGM6nEADuTSqviD4haNphcw5AnkA/LFv/AJXPvGHj3J1eZ2NhSPjxGGiWmjJ/+KlyOsm0KGP+jWTyfkQuVl/MZE0jQQHvLhfazaEJC0X2QwTXKPjTthEgdEJA4Vv2ROhTsLG5r3gNad2ngJUZD2immh7p/CzHYLvNij6mk9JcRx7KNmkD5XO2AJOy5Etmrnl7uo91m6BtYo1wFiyRZNqSB7R8puPnMdIQGE0V0rFDJMdpiIIIXJiQpPS/EWdpVCOQvj/4P3QM+Fz2hnx86hpnVMFp6S27IKcDauwFStL+IGL1D5uBzCeXN3CsOJ4p0nNrozI2k9nGikJYZLtGnDPCS0yTcDuk8px6q7plmo4TmkDJhP8A7glZp8Xr6nZMX/yCH6MI5o0fB9F1yoifEBnJHdSeRrmmxNIdlxe/1BV/O8X6XASISZ3ew2RoY5fwXy5ILtk1BhxyxFjwC0iqpUzxXosWlyeZFI0tcdmXuELM8Z50wc3GDYGnaxuaUG98uRJ5k0j5HHu42n8OOUezPz5YS6DRSvBaGk2dgLRsrGycST8ZnTYsEcJS/Q/upFjNT1aHpYWyMZQ3IBR26FUBZLkPxDXWYgdz2WocHQOPek9Dpus40L8duO10cg3F8JTIxMjEic2ZgYSOLUKVkUxJqm/CeYzF1T6zTXtLb9FCRmvdbtsWQdx6Lpx9lReEvV2ZvsOFg791qFi1xU2sVSYx2lzg0NJJNABLtG9qQwsXIcyTKhZUcIvrdt/CiRaITVZY4jDpsJaRH9T3erio3JgbC+nEEnmkNkxE/mSnqN2i5GRDNZAPV6qKJY2IsbUMZrYPwp2Ddp/Uotv5XWdwURk7o3B8Z6SBVhD/AEyX6gqyVENnuV7tusLO4CkqbBwGy9d/f2WiyPZdRwQOI4c7f3XnEu36nH91pRK2HG6ikTbNSxp3IXhwtuxWKseylIhmBzuvDaj2XhQNrw9VJBsRf3pZY+SM2x7mkehWK4WRyuaOHG6rkMbTpHk+pchyzPkb1vcST6pc78ojr8pg9VCikTYNp4rsiQj6w0nYlaDlN4EPn5IZXG9BdLo6Kt0f/9k=" } };
 
@@ -270,7 +305,7 @@ const flash = (t, ms = 1800) => { const f = $("flash"); f.textContent = t; f.cla
 const setState = (t, cls = "") => { const s = $("state"); s.textContent = t; s.className = cls; };
 const paintWho = () => { $("whot").textContent = WHO || "SIGN IN"; $("who").classList.toggle("on", !!WHO); $("who").setAttribute("aria-label", WHO ? "Signed in as " + WHO : "Sign in");
   const f = FACES[WHO]; $("whoimg").hidden = !f; if (f) $("whoimg").src = f.src; else $("whoimg").removeAttribute("src"); $("who").classList.toggle("pic", !!f);
-  document.documentElement.classList.toggle("alien", alien); };
+  for (const t of ["alien", "hive"]) document.documentElement.classList.toggle(t, theme === t); };
 
 const paintTop = () => { $("rf").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size;
   $("lens").textContent = LENSES[lensIdx].label; $("lens").classList.toggle("ana", anaOn);
@@ -388,7 +423,7 @@ function capture() {                 /* the negative: centre crop for the 33, lo
 /* ---------- shutter -> bath -> print ---------- */
 async function shoot() {
   if (busy || labDead || !workerVer) return;
-  sfx("blip");
+  sfx("shutter");
   const c = capture(); if (!c) { flash("NO FRAME"); return; }
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93)); c.width = c.height = 0;
   if (!blob) { flash("NEGATIVE FAILED"); return; }
@@ -409,8 +444,8 @@ async function shoot() {
 async function bath(id, blob, seed, leak, px) {
   if (busy) return;                    /* one frame at a time, always */
   busy = true; cooking.add(id); $("shutter").disabled = true; $("bath").classList.add("on"); setState("DEVELOPING", "busy");
-  const word = alien ? "BEAMING UP" : "DEVELOPING"; $("bathtext").textContent = word;
-  sfx("loon");
+  const word = theme === "alien" ? "BEAMING UP" : theme === "hive" ? "IN THE HIVE" : "DEVELOPING"; $("bathtext").textContent = word;
+  sfx("develop");
   stopCamera();                        /* the bath gets the phone to itself */
   let wake = null; try { wake = await navigator.wakeLock.request("screen"); } catch (e) {}
   const t0 = Date.now(); const tick = setInterval(() => { $("bathtext").textContent = word + "  " + Math.round((Date.now() - t0) / 1000) + "s"; }, 1000);
@@ -428,7 +463,7 @@ async function bath(id, blob, seed, leak, px) {
   clearInterval(tick); try { wake && wake.release(); } catch (e) {}
   $("bath").classList.remove("on"); busy = false; cooking.delete(id);
   paintStrip();
-  if (ok) { sfx("fanfare"); await openPrint(id); }
+  if (ok) { sfx("print"); await openPrint(id); }
   /* a fresh lab for the next frame: Pyodide's heap only grows, so the worker is
      retired after every bath and warms up again while the print is being looked at */
   spawnLab();
@@ -495,30 +530,67 @@ $("pstage").addEventListener("pointerup", async () => {
 });
 $("pstage").addEventListener("contextmenu", e => e.preventDefault());
 
-/* ---------- the visitor's sounds: synthesized on the spot, no files, alien only.
-   iOS opens the audio context only inside a tap, so the first sound is always
-   one a finger caused (shutter, lens, sign-in); the print's fanfare rides the
-   context that tap opened. ---------- */
+/* ---------- the visitors' sounds: synthesized on the spot, no files, themed
+   sign-ins only. iOS opens the audio context only inside a tap, so the first
+   sound is always one a finger caused (shutter, lens, sign-in); the print's
+   sound rides the context that tap opened. Seven moments, one set per sky:
+   shutter, lens, develop, print, welcome, nope, bye. ---------- */
 let actx = null;
 const audio = () => { try { if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; actx = new C(); } if (actx.state === "suspended") actx.resume().catch(() => {}); return actx; } catch (e) { return null; } };
-function tone(c, t0, dur, f0, f1, type = "sine", gain = 0.12, vib = 0) {
+function tone(c, t0, dur, f0, f1, type = "sine", gain = 0.12, vib = 0, lp = 0) {
   const o = c.createOscillator(), g = c.createGain(); o.type = type;
   o.frequency.setValueAtTime(f0, t0); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
   if (vib) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 5.5; lg.gain.value = vib; l.connect(lg).connect(o.frequency); l.start(t0); l.stop(t0 + dur + 0.05); }
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.025); g.gain.setValueAtTime(gain, t0 + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+  let out = g; if (lp) { const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = lp; g.connect(f); out = f; }
+  o.connect(g); out.connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+/* a bee: a sawtooth with a slow wobble, chopped by its own wingbeat, under a low-pass */
+function buzz(c, t0, dur, f = 190, gain = 0.07) {
+  const o = c.createOscillator(), g = c.createGain(), w = c.createGain(), lfo = c.createOscillator(), lg = c.createGain(), f1 = c.createBiquadFilter();
+  o.type = "sawtooth"; o.frequency.setValueAtTime(f, t0); o.frequency.linearRampToValueAtTime(f * 1.12, t0 + dur * 0.5); o.frequency.linearRampToValueAtTime(f * 0.95, t0 + dur);   /* a pass: nearer, then away */
+  lfo.type = "sine"; lfo.frequency.value = 27; lg.gain.value = 0.5; w.gain.value = 0.5; lfo.connect(lg).connect(w.gain);
+  f1.type = "lowpass"; f1.frequency.value = 1400; f1.Q.value = 2;
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.05); g.gain.setValueAtTime(gain, t0 + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(w).connect(f1).connect(g).connect(c.destination); o.start(t0); lfo.start(t0); o.stop(t0 + dur + 0.05); lfo.stop(t0 + dur + 0.05);
+}
+/* a hive: four bees at once, each with its own wingbeat, under a low-pass, swelling in and out */
+function hum(c, t0, dur, gain = 0.07, rise = 0.3) {
+  const f1 = c.createBiquadFilter(); f1.type = "lowpass"; f1.frequency.value = 900; f1.Q.value = 1.5;
+  const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + rise); g.gain.setValueAtTime(gain, t0 + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  [[165, 24], [182, 27], [205, 29], [248, 31]].forEach(([f, wing], i) => {
+    const o = c.createOscillator(), w = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
+    o.type = "sawtooth"; o.frequency.setValueAtTime(f, t0); o.frequency.linearRampToValueAtTime(f * (1.06 - 0.03 * i), t0 + dur * 0.6); o.frequency.linearRampToValueAtTime(f * 0.98, t0 + dur);
+    lfo.frequency.value = wing; lg.gain.value = 0.5; w.gain.value = 0.5; lfo.connect(lg).connect(w.gain);
+    o.connect(w).connect(f1); o.start(t0); lfo.start(t0); o.stop(t0 + dur + 0.05); lfo.stop(t0 + dur + 0.05);
+  });
+  f1.connect(g).connect(c.destination);
 }
 const SFX = {
-  blip:      (c, t) => { tone(c, t, 0.07, 880, 880, "square", 0.07); tone(c, t + 0.085, 0.09, 1320, 1320, "square", 0.07); },        /* the shutter: a saucer blip */
-  theremin:  (c, t) => { tone(c, t, 0.38, 560, 920, "sine", 0.1, 28); },                                                             /* the lens: a wobble */
-  loon:      (c, t) => { tone(c, t, 0.95, 720, 1010, "sine", 0.13, 14); tone(c, t + 1.0, 0.85, 1010, 800, "sine", 0.11, 12); },     /* developing: the loon's wail */
-  fanfare:   (c, t) => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(c, t + i * 0.11, 0.17, f, f, "square", 0.06)); },        /* the print: five rising notes */
-  landing:   (c, t) => { tone(c, t, 1.3, 170, 1500, "sawtooth", 0.05, 45); SFX.loon(c, t + 1.05); },                                   /* sign-in: the mothership, then the loon */
-  nope:      (c, t) => { tone(c, t, 0.18, 330, 330, "square", 0.07); tone(c, t + 0.2, 0.32, 220, 150, "square", 0.07); },             /* wrong password */
-  powerdown: (c, t) => { tone(c, t, 0.6, 900, 80, "sawtooth", 0.06); },                                                               /* sign-out */
+  alien: {
+    shutter: (c, t) => { tone(c, t, 0.07, 880, 880, "square", 0.07); tone(c, t + 0.085, 0.09, 1320, 1320, "square", 0.07); },        /* a saucer blip */
+    lens:    (c, t) => { tone(c, t, 0.38, 560, 920, "sine", 0.1, 28); },                                                             /* a theremin wobble */
+    develop: (c, t) => { tone(c, t, 0.95, 720, 1010, "sine", 0.13, 14); tone(c, t + 1.0, 0.85, 1010, 800, "sine", 0.11, 12); },     /* the loon's wail */
+    print:   (c, t) => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(c, t + i * 0.11, 0.17, f, f, "square", 0.06)); },        /* five rising notes */
+    welcome: (c, t) => { tone(c, t, 1.3, 170, 1500, "sawtooth", 0.05, 45); SFX.alien.develop(c, t + 1.05); },                          /* the mothership, then the loon */
+    nope:    (c, t) => { tone(c, t, 0.18, 330, 330, "square", 0.07); tone(c, t + 0.2, 0.32, 220, 150, "square", 0.07); },
+    bye:     (c, t) => { tone(c, t, 0.6, 900, 80, "sawtooth", 0.06); },
+  },
+  hive: {
+    shutter: (c, t) => { buzz(c, t, 0.32, 210, 0.08); },                                                                             /* a bee passes */
+    lens:    (c, t) => { buzz(c, t, 0.22, 290, 0.07); },                                                                             /* a quick one, higher */
+    develop: (c, t) => { hum(c, t, 1.9, 0.07, 0.4); },                                                                               /* the hive, inside */
+    print:   (c, t) => { buzz(c, t, 0.55, 230, 0.07); tone(c, t + 0.3, 0.3, 200, 110, "sawtooth", 0.03, 0, 700); },                /* a bee lands */
+    welcome: (c, t) => { hum(c, t, 2.6, 0.08, 0.9); buzz(c, t + 0.5, 0.4, 240, 0.06); buzz(c, t + 1.4, 0.5, 205, 0.06); },          /* the swarm comes up, two bees cross */
+    nope:    (c, t) => { const o = c.createOscillator(), w = c.createGain(), lfo = c.createOscillator(), lg = c.createGain(), g = c.createGain(), f = c.createBiquadFilter();
+               o.type = "sawtooth"; o.frequency.setValueAtTime(280, t); o.frequency.linearRampToValueAtTime(330, t + 0.4); lfo.frequency.value = 42; lg.gain.value = 0.5; w.gain.value = 0.5; lfo.connect(lg).connect(w.gain);
+               f.type = "lowpass"; f.frequency.value = 2200; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.03); g.gain.setValueAtTime(0.09, t + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+               o.connect(w).connect(f).connect(g).connect(c.destination); o.start(t); lfo.start(t); o.stop(t + 0.45); lfo.stop(t + 0.45); },   /* an angry one */
+    bye:     (c, t) => { buzz(c, t, 0.8, 200, 0.07); },                                                                               /* the bee leaves */
+  },
 };
-function sfx(name, ctx) { if (!alien && !ctx) return; const c = ctx || audio(); if (!c) return; try { SFX[name](c, c.currentTime + 0.01); } catch (e) {} }
-self.__sfx = sfx;                              /* the ritual renders the sounds offline through this */
+function sfx(name, ctx, which) { const set = SFX[which || theme]; if (!set || (!theme && !ctx)) return; const c = ctx || audio(); if (!c) return; try { set[name](c, c.currentTime + 0.01); } catch (e) {} }
+self.__sfx = (which, name, ctx) => sfx(name, ctx, which);     /* the ritual renders the sounds offline through this */
 
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, "0")).join("");
 /* initials from whatever was typed: "Rachel G" -> RG, "rg" -> RG */
@@ -526,17 +598,18 @@ const initials = s => { const w = String(s || "").toUpperCase().replace(/[^A-Z ]
 async function signIn(typed, pw) {
   const who = initials(typed);
   if (!who) { flash("INITIALS?"); return false; }
-  if (THEMED[who]) {
+  const T = THEMED[who];
+  if (T) {
     let h = ""; try { h = await sha256(String(pw || "").trim().toLowerCase()); } catch (e) {}
-    if (!THEMED[who].includes(h)) { sfx("nope", alien ? null : audio()); flash("THAT IS NOT THE PASSWORD"); return false; }
-    alien = true;
+    if (!T.pw.includes(h)) { sfx("nope", audio(), T.theme); flash("THAT IS NOT THE PASSWORD"); return false; }
+    theme = T.theme;
   }
   WHO = who;
   paintWho(); paintPanel();
-  if (alien) { sfx("landing"); flash("WELCOME ABOARD, " + who, 2600); } else flash("SIGNED IN - " + who);
+  if (T) { sfx("welcome"); flash(T.welcome, 2800); } else flash("SIGNED IN - " + who);
   return true;
 }
-function signOut() { sfx("powerdown"); WHO = ""; alien = false; paintWho(); paintPanel(); flash("SIGNED OUT"); }
+function signOut() { sfx("bye"); WHO = ""; theme = ""; paintWho(); paintPanel(); flash("SIGNED OUT"); }
 
 /* ---------- panel ---------- */
 const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
@@ -549,7 +622,7 @@ $("si-go").onclick = async () => { if (await signIn($("si-ini").value, $("si-pw"
 $("si-pw").addEventListener("keydown", e => { if (e.key === "Enter") $("si-go").click(); });
 $("si-ini").addEventListener("keydown", e => { if (e.key === "Enter") $("si-pw").focus(); });
 $("pana").onclick = () => { anaOn = !anaOn; try { localStorage.ana = anaOn ? "1" : "0"; } catch (e) {} paintPanel(); paintTop(); flash(anaOn ? "SQUEEZE " + SQUEEZE + "X - THE LAB DESQUEEZES" : "SPHERICAL"); };
-$("lens").onclick = () => { sfx("theremin"); setLens(lensIdx + 1); };
+$("lens").onclick = () => { sfx("lens"); setLens(lensIdx + 1); };
 $("menu").onclick = () => { paintPanel(); $("panel").classList.add("on"); };
 $("pclose").onclick = () => $("panel").classList.remove("on");
 $("panel").onclick = e => { if (e.target === $("panel")) { $("panel").classList.remove("on"); closeSign(); } };

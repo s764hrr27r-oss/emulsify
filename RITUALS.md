@@ -1,4 +1,4 @@
-# EMULSIFY rituals — b228 / w3.24
+# EMULSIFY rituals — b230 / w3.24
 
 Run all before every stage. Each has caught a real fault.
 
@@ -27,10 +27,14 @@ no backticks, no ${, no single backslashes. The golden harness refuses NUL.
                                          negative capture() cut (size within 1.5 px, centred within 1 px) for
                                          every lens, under the squeeze, and turned. b221 showed the whole frame
                                          at the 33 (the print was the middle 79%); this line fails on it 5 times.
-    python3 e2e-visitor.py               b223-b228 THE VISITOR: the SIGN IN pill sits top left (one tap opens the sheet; signed in it reads the initials and opens the panel, SIGN OUT first); the sheet opens with Rachel G typed in, no picture anywhere before sign-in (the pill wears her 192 px JPEG, carried in the page, only once signed in) and
-                                         the cursor in the password; a wrong password is refused; every one of the
-                                         twelve passwords opens the sky in any case; nothing is stored and a reload
-                                         signs out; sign-out from the panel; a plain sign-in has no sky; a frame
-                                         develops under the sky; the seven sounds render offline from the page's
-                                         own synthesizer to sfx-*.wav (peak 0.06-0.13, nothing clips). Writes
-                                         visitor-*.png.
+    python3 e2e-visitor.py               b223-b230 THE VISITORS: the SIGN IN pill top left (one tap opens the sheet;
+                                         signed in it reads the initials and opens the panel, SIGN OUT first); the
+                                         sheet opens with Rachel G typed in, no picture anywhere before sign-in (the
+                                         pill wears her 192 px JPEG only once signed in); a wrong password is refused;
+                                         every one of RG's twelve passwords opens the saucer sky in any case; RITA with
+                                         RG's password is refused, RITA + enemyofman (any case) opens the hive (bee
+                                         badge, bee shutter, serif face, IN THE HIVE, plain WELCOME, RITA, no lines); nothing is
+                                         stored and a reload signs out; a plain sign-in has no sky; a frame develops
+                                         under each sky; fourteen sounds (seven per sky) render offline from the
+                                         page's own synthesizer to sfx-<sky>-*.wav (peak 0.05-0.19, nothing clips).
+                                         Writes visitor-*.png.

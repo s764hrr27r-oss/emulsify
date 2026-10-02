@@ -10,8 +10,9 @@ from playwright.async_api import async_playwright
 STUB = open("/home/claude/emulsify/e2e-stub.js").read()
 URL = "http://127.0.0.1:8765/index.html"
 OUT = "/home/claude/emulsify/"
-SOUNDS = {"blip": 0.4, "theremin": 0.6, "loon": 2.2, "fanfare": 1.0, "landing": 3.2, "nope": 0.8, "powerdown": 0.9}
-RENDER = """async ([name, secs]) => { const c = new OfflineAudioContext(1, Math.ceil(44100 * secs), 44100); self.__sfx(name, c);
+SOUNDS = {"alien": {"shutter": 0.4, "lens": 0.6, "develop": 2.2, "print": 1.0, "welcome": 3.2, "nope": 0.8, "bye": 0.9},
+          "hive": {"shutter": 0.6, "lens": 0.5, "develop": 2.2, "print": 2.2, "welcome": 3.2, "nope": 0.6, "bye": 1.0}}
+RENDER = """async ([which, name, secs]) => { const c = new OfflineAudioContext(1, Math.ceil(44100 * secs), 44100); self.__sfx(which, name, c);
   const b = await c.startRendering(); return Array.from(b.getChannelData(0)); }"""
 async def sign(pg, ini, pw, via="pill"):
     if via == "pill": await pg.click("#who")
@@ -82,19 +83,38 @@ async def main():
         code = await pg.text_content("#pcode"); check(bool(code and "·" in code), f"a frame develops under the sky: print code '{code}'")
         await pg.click("#back"); await pg.wait_for_function("document.getElementById('state').textContent === 'READY'", timeout=20000)
         print("  the sounds, rendered offline from the page's own synthesizer:")
-        for name, secs in SOUNDS.items():
-            data = await pg.evaluate(RENDER, [name, secs])
-            peak = max(abs(x) for x in data); rms = (sum(x * x for x in data) / len(data)) ** 0.5
-            nz = [i for i, x in enumerate(data) if abs(x) > 1e-4]; dur = (nz[-1] - nz[0]) / 44100 if nz else 0
-            with wave.open(OUT + f"sfx-{name}.wav", "wb") as w:
-                w.setnchannels(1); w.setsampwidth(2); w.setframerate(44100)
-                w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, x)) * 32767)) for x in data))
-            check(peak > 0.02 and peak < 0.6 and dur > 0.05, f"sfx {name:9s} {dur:.2f}s  peak {peak:.2f}  rms {rms:.3f}  -> sfx-{name}.wav")
+        for which, names in SOUNDS.items():
+            for name, secs in names.items():
+                data = await pg.evaluate(RENDER, [which, name, secs])
+                peak = max(abs(x) for x in data); rms = (sum(x * x for x in data) / len(data)) ** 0.5
+                nz = [i for i, x in enumerate(data) if abs(x) > 1e-4]; dur = (nz[-1] - nz[0]) / 44100 if nz else 0
+                with wave.open(OUT + f"sfx-{which}-{name}.wav", "wb") as w:
+                    w.setnchannels(1); w.setsampwidth(2); w.setframerate(44100)
+                    w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, x)) * 32767)) for x in data))
+                check(peak > 0.02 and peak < 0.6 and dur > 0.05, f"sfx {which:5s} {name:8s} {dur:.2f}s  peak {peak:.2f}  rms {rms:.3f}  -> sfx-{which}-{name}.wav")
         await pg.click("#who"); await pg.click("#psign"); await asyncio.sleep(0.2)    # sign out
         r = await sign(pg, "L B", "")
         check(not r[0] and r[1] == "LB" and r[4] == "" and "SIGNED IN - LB" in r[2], f"a plain sign-in has no sky: alien={r[0]} who='{r[1]}' flash='{r[2]}'")
         nopic = await pg.evaluate("document.getElementById('whoimg').hidden")
         check(nopic, "and no picture on the pill for initials without one")
+        await pg.click("#who"); await pg.click("#psign"); await asyncio.sleep(0.2)    # sign out LB
+        r = await sign(pg, "Rita", "banjo")
+        check(not r[0] and "NOT THE PASSWORD" in r[2], f"Rita with Rachel's password: refused ({r[2]})")
+        await pg.click("#si-x"); await pg.click("#pclose")
+        r = await sign(pg, "Rita", "EnemyOfMan")
+        hive = await pg.evaluate("[document.documentElement.classList.contains('hive'), document.documentElement.classList.contains('alien'), getComputedStyle(document.getElementById('whobee')).display !== 'none', getComputedStyle(document.body).fontFamily]")
+        check(hive[0] and not hive[1] and r[1] == "RITA" and r[2] == "WELCOME, RITA" and hive[2], f"Rita + EnemyOfMan: hive={hive[0]} alien={hive[1]} pill='{r[1]}' bee badge={hive[2]} flash='{r[2]}' font='{hive[3][:24]}'")
+        await pg.wait_for_function("document.getElementById('video').videoWidth > 0", timeout=10000); await asyncio.sleep(0.3)
+        await pg.screenshot(path=OUT + "visitor-hive-camera.png")
+        await pg.click("#shutter"); await pg.wait_for_function("document.getElementById('bath').classList.contains('on')", timeout=5000)
+        word = await pg.text_content("#bathtext"); await pg.screenshot(path=OUT + "visitor-hive-developing.png")
+        await pg.wait_for_function("document.getElementById('print').classList.contains('on')", timeout=120000); await asyncio.sleep(0.3)
+        shown = await pg.evaluate("document.getElementById('flash').classList.contains('on')"); await pg.screenshot(path=OUT + "visitor-hive-print.png")
+        check(word.startswith("IN THE HIVE") and not shown, f"under the hive a frame is '{word}' and the print comes with no line (flash shown={shown})")
+        await pg.click("#back"); await pg.wait_for_function("document.getElementById('state').textContent === 'READY'", timeout=20000)
+        await pg.click("#who"); await pg.click("#psign"); await asyncio.sleep(0.2)
+        r = await pg.evaluate("[document.documentElement.className, document.getElementById('whot').textContent]")
+        check(r[0] == "" and r[1] == "SIGN IN", f"Rita signs out: html class='{r[0]}' pill='{r[1]}'")
         await ctx.close()
         ctx = await b.new_context(viewport={"width": 932, "height": 430}, device_scale_factor=2, is_mobile=True, has_touch=True, permissions=["camera"])
         pg = await ctx.new_page(); pg.on("pageerror", lambda e: errs.append(str(e)))
