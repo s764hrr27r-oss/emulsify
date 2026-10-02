@@ -1,4 +1,4 @@
-# EMULSIFY rituals — b222 / w3.24
+# EMULSIFY rituals — b224 / w3.24
 
 Run all before every stage. Each has caught a real fault.
 
@@ -27,3 +27,8 @@ no backticks, no ${, no single backslashes. The golden harness refuses NUL.
                                          negative capture() cut (size within 1.5 px, centred within 1 px) for
                                          every lens, under the squeeze, and turned. b221 showed the whole frame
                                          at the 33 (the print was the middle 79%); this line fails on it 5 times.
+    python3 e2e-visitor.py               b223-b224 THE VISITOR: the sign-in (wrong password refused, "Rachel G" -> RG,
+                                         the right password turns the sky alien, survives a reload, sign-out clears
+                                         it, a plain sign-in has no sky), a frame develops under the sky, and the
+                                         seven sounds render offline from the page's own synthesizer to sfx-*.wav
+                                         (peak 0.06-0.13, nothing clips). Writes visitor-*.png.

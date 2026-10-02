@@ -81,6 +81,58 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #panel button:last-child { border-bottom:0; color:var(--mute); }
 #panel button.warn { color:var(--warn); }
 #panel button.ok { color:var(--ok); }
+#who { display:none; align-items:center; gap:5px; margin-right:10px; }
+#who.on { display:inline-flex; }
+#who svg { display:none; }
+#signin .row { display:flex; align-items:center; gap:14px; padding:12px 24px; border-bottom:1px solid var(--line); text-transform:uppercase; color:var(--mute); }
+#signin .row span { width:84px; flex:0 0 auto; }
+#signin input { flex:1; min-width:0; background:#0a0a0a; border:1px solid var(--line); border-radius:6px; color:var(--ink); font:inherit; letter-spacing:inherit; padding:10px 12px; outline:none; }
+#signin input:focus { border-color:var(--mute); }
+#si-ini { text-transform:uppercase; }
+/* b223 THE VISITOR. One sign-in has its own sky: initials RG, with the password,
+   turn the lab alien - a night sky of fixed stars and a pastel planet (gradients,
+   nothing moves), a saucer hovering over the finder with its beam on it, the
+   shutter as a saucer with its pilot in the dome, the lens as a ringed planet,
+   candy pink and alien green, rounded type, and sounds. Colours, glows, artwork
+   and a typeface only: every size, margin and rotation rule above is untouched. */
+html.alien { --bg:#070a1c; --ink:#e4ffe6; --mute:#8d9bd6; --line:#262d66; --warn:#ff7ee0; --ok:#9dff5a; --ui:ui-rounded,"SF Pro Rounded",-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif; }
+html.alien body { background:
+  radial-gradient(circle at 7% 84%, #ffd1f3 0 19px, #ff7ee0 20px 23px, transparent 24px),
+  radial-gradient(1.2px 1.2px at 8% 12%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 22% 31%, #cfe4ff 60%, transparent 61%),
+  radial-gradient(1.6px 1.6px at 37% 9%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 52% 24%, #ffd1f3 60%, transparent 61%),
+  radial-gradient(1.3px 1.3px at 68% 15%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 83% 34%, #cfe4ff 60%, transparent 61%),
+  radial-gradient(1.5px 1.5px at 93% 8%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 14% 62%, #fff 60%, transparent 61%),
+  radial-gradient(1.2px 1.2px at 46% 71%, #cfe4ff 60%, transparent 61%), radial-gradient(1px 1px at 77% 58%, #fff 60%, transparent 61%),
+  radial-gradient(1.4px 1.4px at 61% 88%, #ffd1f3 60%, transparent 61%), radial-gradient(1px 1px at 29% 93%, #fff 60%, transparent 61%),
+  radial-gradient(1.2px 1.2px at 90% 79%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 4% 44%, #cfe4ff 60%, transparent 61%),
+  radial-gradient(1px 1px at 58% 50%, #fff 60%, transparent 61%), radial-gradient(1.3px 1.3px at 33% 56%, #fff 60%, transparent 61%),
+  radial-gradient(ellipse 60% 40% at 50% 110%, #1b1550 0%, transparent 70%), var(--bg); }
+html.alien #who svg { display:inline; width:17px; height:17px; }
+html.alien #who { color:var(--ok); }
+html.alien #state { text-shadow:0 0 8px rgba(157,255,90,.55); }
+html.alien #state.busy { color:var(--warn); text-shadow:0 0 8px rgba(255,126,224,.6); }
+/* the saucer over the finder: a pseudo-element of the gate, painted before the
+   finder so the beam pours in behind its top edge (beside it when turned); it takes no space */
+html.alien #gate::before { content:""; position:absolute; left:50%; top:-6px; width:160px; height:150px; margin-left:-80px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 150'%3E %3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%239dff5a' stop-opacity='.45'/%3E%3Cstop offset='1' stop-color='%239dff5a' stop-opacity='0'/%3E%3C/linearGradient%3E %3ClinearGradient id='h' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23dff7e5'/%3E%3Cstop offset='1' stop-color='%234f8f66'/%3E%3C/linearGradient%3E%3C/defs%3E %3Cpolygon points='62,36 98,36 150,150 10,150' fill='url%28%23b%29'/%3E %3Cellipse cx='80' cy='21' rx='11' ry='9' fill='%23cfeedd' fill-opacity='.8'/%3E%3Cellipse cx='80' cy='23' rx='4' ry='4.6' fill='%239dff5a'/%3E%3Cellipse cx='78.6' cy='22.6' rx='1.1' ry='1.6' fill='%23070a1c'/%3E%3Cellipse cx='81.4' cy='22.6' rx='1.1' ry='1.6' fill='%23070a1c'/%3E %3Cellipse cx='80' cy='30' rx='30' ry='8' fill='url%28%23h%29'/%3E%3Cellipse cx='80' cy='34.5' rx='19' ry='5' fill='%232a5436'/%3E %3Ccircle cx='56' cy='31' r='1.6' fill='%23ff7ee0'/%3E%3Ccircle cx='68' cy='35.5' r='1.6' fill='%239dff5a'/%3E%3Ccircle cx='80' cy='37' r='1.6' fill='%23ff7ee0'/%3E%3Ccircle cx='92' cy='35.5' r='1.6' fill='%239dff5a'/%3E%3Ccircle cx='104' cy='31' r='1.6' fill='%23ff7ee0'/%3E %3Ccircle cx='40' cy='90' r='1.2' fill='%23eafff1' fill-opacity='.8'/%3E%3Ccircle cx='118' cy='70' r='1' fill='%23eafff1' fill-opacity='.7'/%3E%3Ccircle cx='96' cy='112' r='1.3' fill='%23ffd1f3' fill-opacity='.8'/%3E %3C/svg%3E") center/contain no-repeat; pointer-events:none; }
+html.alien #finder { background:#02030a; }
+html.alien #finder::after { box-shadow:inset 0 0 0 2px rgba(157,255,90,.6), inset 0 0 0 5px rgba(7,10,28,.95), inset 0 0 0 6px rgba(157,255,90,.3), 0 0 26px rgba(157,255,90,.25); }
+html.alien #bath { color:var(--ok); }
+html.alien #bath::before { content:""; position:absolute; inset:0; background:linear-gradient(to bottom, rgba(157,255,90,.4), rgba(157,255,90,0) 62%); }
+html.alien #bath img { filter:blur(14px) grayscale(1) brightness(.5) sepia(1) hue-rotate(58deg) saturate(2.6); }
+html.alien #bath span { text-shadow:0 0 10px rgba(157,255,90,.8); }
+html.alien #shutter { border-color:transparent; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72'%3E %3Cdefs%3E%3CradialGradient id='d' cx='40%25' cy='30%25' r='70%25'%3E%3Cstop offset='0' stop-color='%23eafff1' stop-opacity='.95'/%3E%3Cstop offset='1' stop-color='%237fd1a2' stop-opacity='.55'/%3E%3C/radialGradient%3E %3ClinearGradient id='h' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23dff7e5'/%3E%3Cstop offset='.55' stop-color='%239ccfb0'/%3E%3Cstop offset='1' stop-color='%234f8f66'/%3E%3C/linearGradient%3E %3ClinearGradient id='u' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%233f7a4c'/%3E%3Cstop offset='1' stop-color='%231d3b27'/%3E%3C/linearGradient%3E%3C/defs%3E %3Cellipse cx='36' cy='29' rx='13' ry='11' fill='url%28%23d%29'/%3E %3Cellipse cx='36' cy='31' rx='5.2' ry='6' fill='%239dff5a'/%3E%3Cellipse cx='34.2' cy='30.5' rx='1.4' ry='2.1' fill='%23070a1c'/%3E%3Cellipse cx='37.8' cy='30.5' rx='1.4' ry='2.1' fill='%23070a1c'/%3E %3Cellipse cx='36' cy='40' rx='31' ry='9.5' fill='url%28%23h%29'/%3E %3Cellipse cx='36' cy='45.5' rx='21' ry='6' fill='url%28%23u%29'/%3E %3Cellipse cx='36' cy='40' rx='31' ry='9.5' fill='none' stroke='%23eafff1' stroke-opacity='.6' stroke-width='.8'/%3E %3Ccircle cx='12' cy='41' r='1.7' fill='%23ff7ee0'/%3E%3Ccircle cx='24' cy='46' r='1.7' fill='%239dff5a'/%3E%3Ccircle cx='36' cy='48' r='1.7' fill='%23ff7ee0'/%3E%3Ccircle cx='48' cy='46' r='1.7' fill='%239dff5a'/%3E%3Ccircle cx='60' cy='41' r='1.7' fill='%23ff7ee0'/%3E %3C/svg%3E") center/100% 100% no-repeat; box-shadow:0 0 24px rgba(157,255,90,.5); }
+html.alien #shutter:disabled { opacity:.35; box-shadow:none; }
+html.alien #lens { position:relative; border-color:transparent; color:#2a0a2e; font-weight:700; background:radial-gradient(circle at 36% 32%, #ffe6f8 0 12%, #ff9fe8 40%, #c24aa6 100%); box-shadow:0 0 12px rgba(255,126,224,.4); }
+html.alien #lens::before { content:""; position:absolute; left:-9px; right:-9px; top:50%; height:15px; margin-top:-7px; border:2px solid rgba(255,214,245,.95); border-radius:50%; transform:rotate(-18deg); pointer-events:none; }
+html.alien #lens.ana::after { color:var(--ok); }
+html.alien #menu { color:var(--ok); text-shadow:0 0 8px rgba(157,255,90,.5); }
+html.alien #strip img { outline:1px solid rgba(157,255,90,.35); }
+html.alien #flash { background:#2a1446; border-color:var(--warn); color:#ffd1f3; box-shadow:0 0 16px rgba(255,126,224,.35); }
+html.alien #print { background:var(--bg); }
+html.alien #phint { color:var(--ok); }
+html.alien #panel .sheet { background:#0e1133; border-top-color:#2f3a7a; }
+html.alien #panel button { border-bottom-color:#1f2658; }
+html.alien #signin input { background:#070a1c; }
 #log { display:none; position:fixed; inset:0; background:#000; color:var(--ink); padding:calc(16px + env(safe-area-inset-top)) 16px 16px; font:11px/1.4 ui-monospace,Menlo,monospace; letter-spacing:0; white-space:pre-wrap; overflow:auto; }
 #log.on { display:block; }
 #flash { position:fixed; left:50%; top:calc(56px + env(safe-area-inset-top)); transform:translateX(-50%); background:#1a1c20; border:1px solid var(--line); padding:8px 14px; text-transform:uppercase; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:92vw; overflow:hidden; text-overflow:ellipsis; }
@@ -111,6 +163,8 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
   html.landr #lens { margin:12px 0 0 0; }
   html.landr #shutter { margin:16px 0 0 0; }
   html.landr #menu { margin:8px 0 0 0; }
+  html.alien #gate::before { left:4px; top:50%; margin:-75px 0 0 0; }
+  html.landr #gate::before { left:auto; right:4px; }
   #print { flex-direction:row; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   html.landr #print { flex-direction:row-reverse; }
   #pbar { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 8px; font-size:10px; }
@@ -124,7 +178,7 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 <body>
 
 <div id="cam" class="screen on">
-  <div id="top"><span id="rf">A 01</span><span id="state">LAB LOADING</span><span id="ver"></span></div>
+  <div id="top"><span id="rf"><b id="who"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="7.5" ry="8.5" fill="#9dff5a"/><ellipse cx="9.2" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><ellipse cx="14.8" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><path d="M12 5V2" stroke="#9dff5a" stroke-width="1.6"/><circle cx="12" cy="1.6" r="1.4" fill="#ff7ee0"/></svg><span id="whot"></span></b><span id="rfn">A 01</span></span><span id="state">LAB LOADING</span><span id="ver"></span></div>
   <div id="gate"><div id="finder">
     <video id="video" autoplay playsinline muted></video>
     <div id="bath"><img id="latent" alt=""><span id="bathtext">DEVELOPING</span></div>
@@ -137,19 +191,25 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
   <div id="pstage"><img id="pimg" alt=""><div id="phint">hold to save</div></div>
 </div>
 
-<div id="panel"><div class="sheet">
+<div id="panel"><div class="sheet" id="psheet">
   <button id="psize">PRINT SIZE 1100</button>
   <button id="pana">ANAMORPHIC 1.33 OFF</button>
+  <button id="psign">SIGN IN</button>
   <button id="pupdate">CHECK FOR UPDATES</button>
   <button id="prestart">RESTART LAB</button>
   <button id="plog">LAB LOG</button>
   <button id="pclose">CLOSE</button>
+</div><div class="sheet" id="signin" hidden>
+  <label class="row"><span>INITIALS</span><input id="si-ini" maxlength="24" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="RG"></label>
+  <label class="row"><span>PASSWORD</span><input id="si-pw" type="password" autocomplete="off" placeholder="only some of us need one"></label>
+  <button id="si-go">SIGN IN</button>
+  <button id="si-x">CANCEL</button>
 </div></div>
 <div id="log"></div>
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 222;
+const BUILD = 224;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -173,10 +233,16 @@ let busy = false, current = null, currentFile = null, hold = null;
 const cooking = new Set();      /* frames in the bath right now: recovery must not touch them */
 let msgId = 0; const waits = new Map();
 let lastCheck = 0, pending = 0;
+/* THE VISITOR: who signed in, and whether the sky is theirs. The themed sign-in
+   keeps only a hash of its password; this is a theme, not a lock. */
+const THEMED = { RG: "569fd0b29e0157a990d45750827b2959d5e9cd2f03a1269cb43d59ba6d2b31bd" };
+let WHO = "", alien = false;
+try { WHO = localStorage.who || ""; alien = localStorage.alien === "1" && !!THEMED[WHO]; } catch (e) {}
 
 const flash = (t, ms = 1800) => { const f = $("flash"); f.textContent = t; f.classList.add("on"); clearTimeout(flash.t); flash.t = setTimeout(() => f.classList.remove("on"), ms); };
 const setState = (t, cls = "") => { const s = $("state"); s.textContent = t; s.className = cls; };
-const paintTop = () => { $("rf").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size;
+const paintWho = () => { $("whot").textContent = WHO; $("who").classList.toggle("on", !!WHO); document.documentElement.classList.toggle("alien", alien); };
+const paintTop = () => { $("rfn").textContent = ROLL + " " + String(frameNo + 1).padStart(2, "0"); $("ver").textContent = "b" + BUILD + (workerVer ? " · w" + workerVer : "") + " · " + size;
   $("lens").textContent = LENSES[lensIdx].label; $("lens").classList.toggle("ana", anaOn);
   document.documentElement.style.setProperty("--sq", anaOn ? SQUEEZE : 1); $("finder").classList.toggle("sq", anaOn); };
 
@@ -292,6 +358,7 @@ function capture() {                 /* the negative: centre crop for the 33, lo
 /* ---------- shutter -> bath -> print ---------- */
 async function shoot() {
   if (busy || labDead || !workerVer) return;
+  sfx("blip");
   const c = capture(); if (!c) { flash("NO FRAME"); return; }
   const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.93)); c.width = c.height = 0;
   if (!blob) { flash("NEGATIVE FAILED"); return; }
@@ -312,9 +379,11 @@ async function shoot() {
 async function bath(id, blob, seed, leak, px) {
   if (busy) return;                    /* one frame at a time, always */
   busy = true; cooking.add(id); $("shutter").disabled = true; $("bath").classList.add("on"); setState("DEVELOPING", "busy");
+  const word = alien ? "BEAMING UP" : "DEVELOPING"; $("bathtext").textContent = word;
+  sfx("loon");
   stopCamera();                        /* the bath gets the phone to itself */
   let wake = null; try { wake = await navigator.wakeLock.request("screen"); } catch (e) {}
-  const t0 = Date.now(); const tick = setInterval(() => { $("bathtext").textContent = "DEVELOPING  " + Math.round((Date.now() - t0) / 1000) + "s"; }, 1000);
+  const t0 = Date.now(); const tick = setInterval(() => { $("bathtext").textContent = word + "  " + Math.round((Date.now() - t0) / 1000) + "s"; }, 1000);
   let ok = false;
   try {
     const { jpg, secs } = await develop(await blob.arrayBuffer(), seed, leak, px);
@@ -329,7 +398,7 @@ async function bath(id, blob, seed, leak, px) {
   clearInterval(tick); try { wake && wake.release(); } catch (e) {}
   $("bath").classList.remove("on"); busy = false; cooking.delete(id);
   paintStrip();
-  if (ok) { await openPrint(id); }
+  if (ok) { sfx("fanfare"); await openPrint(id); }
   /* a fresh lab for the next frame: Pyodide's heap only grows, so the worker is
      retired after every bath and warms up again while the print is being looked at */
   spawnLab();
@@ -396,13 +465,62 @@ $("pstage").addEventListener("pointerup", async () => {
 });
 $("pstage").addEventListener("contextmenu", e => e.preventDefault());
 
+/* ---------- the visitor's sounds: synthesized on the spot, no files, alien only.
+   iOS opens the audio context only inside a tap, so the first sound is always
+   one a finger caused (shutter, lens, sign-in); the print's fanfare rides the
+   context that tap opened. ---------- */
+let actx = null;
+const audio = () => { try { if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; actx = new C(); } if (actx.state === "suspended") actx.resume().catch(() => {}); return actx; } catch (e) { return null; } };
+function tone(c, t0, dur, f0, f1, type = "sine", gain = 0.12, vib = 0) {
+  const o = c.createOscillator(), g = c.createGain(); o.type = type;
+  o.frequency.setValueAtTime(f0, t0); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  if (vib) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 5.5; lg.gain.value = vib; l.connect(lg).connect(o.frequency); l.start(t0); l.stop(t0 + dur + 0.05); }
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.025); g.gain.setValueAtTime(gain, t0 + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+const SFX = {
+  blip:      (c, t) => { tone(c, t, 0.07, 880, 880, "square", 0.07); tone(c, t + 0.085, 0.09, 1320, 1320, "square", 0.07); },        /* the shutter: a saucer blip */
+  theremin:  (c, t) => { tone(c, t, 0.38, 560, 920, "sine", 0.1, 28); },                                                             /* the lens: a wobble */
+  loon:      (c, t) => { tone(c, t, 0.95, 720, 1010, "sine", 0.13, 14); tone(c, t + 1.0, 0.85, 1010, 800, "sine", 0.11, 12); },     /* developing: the loon's wail */
+  fanfare:   (c, t) => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(c, t + i * 0.11, 0.17, f, f, "square", 0.06)); },        /* the print: five rising notes */
+  landing:   (c, t) => { tone(c, t, 1.3, 170, 1500, "sawtooth", 0.05, 45); SFX.loon(c, t + 1.05); },                                   /* sign-in: the mothership, then the loon */
+  nope:      (c, t) => { tone(c, t, 0.18, 330, 330, "square", 0.07); tone(c, t + 0.2, 0.32, 220, 150, "square", 0.07); },             /* wrong password */
+  powerdown: (c, t) => { tone(c, t, 0.6, 900, 80, "sawtooth", 0.06); },                                                               /* sign-out */
+};
+function sfx(name, ctx) { if (!alien && !ctx) return; const c = ctx || audio(); if (!c) return; try { SFX[name](c, c.currentTime + 0.01); } catch (e) {} }
+self.__sfx = sfx;                              /* the ritual renders the sounds offline through this */
+
+const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, "0")).join("");
+/* initials from whatever was typed: "Rachel G" -> RG, "rg" -> RG */
+const initials = s => { const w = String(s || "").toUpperCase().replace(/[^A-Z ]/g, " ").split(/\s+/).filter(Boolean); return w.length > 1 ? w.map(x => x[0]).join("") : (w[0] || ""); };
+async function signIn(typed, pw) {
+  const who = initials(typed);
+  if (!who) { flash("INITIALS?"); return false; }
+  if (THEMED[who]) {
+    let h = ""; try { h = await sha256(pw || ""); } catch (e) {}
+    if (h !== THEMED[who]) { sfx("nope", alien ? null : audio()); flash("THAT IS NOT THE PASSWORD"); return false; }
+    alien = true; try { localStorage.alien = "1"; } catch (e) {}
+  }
+  WHO = who; try { localStorage.who = who; } catch (e) {}
+  paintWho(); paintPanel();
+  if (alien) { sfx("landing"); flash("WELCOME ABOARD, " + who, 2600); } else flash("SIGNED IN - " + who);
+  return true;
+}
+function signOut() { sfx("powerdown"); WHO = ""; alien = false; try { delete localStorage.who; delete localStorage.alien; } catch (e) {} paintWho(); paintPanel(); flash("SIGNED OUT"); }
+
 /* ---------- panel ---------- */
-const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); };
+const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
+$("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = ""; $("si-pw").value = ""; setTimeout(() => $("si-ini").focus(), 50); };
+const closeSign = () => { $("signin").hidden = true; $("psheet").hidden = false; };
+$("si-x").onclick = closeSign;
+$("si-go").onclick = async () => { if (await signIn($("si-ini").value, $("si-pw").value)) { closeSign(); $("panel").classList.remove("on"); } };
+$("si-pw").addEventListener("keydown", e => { if (e.key === "Enter") $("si-go").click(); });
+$("si-ini").addEventListener("keydown", e => { if (e.key === "Enter") $("si-pw").focus(); });
 $("pana").onclick = () => { anaOn = !anaOn; try { localStorage.ana = anaOn ? "1" : "0"; } catch (e) {} paintPanel(); paintTop(); flash(anaOn ? "SQUEEZE " + SQUEEZE + "X - THE LAB DESQUEEZES" : "SPHERICAL"); };
-$("lens").onclick = () => setLens(lensIdx + 1);
+$("lens").onclick = () => { sfx("theremin"); setLens(lensIdx + 1); };
 $("menu").onclick = () => { paintPanel(); $("panel").classList.add("on"); };
 $("pclose").onclick = () => $("panel").classList.remove("on");
-$("panel").onclick = e => { if (e.target === $("panel")) $("panel").classList.remove("on"); };
+$("panel").onclick = e => { if (e.target === $("panel")) { $("panel").classList.remove("on"); closeSign(); } };
 $("psize").onclick = () => { size = SIZES[(SIZES.indexOf(size) + 1) % SIZES.length]; try { localStorage.size = size; } catch (e) {} paintPanel(); paintTop(); flash("PRINT SIZE " + size); };
 $("prestart").onclick = () => { $("panel").classList.remove("on"); if (busy) { flash("AFTER DEVELOPING"); return; } spawnLab(); flash("LAB RESTARTED"); };
 $("plog").onclick = () => { $("panel").classList.remove("on"); $("log").textContent = "b" + BUILD + "  w" + (workerVer || "?") + "  size " + size + "  " + turned + "\n\n" + (labLog || "(nothing logged)") + "\n\n(tap to close)"; $("log").classList.add("on"); };
@@ -423,7 +541,7 @@ function applyUpdate() { if (busy) { setTimeout(applyUpdate, 1500); return; } lo
 
 /* ---------- boot ---------- */
 if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }); } catch (e) {} }
-paintTop(); paintPanel();
+paintWho(); paintTop(); paintPanel();
 $("shutter").onclick = shoot;
 spawnLab();
 startCamera();
