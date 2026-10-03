@@ -114,7 +114,7 @@ async def main():
         await pg.wait_for_function("document.getElementById('print').classList.contains('on')", timeout=120000); await asyncio.sleep(0.3)
         shown = await pg.evaluate("document.getElementById('flash').classList.contains('on')"); await pg.screenshot(path=OUT + "visitor-hive-print.png")
         w1 = word.split("  ")[0]; w2 = word2.split("  ")[0]
-        check(w1.startswith("RITA IS") and w2.startswith("RITA IS") and w1 != w2 and lines >= 60 and not shown, f"under the hive the finder says what Rita is doing to Luca - '{w1}' then '{w2}' ({lines} lines in the deck), no line with the print")
+        check(w1.startswith("RITA IS") and w2.startswith("RITA IS") and w1 != w2 and lines >= 160 and not shown, f"under the hive the finder says what Rita is doing to Luca - '{w1}' then '{w2}' ({lines} lines in the deck), no line with the print")
         await pg.click("#back"); await pg.wait_for_function("document.getElementById('state').textContent === 'READY'", timeout=20000)
         await pg.click("#who"); await pg.click("#psign"); await asyncio.sleep(0.2)
         r = await pg.evaluate("[document.documentElement.className, document.getElementById('whot').textContent]")
