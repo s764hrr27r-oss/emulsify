@@ -100,14 +100,13 @@ html.hive #whobee { display:inline; width:17px; height:17px; }
 #signin input:focus { border-color:var(--mute); }
 #si-ini { text-transform:uppercase; }
 /* b223 THE VISITOR. One sign-in has its own sky: initials RG, with the password,
-   turn the lab alien - a night sky of fixed stars and a pastel planet (gradients,
+   turn the lab alien - a night sky of fixed stars (gradients,
    nothing moves), a saucer hovering over the finder with its beam on it, the
    shutter as a saucer with its pilot in the dome, the lens as a ringed planet,
    candy pink and alien green, rounded type, and sounds. Colours, glows, artwork
    and a typeface only: every size, margin and rotation rule above is untouched. */
 html.alien { --bg:#070a1c; --ink:#e4ffe6; --mute:#8d9bd6; --line:#262d66; --warn:#ff7ee0; --ok:#9dff5a; --ui:ui-rounded,"SF Pro Rounded",-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif; }
 html.alien body { background:
-  radial-gradient(circle at 7% 84%, #ffd1f3 0 19px, #ff7ee0 20px 23px, transparent 24px),
   radial-gradient(1.2px 1.2px at 8% 12%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 22% 31%, #cfe4ff 60%, transparent 61%),
   radial-gradient(1.6px 1.6px at 37% 9%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 52% 24%, #ffd1f3 60%, transparent 61%),
   radial-gradient(1.3px 1.3px at 68% 15%, #fff 60%, transparent 61%), radial-gradient(1px 1px at 83% 34%, #cfe4ff 60%, transparent 61%),
@@ -161,7 +160,7 @@ html.hive #finder::after { box-shadow:inset 0 0 0 2px rgba(242,182,50,.7), inset
 html.hive #bath { color:var(--ok); }
 html.hive #bath::before { content:""; position:absolute; inset:0; background:radial-gradient(ellipse 70% 60% at 50% 50%, rgba(242,182,50,.35), rgba(242,182,50,0) 70%); }
 html.hive #bath img { filter:blur(14px) grayscale(1) brightness(.55) sepia(1) saturate(2.2); }
-html.hive #bath span { text-shadow:0 0 10px rgba(242,182,50,.8); }
+html.hive #bath span { text-shadow:0 0 10px rgba(242,182,50,.8); max-width:78%; text-align:center; line-height:1.6; }
 html.hive #shutter { border-color:transparent; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72'%3E %3Cdefs%3E%3CradialGradient id='w' cx='50%25' cy='50%25' r='60%25'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='.85'/%3E%3Cstop offset='1' stop-color='%23cfe8ff' stop-opacity='.35'/%3E%3C/radialGradient%3E%3C/defs%3E %3Cellipse cx='22' cy='28' rx='15' ry='8' fill='url%28%23w%29' transform='rotate%28-32 22 28%29'/%3E%3Cellipse cx='50' cy='28' rx='15' ry='8' fill='url%28%23w%29' transform='rotate%2832 50 28%29'/%3E %3Cellipse cx='24' cy='40' rx='11' ry='6' fill='url%28%23w%29' transform='rotate%28-14 24 40%29'/%3E%3Cellipse cx='48' cy='40' rx='11' ry='6' fill='url%28%23w%29' transform='rotate%2814 48 40%29'/%3E %3Cellipse cx='36' cy='46' rx='10' ry='15' fill='%23f2b632'/%3E %3Cpath d='M26.5 40h19M26 47h20M27.5 54h17' stroke='%231a1208' stroke-width='4' stroke-linecap='round'/%3E %3Cellipse cx='36' cy='29' rx='8.5' ry='7' fill='%235a3b10'/%3E%3Ccircle cx='36' cy='18' r='5.5' fill='%231a1208'/%3E %3Ccircle cx='33.5' cy='17' r='1.3' fill='%23fff'/%3E%3Ccircle cx='38.5' cy='17' r='1.3' fill='%23fff'/%3E %3Cpath d='M33 13 l-3 -6 M39 13 l3 -6' stroke='%231a1208' stroke-width='1.6' stroke-linecap='round'/%3E%3Ccircle cx='30' cy='7' r='1.3' fill='%231a1208'/%3E%3Ccircle cx='42' cy='7' r='1.3' fill='%231a1208'/%3E %3Cpath d='M36 61 l0 5' stroke='%231a1208' stroke-width='2' stroke-linecap='round'/%3E %3C/svg%3E") center/100% 100% no-repeat; box-shadow:0 0 22px rgba(242,182,50,.45); }
 html.hive #shutter:disabled { opacity:.35; box-shadow:none; }
 html.hive #lens { border-color:transparent; color:#1a1208; font-weight:700; background:linear-gradient(160deg, #ffd56b, #e59a1e 70%); clip-path:polygon(50% 0, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%); box-shadow:none; }
@@ -252,7 +251,7 @@ html.hive #signin input { background:#140f08; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 230;
+const BUILD = 231;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -444,11 +443,11 @@ async function shoot() {
 async function bath(id, blob, seed, leak, px) {
   if (busy) return;                    /* one frame at a time, always */
   busy = true; cooking.add(id); $("shutter").disabled = true; $("bath").classList.add("on"); setState("DEVELOPING", "busy");
-  const word = theme === "alien" ? "BEAMING UP" : theme === "hive" ? "IN THE HIVE" : "DEVELOPING"; $("bathtext").textContent = word;
+  let word = theme === "alien" ? "BEAMING UP" : theme === "hive" ? lucaLine() : "DEVELOPING"; $("bathtext").textContent = word;
   sfx("develop");
   stopCamera();                        /* the bath gets the phone to itself */
   let wake = null; try { wake = await navigator.wakeLock.request("screen"); } catch (e) {}
-  const t0 = Date.now(); const tick = setInterval(() => { $("bathtext").textContent = word + "  " + Math.round((Date.now() - t0) / 1000) + "s"; }, 1000);
+  const t0 = Date.now(); const tick = setInterval(() => { const sec = Math.round((Date.now() - t0) / 1000); if (theme === "hive" && sec % 4 === 0) word = lucaLine(); $("bathtext").textContent = word + "  " + sec + "s"; }, 1000);
   let ok = false;
   try {
     const { jpg, secs } = await develop(await blob.arrayBuffer(), seed, leak, px);
@@ -592,6 +591,79 @@ const SFX = {
 function sfx(name, ctx, which) { const set = SFX[which || theme]; if (!set || (!theme && !ctx)) return; const c = ctx || audio(); if (!c) return; try { set[name](c, c.currentTime + 0.01); } catch (e) {} }
 self.__sfx = (which, name, ctx) => sfx(name, ctx, which);     /* the ritual renders the sounds offline through this */
 
+/* for the hive: what Rita is doing while a frame develops. A new one every few
+   seconds, dealt from a shuffled deck so nothing repeats until all have shown. */
+const LUCA = [
+  "RITA IS SHARPENING THE STINGER",
+  "RITA IS PRACTISING HER LEFT HOOK ON A HONEY JAR",
+  "RITA IS TEACHING THE BEES WHERE LUCA LIVES",
+  "RITA IS WARMING UP WITH TWENTY PUSH-UPS, FOR LUCA",
+  "RITA IS LACING HER BOOTS. LUCA KNOWS WHY.",
+  "RITA IS SHAKING THE HIVE AND POINTING AT LUCA",
+  "RITA IS CHOOSING WHICH HAND TO USE ON LUCA",
+  "RITA IS STRETCHING. LUCA SHOULD TOO.",
+  "RITA IS FILLING THE SMOKER. LUCA IS THE HIVE.",
+  "RITA IS TELLING THE QUEEN ABOUT LUCA",
+  "RITA IS DOING A SLOW WALK TOWARDS LUCA",
+  "RITA IS RINGING LUCA'S DOORBELL WITH HER FOREHEAD",
+  "RITA IS WRAPPING HER KNUCKLES IN BEESWAX",
+  "RITA IS COUNTING TO THREE. LUCA, RUN.",
+  "RITA IS LINING THE BEES UP IN FORMATION",
+  "RITA IS GOOGLING 'HOW TO BEAT UP LUCA' - AGAIN",
+  "RITA IS POURING HONEY ON THE FLOOR SO LUCA CAN'T RUN",
+  "RITA IS TEACHING THE BEES THE WORD 'LUCA'",
+  "RITA IS PUTTING ON THE VEIL. IT IS FOR LUCA'S SAKE.",
+  "RITA IS SPINNING A FRAME. LUCA IS NEXT.",
+  "RITA IS DOING TAI CHI, LUCA-SPECIFIC",
+  "RITA IS POLISHING THE HIVE TOOL FOR LUCA",
+  "RITA IS WRITING LUCA A STRONGLY WORDED PUNCH",
+  "RITA IS SENDING ONE BEE AHEAD TO FIND LUCA",
+  "RITA IS OPENING THE HIVE AND SAYING LUCA'S NAME",
+  "RITA IS CHECKING THE WIND BEFORE RELEASING THE BEES AT LUCA",
+  "RITA IS JUST GOING TO WAIT OUTSIDE LUCA'S CAR",
+  "RITA IS WARMING UP THE SWARM. LUCA, THIS IS YOUR WARNING.",
+  "RITA IS SHADOWBOXING A LUCA-SHAPED SHADOW",
+  "RITA IS CARRYING A LADDER TO LUCA'S WINDOW",
+  "RITA IS RECOUNTING EVERYTHING LUCA SAID",
+  "RITA IS MAKING THE BEES ANGRY, FOR LUCA",
+  "RITA IS NAMING A NEW BEE 'LUCA' SO SHE CAN SQUASH IT",
+  "RITA IS PRACTISING THE WINDMILL PUNCH ON A SCARECROW NAMED LUCA",
+  "RITA IS SMOKING OUT LUCA'S HIDING PLACE",
+  "RITA IS JUST GOING TO HOLD ONE BEE AND LOOK AT LUCA",
+  "RITA IS TIGHTENING HER GLOVES. THE GLOVES ARE FOR LUCA.",
+  "RITA IS DOING LUNGES TOWARDS LUCA, ONE PER SECOND",
+  "RITA IS LEAVING A JAR OF HONEY AT LUCA'S DOOR. IT'S A WARNING.",
+  "RITA IS DRAWING THE BEES A MAP TO LUCA",
+  "RITA IS WAITING FOR LUCA IN THE WORST POSSIBLE SPOT",
+  "RITA IS TRAINING ONE VERY ANGRY BEE, FOR LUCA",
+  "RITA IS BUILDING A COMB THE EXACT SHAPE OF LUCA'S FACE",
+  "RITA IS NOT EVEN ANGRY. THAT IS WORSE FOR LUCA.",
+  "RITA IS CRACKING HER KNUCKLES IN LUCA'S DIRECTION",
+  "RITA IS ASKING THE BEES TO DANCE THE WAY TO LUCA",
+  "RITA IS LOADING THE SMOKER WITH LUCA'S MAIL",
+  "RITA IS HOLDING THE DOOR OPEN FOR LUCA. IT'S A TRAP.",
+  "RITA IS PUTTING HONEY ON HER FISTS FOR GRIP. FOR LUCA.",
+  "RITA IS SAYING LUCA'S NAME THREE TIMES AT THE HIVE",
+  "RITA IS TAKING THE SCENIC ROUTE TO LUCA. STILL COMING.",
+  "RITA IS HAVING THE BEES SPELL 'LUCA' IN THE AIR",
+  "RITA IS SENDING THE DRONES FIRST. THEN THE WORKERS. THEN RITA.",
+  "RITA IS STIRRING THE HONEY SLOWLY WHILE LOOKING AT LUCA",
+  "RITA IS PRACTISING ON A PILLOW. THE PILLOW IS LUCA FOR NOW.",
+  "RITA IS TELLING LUCA TO STAND STILL",
+  "RITA IS HUMMING. THE BEES KNOW WHAT IT MEANS. LUCA DOESN'T.",
+  "RITA IS MEASURING LUCA FOR A BEE SUIT HE WON'T ENJOY",
+  "RITA IS EXPLAINING TO THE BEES THAT LUCA STARTED IT",
+  "RITA IS CLEARING A LITTLE SPACE FOR LUCA TO FALL DOWN IN",
+  "RITA IS PICKING THE SLOWEST BEE SO LUCA SEES IT COMING",
+  "RITA IS FOLDING HER SLEEVES UP, ONE LUCA AT A TIME",
+  "RITA IS SETTING THE HIVE ON 'LUCA'",
+  "RITA IS LETTING THE BEES SMELL ONE OF LUCA'S SOCKS",
+  "RITA IS DOING THE WAGGLE DANCE. IT POINTS AT LUCA.",
+  "RITA IS ASKING LUCA TO HOLD THIS JAR. IT IS FULL OF BEES."
+];
+let deck = [];
+self.LUCA_COUNT = LUCA.length;                 /* the ritual reads the deck's size */
+const lucaLine = () => { if (!deck.length) { deck = LUCA.slice(); for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } } return deck.pop(); };
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map(b => b.toString(16).padStart(2, "0")).join("");
 /* initials from whatever was typed: "Rachel G" -> RG, "rg" -> RG */
 const initials = s => { const w = String(s || "").toUpperCase().replace(/[^A-Z ]/g, " ").split(/\s+/).filter(Boolean); return w.length > 1 ? w.map(x => x[0]).join("") : (w[0] || ""); };
