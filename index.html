@@ -179,6 +179,11 @@ html.hive #signin input { background:#140f08; }
 #log.on { display:block; }
 #flash { position:fixed; left:50%; top:calc(56px + env(safe-area-inset-top)); transform:translateX(-50%); background:#1a1c20; border:1px solid var(--line); padding:8px 14px; text-transform:uppercase; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; max-width:92vw; overflow:hidden; text-overflow:ellipsis; }
 #flash.on { opacity:1; }
+#door { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; background:rgba(0,0,0,.86); text-transform:uppercase; }
+#door[hidden] { display:none; }
+#door a { color:var(--ok); text-decoration:none; font-size:22px; letter-spacing:.14em; padding:20px 30px; border:1.5px solid var(--ok); border-radius:10px; box-shadow:0 0 18px rgba(157,255,90,.35); background:#061008; }
+#doorout { color:var(--mute); font-size:12px; }
+html.alien #door { background:rgba(6,8,32,.9); }
 
 /* LANDSCAPE. The phone turned counter-clockwise (island on the left) carries the
    bottom edge to the RIGHT edge, running bottom-to-top: so the foot is a column on
@@ -252,9 +257,10 @@ html.hive #signin input { background:#140f08; }
 </div></div>
 <div id="log"></div>
 <div id="flash"></div>
+<div id="door" hidden><a id="doorlink" target="_blank" rel="noopener"></a><div id="doorout">TAP ANYWHERE ELSE TO GO ON</div></div>
 
 <script type="module">
-const BUILD = 236;
+const BUILD = 237;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -837,14 +843,16 @@ async function signIn(typed, pw) {
   WHO = who;
   paintWho(); paintPanel();
   if (T) { sfx("welcome"); flash(T.welcome, 2800); } else flash("SIGNED IN - " + who);
+  if (T && T.link) { $("doorlink").textContent = T.link.label; $("doorlink").href = T.link.href; $("door").hidden = false; }
   return true;
 }
-function signOut() { sfx("bye"); WHO = ""; theme = ""; paintWho(); paintPanel(); flash("SIGNED OUT"); }
+function signOut() { $("door").hidden = true; sfx("bye"); WHO = ""; theme = ""; paintWho(); paintPanel(); flash("SIGNED OUT"); }
 
 /* ---------- panel ---------- */
 const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN";
   const L = WHO && THEMED[WHO] && THEMED[WHO].link; $("plink").hidden = !L; if (L) { $("plink").textContent = L.label; $("plink").href = L.href; } };
 const openSignIn = () => { paintPanel(); $("panel").classList.add("on"); $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = "Rachel G"; $("si-pw").value = ""; setTimeout(() => $("si-pw").focus(), 50); };
+$("door").onclick = e => { if (e.target.id !== "doorlink") $("door").hidden = true; };
 $("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } openSignIn(); };
 $("who").onclick = () => { if (WHO) { paintPanel(); $("panel").classList.add("on"); return; } openSignIn(); };
 const closeSign = () => { $("signin").hidden = true; $("psheet").hidden = false; };
