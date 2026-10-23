@@ -1,4 +1,4 @@
-# EMULSIFY LOBBY + FILM — install (b243 / w3.25, lobby kit 4)
+# EMULSIFY LOBBY + FILM — install (b245 / w3.25, lobby kit 5)
 
 **The one-script way (what you actually run):** on the lab PC, in PowerShell,
 
@@ -129,3 +129,16 @@ Throughput: a 720 px frame is ~3 s of lab time here, ~4 s on the lab PC; 8 s of 
 (default: cores - 2, capped at 8); each lab process needs ~400 MB while it develops.
 
 Rituals: `python3 e2e-film.py` (page on 8765, lobby on 8766, the real agent polling it; includes the STILL/FILM mode) and `python3 filmcheck.py` (the flicker numbers above).
+
+## THE SHELF (b245)
+
+Every finished roll is also kept on the droplet for its owner (`$EMULSIFY_DATA/shelf/<WHO>/`), never swept.
+Signed in, the phone asks `GET /shelf` and pulls down any film it does not have, so a person's films are in her
+gallery on whichever phone she signs into. Stills are not shelved (they develop on the phone when the lab is away
+and belong to the phone). Profiles: RG, RITA, LUCA (make-profiles.py).
+
+## The lab light (b244) and landscape (b244)
+
+Signed in, a dot in the top bar: green LAB (the lab PC answered the lobby in the last 20 s), amber LAB ASLEEP
+(lobby up, lab away: stills develop on the phone, film waits), red NO LOBBY. Landscape: `#gate` needed
+`min-width:0` - Safari gave it the finder's aspect-ratio width as a minimum and pushed the foot off-screen.

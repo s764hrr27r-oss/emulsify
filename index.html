@@ -103,6 +103,15 @@ html.rec #shutter { box-shadow:0 0 0 3px #ff5a4a, 0 0 18px rgba(255,90,74,.65); 
    then their initials. One tap opens the sign-in sheet; signed in, it opens
    the panel, where SIGN OUT is the first line. */
 #left { display:inline-flex; flex-wrap:wrap; align-items:center; gap:10px; }
+/* THE LAB LIGHT (b244): signed in, a dot in the top bar says whether the lab PC is there. Green: the lab answered
+   the lobby in the last 20 s. Amber: the lobby is up but the lab is asleep (stills develop here, film waits).
+   Red: the lobby itself does not answer. Hidden when signed out - there is no lab to ask about. */
+#lab { display:none; align-items:center; gap:5px; font-size:10px; letter-spacing:.12em; color:var(--mute); }
+#lab::before { content:""; width:7px; height:7px; border-radius:50%; background:#666; }
+#lab.on { display:inline-flex; }
+#lab.up::before { background:#5ad66a; box-shadow:0 0 6px rgba(90,214,106,.7); }
+#lab.asleep::before { background:var(--warn); }
+#lab.down::before { background:#d0605a; }
 #who { display:inline-flex; align-items:center; gap:5px; min-height:28px; padding:0 10px; border:1px solid var(--line); border-radius:999px; color:var(--mute); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
 #who.on { color:var(--ink); border-color:var(--mute); }
 #who svg { display:none; }
@@ -208,8 +217,11 @@ html.hive #signin input { background:#140f08; }
   #top { height:auto; width:92px; flex:0 0 auto; flex-direction:column; justify-content:center; align-items:flex-start; gap:12px; padding:0 6px 0 12px; font-size:10px; }
   #top span { white-space:normal; line-height:1.35; }
   #left { gap:6px; }
-  #gate { margin:16px 0; }
-  #finder { aspect-ratio:calc(5 * var(--sq)) / 4; width:auto; height:100%; max-width:100%; }
+  /* b244: min-width:0. Without it Safari gives the gate the finder's aspect-ratio width as its minimum, the row
+     cannot shrink, the finder runs off the right edge and the foot (shutter, lens, menu) is pushed off-screen.
+     Chromium resolved the same rules the other way, which is why the sandbox never showed it. */
+  #gate { margin:16px 0; min-width:0; overflow:hidden; }
+  #finder { aspect-ratio:calc(5 * var(--sq)) / 4; width:auto; height:100%; max-width:100%; max-height:100%; }
   #foot { height:auto; width:112px; flex:0 0 auto; flex-direction:column-reverse; justify-content:flex-start; align-items:center; padding:16px 0 16px 0; }
   #tray { flex:1; min-height:0; height:auto; width:56px; flex-direction:column-reverse; align-items:center; }
   #strip { flex:1; min-height:0; height:auto; width:56px; flex-direction:column-reverse; overflow-y:auto; overflow-x:hidden; }
@@ -241,7 +253,7 @@ html.hive #signin input { background:#140f08; }
 <body>
 
 <div id="cam" class="screen on">
-  <div id="top"><span id="left"><button id="who" aria-label="Sign in"><img id="whoimg" alt="" hidden><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="7.5" ry="8.5" fill="#9dff5a"/><ellipse cx="9.2" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><ellipse cx="14.8" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><path d="M12 5V2" stroke="#9dff5a" stroke-width="1.6"/><circle cx="12" cy="1.6" r="1.4" fill="#ff7ee0"/></svg><svg id="whobee" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="9" cy="8" rx="4" ry="2.6" fill="#fff" fill-opacity=".75" transform="rotate(-25 9 8)"/><ellipse cx="15" cy="8" rx="4" ry="2.6" fill="#fff" fill-opacity=".75" transform="rotate(25 15 8)"/><ellipse cx="12" cy="14" rx="7" ry="5" fill="#f2b632"/><path d="M8.5 10.5v7M12 9.4v9.2M15.5 10.5v7" stroke="#1a1208" stroke-width="2"/><circle cx="5.5" cy="14" r="2.6" fill="#1a1208"/><path d="M19 14l2.6 1" stroke="#1a1208" stroke-width="1.2"/></svg><span id="whot">SIGN IN</span></button><span id="rf">A 01</span></span><span id="state">LAB LOADING</span><span id="ver"></span></div>
+  <div id="top"><span id="left"><button id="who" aria-label="Sign in"><img id="whoimg" alt="" hidden><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="12" cy="13.5" rx="7.5" ry="8.5" fill="#9dff5a"/><ellipse cx="9.2" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><ellipse cx="14.8" cy="12.5" rx="2" ry="3.1" fill="#070a1c"/><path d="M12 5V2" stroke="#9dff5a" stroke-width="1.6"/><circle cx="12" cy="1.6" r="1.4" fill="#ff7ee0"/></svg><svg id="whobee" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><ellipse cx="9" cy="8" rx="4" ry="2.6" fill="#fff" fill-opacity=".75" transform="rotate(-25 9 8)"/><ellipse cx="15" cy="8" rx="4" ry="2.6" fill="#fff" fill-opacity=".75" transform="rotate(25 15 8)"/><ellipse cx="12" cy="14" rx="7" ry="5" fill="#f2b632"/><path d="M8.5 10.5v7M12 9.4v9.2M15.5 10.5v7" stroke="#1a1208" stroke-width="2"/><circle cx="5.5" cy="14" r="2.6" fill="#1a1208"/><path d="M19 14l2.6 1" stroke="#1a1208" stroke-width="1.2"/></svg><span id="whot">SIGN IN</span></button><span id="rf">A 01</span><span id="lab">LAB</span></span><span id="state">LAB LOADING</span><span id="ver"></span></div>
   <div id="gate"><div id="finder">
     <video id="video" autoplay playsinline muted></video>
     <div id="bath"><img id="latent" alt=""><span id="bathtext">DEVELOPING</span></div>
@@ -273,7 +285,7 @@ html.hive #signin input { background:#140f08; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 243;
+const BUILD = 245;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -316,7 +328,8 @@ const THEMED = {
     "b1e79532d5b97c775ed657e6aea1de1cb3728443c6b35ad80fa7c3c4ed0f4d1e",
     "f379ccb92b9116442dc65bdc35648a85d3786b34779db7f704a901fa07b00cb6"
   ] },
-  RITA: { theme: "hive", welcome: "WELCOME, RITA", pw: ["59334f7b2ecbe06c39a3e6499ceb94a905de9595c4682114a2cf93dd8dbcad62"] }
+  RITA: { theme: "hive", welcome: "WELCOME, RITA", pw: ["59334f7b2ecbe06c39a3e6499ceb94a905de9595c4682114a2cf93dd8dbcad62"] },
+  LUCA: { theme: "", welcome: "WELCOME, LUCA", pw: ["8d3aa1a6f227d714692a9d5a7fbbda496fb09f17f7207a11ffd0a4cca6cf35b7"] }          /* b245: the owner. No sky; the lab and the shelf are his too */
 };
 let WHO = "", theme = "";                 /* "" | "alien" | "hive" */
 /* THE LOBBY: signed in with a password, the frame develops at the lab PC through emulsify.gibsoncttools.com
@@ -333,6 +346,20 @@ const FILM = { fps: 24, size: 720, max: 8 };            /* frames per second, th
 { const f = new URLSearchParams(location.search).get("film"); if (f) { const [a, b, c] = f.split(",").map(Number); if (a) FILM.size = a; if (b) FILM.fps = b; if (c) FILM.max = c; } }
 let rec = null, recChunks = [], recT0 = 0, recTick = null, recCap = null, pressTimer = null, pollTimer = null, polling = false, heldRec = false;
 let filmMode = false; try { filmMode = localStorage.mode === "film"; } catch (e) {}
+/* the lab light: asks the lobby's /health every 15 s while signed in */
+let labTimer = null;
+async function labLight() {
+  const el = $("lab");
+  if (!LOBBYKEY) { el.className = ""; return; }
+  el.classList.add("on");
+  try {
+    const ctl = new AbortController(); const stop = setTimeout(() => ctl.abort(), 6000);
+    const h = await (await fetch(LOBBY + "/health", { signal: ctl.signal, cache: "no-store" })).json(); clearTimeout(stop);
+    const seen = h.agent_seen; const up = seen !== null && seen !== undefined && seen <= 20;
+    el.className = "on " + (up ? "up" : "asleep"); el.textContent = up ? "LAB" : "LAB ASLEEP";
+  } catch (e) { el.className = "on down"; el.textContent = "NO LOBBY"; }
+}
+function watchLab() { clearInterval(labTimer); labTimer = null; if (!LOBBYKEY) { labLight(); return; } labLight(); labTimer = setInterval(labLight, 15000); }
 function paintMode() { document.documentElement.classList.toggle("film", filmMode); $("mode").textContent = filmMode ? "FILM" : "STILL"; }
 function setMode(film) { filmMode = !!film; try { localStorage.mode = filmMode ? "film" : "still"; } catch (e) {} paintMode(); flash(filmMode ? "FILM - TAP TO ROLL, TAP TO CUT" : "STILL", 1800); }
 const rolls = new Map();                                 /* id -> { job, progress }: rolls out at the lab, or waiting to go */
@@ -410,7 +437,7 @@ async function develop(buf, seed, leak, px) {
   }
   return developHere(buf, seed, leak, px);
 }
-self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog, rolls: [...rolls], film: FILM, rec: !!rec, build: BUILD, mode: filmMode ? "film" : "still" });   /* the ritual reads the lobby state through this */
+self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog, rolls: [...rolls], film: FILM, rec: !!rec, build: BUILD, mode: filmMode ? "film" : "still", lab: $("lab").className, shelving });   /* the ritual reads the lobby state through this */
 
 /* ---------- the camera ---------- */
 function realize(mm) {                /* the longest glass at or under mm; crop makes up the rest */
@@ -590,7 +617,7 @@ async function sendRoll(id, r) {
   if (!LOBBYKEY) { rolls.set(id, { job: null, progress: "SIGN IN" }); paintStrip(); return; }
   rolls.set(id, { job: null, progress: "SENDING" }); paintStrip();
   try {
-    const q = new URLSearchParams({ kind: "roll", seed: r.seed, size: r.size, fps: r.fps, crop: r.crop.map(x => x.toFixed(5)).join(","), mm: r.mm, ana: r.ana, dc: 1, build: BUILD, profile: "honey" });
+    const q = new URLSearchParams({ kind: "roll", seed: r.seed, size: r.size, fps: r.fps, crop: r.crop.map(x => x.toFixed(5)).join(","), mm: r.mm, ana: r.ana, dc: 1, build: BUILD, profile: "honey", rf: r.rf || "" });
     const ctl = new AbortController(); const stop = setTimeout(() => ctl.abort(), 90000);
     const res = await fetch(LOBBY + "/jobs?" + q, { method: "POST", headers: { "X-Who": WHO, "X-Key": LOBBYKEY, "Content-Type": r.blob.type || "video/mp4" }, body: r.blob, signal: ctl.signal }); clearTimeout(stop);
     if (!res.ok) throw new Error("LOBBY " + res.status);
@@ -632,12 +659,39 @@ async function landRoll(id, job, j) {
     let thumb = null;
     try { const po = await fetch(LOBBY + "/jobs/" + job + "/poster", { headers: H }); if (po.ok) thumb = await makeThumb(new Blob([await po.arrayBuffer()], { type: "image/jpeg" })); } catch (e) {}
     await put("prints", id, film); if (thumb) await put("thumbs", id, thumb);
-    try { localStorage["t" + id] = j.secs ? String(Math.round(Number(j.secs))) : ""; localStorage["k" + id] = "film"; } catch (e) {}
+    try { localStorage["t" + id] = j.secs ? String(Math.round(Number(j.secs))) : ""; localStorage["k" + id] = "film"; localStorage["sh:" + job] = id; } catch (e) {}
     if (!prints.includes(id)) prints.push(id);
     await del("negs", id); rolls.delete(id);
     fetch(LOBBY + "/jobs/" + job, { method: "DELETE", headers: H }).catch(() => {});    /* the phone has it; the lobby forgets it */
     paintStrip(); sfx("print"); flash("FILM " + (localStorage["rf" + id] || "") + " DEVELOPED", 2600);
   } catch (e) { labLog = "FILM: " + String(e && e.message || e) + "\n" + labLog; }
+}
+
+/* THE SHELF (b245): the lobby keeps every finished film for its owner. Signed in, the phone asks for the shelf and
+   pulls down any film it does not have yet, so Rachel's films are in her gallery on whichever phone she signs
+   into. "sh:<shelf id>" in localStorage remembers which local print each shelf film is. */
+let shelving = false;
+async function pullShelf() {
+  if (!LOBBYKEY || shelving) return; shelving = true;
+  const H = { "X-Who": WHO, "X-Key": LOBBYKEY };
+  try {
+    const list = await (await fetch(LOBBY + "/shelf", { headers: H, cache: "no-store" })).json();
+    let got = 0;
+    for (const m of list) {
+      if (!m || !m.id) continue;
+      let local = null; try { local = localStorage["sh:" + m.id]; } catch (e) {}
+      if (local && prints.includes(local)) continue;
+      const f = await fetch(LOBBY + "/shelf/" + m.id + "/film", { headers: H }); if (!f.ok) continue;
+      const film = new Blob([await f.arrayBuffer()], { type: m.ctype || "video/mp4" });
+      let thumb = null; try { const po = await fetch(LOBBY + "/shelf/" + m.id + "/poster", { headers: H }); if (po.ok) thumb = await makeThumb(new Blob([await po.arrayBuffer()], { type: "image/jpeg" })); } catch (e) {}
+      const id = String(m.at || Date.now());
+      await put("prints", id, film); if (thumb) await put("thumbs", id, thumb);
+      try { localStorage["k" + id] = "film"; localStorage["sh:" + m.id] = id; if (m.rf) localStorage["rf" + id] = m.rf; if (m.secs) localStorage["t" + id] = String(Math.round(Number(m.secs))); } catch (e) {}
+      if (!prints.includes(id)) prints.push(id); got++;
+    }
+    if (got) { prints.sort(); paintStrip(); flash(got + (got === 1 ? " FILM" : " FILMS") + " FROM THE SHELF", 2400); }
+  } catch (e) { labLog = "SHELF: " + String(e && e.message || e) + "\n" + labLog; }
+  finally { shelving = false; }
 }
 
 /* anything still in negs at boot is a bath that never finished. Re-developed
@@ -1007,9 +1061,10 @@ async function signIn(typed, pw) {
   paintWho(); paintPanel();
   if (T) { sfx("welcome"); flash(T.welcome, 2800); } else flash("SIGNED IN - " + who);
   if (rolls.size && LOBBYKEY) pollRolls();
+  watchLab(); if (LOBBYKEY) pullShelf();
   return true;
 }
-function signOut() { sfx("bye"); WHO = ""; theme = ""; LOBBYKEY = ""; paintWho(); paintPanel(); flash("SIGNED OUT"); }
+function signOut() { sfx("bye"); WHO = ""; theme = ""; LOBBYKEY = ""; watchLab(); paintWho(); paintPanel(); flash("SIGNED OUT"); }
 
 /* ---------- panel ---------- */
 const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
@@ -1068,7 +1123,7 @@ startCamera();
 paintStrip();
 setTimeout(recover, 1500);
 setTimeout(() => checkUpdate(false), 4000);
-document.addEventListener("visibilitychange", () => { if (document.hidden) { if (!busy) stopCamera(); } else { if (!busy) startCamera(); checkUpdate(false); } });
+document.addEventListener("visibilitychange", () => { if (document.hidden) { if (!busy) stopCamera(); } else { if (!busy) startCamera(); checkUpdate(false); if (LOBBYKEY) labLight(); } });
 /* iOS can drop a live <video> to black after the reflow of a rotation. play() alone
    was not enough on the owner's phone; re-attaching the stream rebuilds the layer. */
 /* which way the phone turned. Apple: window.orientation 90 is the screen turned to

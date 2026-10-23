@@ -19,6 +19,12 @@ The lobby develops nothing. It holds negatives for the lab PC and prints for the
   agent  POST /agent/jobs/<id>/fail  header X-Agent-Key   body: why  -> state -> failed
   anyone GET  /health                                                -> {"ok": true, "queued": n, "agent_seen": secs ago}
 
+THE SHELF (b245): a finished roll is also kept for its owner, so her films are in her gallery on whatever phone she
+signs into. $EMULSIFY_DATA/shelf/<WHO>/<job id>/{film.bin, poster.jpg, meta.json}; never swept (stills are not kept).
+  phone  GET  /shelf                                                -> [{"id", "rf", "at", "secs", "bytes", "ctype"}, ...] newest last
+  phone  GET  /shelf/<id>/film | /shelf/<id>/poster                 -> the film / its poster
+  phone  DELETE /shelf/<id>                                         -> gone from the shelf
+
 Everything lives under $EMULSIFY_DATA/jobs/<id>/ (neg.bin + params.json while waiting, print.bin + done.json after).
 The negative or clip is deleted the moment the print is posted; the whole job goes when the phone says DELETE, or
 after $EMULSIFY_KEEP_HOURS. Standard library only; one small process; binds 127.0.0.1 and lets Caddy do TLS.
@@ -39,8 +45,26 @@ AGENT_KEY = os.environ.get("EMULSIFY_AGENT_KEY", "")
 PROFILES = os.environ.get("EMULSIFY_PROFILES", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json"))
 ORIGINS = set(filter(None, os.environ.get("EMULSIFY_ORIGINS", "https://s764hrr27r-oss.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",")))
 MAX_NEG = 64 * 1024 * 1024            # a still is well under 1 MB; an 8 s phone clip is 10-20 MB
-JOBS = os.path.join(DATA, "jobs")
-PARAM_KEYS = ("seed", "size", "mm", "ana", "leak", "dc", "build", "profile", "kind", "fps", "crop", "timing")
+JOBS = os.path.join(DATA, "jobs"); SHELF = os.path.join(DATA, "shelf")
+def who_ok(w): return bool(w) and all(c.isalnum() for c in w) and len(w) <= 16
+def shelve(i):
+    """a finished roll goes onto its owner's shelf"""
+    try:
+        p = json.loads(read(i, "params.json")); d = json.loads(read(i, "done.json"))
+        if p.get("kind") != "roll" or not who_ok(p.get("who", "")): return
+        dst = os.path.join(SHELF, p["who"], i); os.makedirs(dst, exist_ok=True)
+        shutil.copyfile(os.path.join(jdir(i), "print.bin"), os.path.join(dst, "film.bin"))
+        if os.path.exists(os.path.join(jdir(i), "poster.jpg")): shutil.copyfile(os.path.join(jdir(i), "poster.jpg"), os.path.join(dst, "poster.jpg"))
+        meta = {"id": i, "rf": p.get("rf", ""), "at": int(os.path.getmtime(os.path.join(jdir(i), "params.json")) * 1000), "secs": d.get("secs", 0), "bytes": d.get("bytes", 0), "ctype": d.get("ctype", "video/mp4"), "fps": p.get("fps"), "size": p.get("size")}
+        with open(os.path.join(dst, "meta.json"), "w") as f: json.dump(meta, f)
+    except Exception as e: print("lobby: could not shelve %s: %s" % (i, e), flush=True)
+def shelf_of(who):
+    d = os.path.join(SHELF, who); out = []
+    for i in (os.listdir(d) if os.path.isdir(d) else []):
+        try: out.append(json.load(open(os.path.join(d, i, "meta.json"))))
+        except Exception: pass
+    return sorted(out, key=lambda m: m.get("at", 0))
+PARAM_KEYS = ("seed", "size", "mm", "ana", "leak", "dc", "build", "profile", "kind", "fps", "crop", "timing", "rf")
 lock = threading.Lock()
 agent_seen = 0.0
 
@@ -116,12 +140,26 @@ class H(BaseHTTPRequestHandler):
         if len(p) == 3 and p[1] == "jobs" and safe_id(p[2]):
             if not self.phone_ok(): return self.out(401, {"error": "sign in"})
             shutil.rmtree(jdir(p[2]), ignore_errors=True); return self.out(200, {"ok": True})
+        if len(p) == 3 and p[1] == "shelf" and safe_id(p[2]):
+            if not self.phone_ok(): return self.out(401, {"error": "sign in"})
+            shutil.rmtree(os.path.join(SHELF, (self.headers.get("X-Who") or "").upper().strip(), p[2]), ignore_errors=True); return self.out(200, {"ok": True})
         self.out(404, {"error": "lobby: no such door"})
     # -- routes
     def do_GET(self):
         u = urlparse(self.path); p = u.path.rstrip("/").split("/")
         if u.path == "/health":
             return self.out(200, {"ok": True, "queued": queued(), "agent_seen": round(time.time() - agent_seen) if agent_seen else None, "profiles": sorted(profiles)})
+        if u.path == "/shelf":
+            if not self.phone_ok(): return self.out(401, {"error": "sign in"})
+            return self.out(200, shelf_of((self.headers.get("X-Who") or "").upper().strip()))
+        if len(p) == 4 and p[1] == "shelf" and safe_id(p[2]) and p[3] in ("film", "poster"):
+            if not self.phone_ok(): return self.out(401, {"error": "sign in"})
+            d = os.path.join(SHELF, (self.headers.get("X-Who") or "").upper().strip(), p[2])
+            fn = os.path.join(d, "film.bin" if p[3] == "film" else "poster.jpg")
+            if not os.path.exists(fn): return self.out(404, {"error": "not on the shelf"})
+            try: ct = json.load(open(os.path.join(d, "meta.json"))).get("ctype", "video/mp4") if p[3] == "film" else "image/jpeg"
+            except Exception: ct = "video/mp4"
+            with open(fn, "rb") as f: return self.out(200, f.read(), ct)
         if len(p) == 3 and p[1] == "jobs" and safe_id(p[2]):
             if not self.phone_ok(): return self.out(401, {"error": "sign in"})
             st = state(p[2])
@@ -192,6 +230,7 @@ class H(BaseHTTPRequestHandler):
                 ct = (self.headers.get("Content-Type") or "image/jpeg").split(";")[0].strip().lower()
                 if ct == "application/octet-stream": ct = "image/jpeg"
                 write(p[3], "print.bin", b, "wb"); write(p[3], "done.json", json.dumps({"secs": float(q.get("secs", ["0"])[0]), "ctype": ct, "bytes": len(b)})); write(p[3], "state", "done")
+                shelve(p[3])
             else:
                 write(p[3], "error.txt", b.decode("utf-8", "replace")[:2000]); write(p[3], "state", "failed")
             try: os.remove(os.path.join(jdir(p[3]), "neg.bin"))     # the negative has done its job
@@ -200,7 +239,7 @@ class H(BaseHTTPRequestHandler):
         self.out(404, {"error": "lobby: no such door"})
 
 if __name__ == "__main__":
-    os.makedirs(JOBS, exist_ok=True)
+    os.makedirs(JOBS, exist_ok=True); os.makedirs(SHELF, exist_ok=True)
     if not AGENT_KEY: print("lobby: EMULSIFY_AGENT_KEY is empty - the lab PC cannot connect until it is set", flush=True)
     print("lobby: %s:%d  data %s  profiles %s  origins %s" % (HOST, PORT, DATA, sorted(profiles), sorted(ORIGINS)), flush=True)
     ThreadingHTTPServer((HOST, PORT), H).serve_forever()
