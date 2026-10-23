@@ -7,6 +7,6 @@ def k(pw): return hashlib.sha256(("emulsify-lobby:" + pw.strip().lower()).encode
 P = {
   "RG":   ["banjo", "loon", "love", "choke", "magnet", "hug", "alien", "puke", "levity", "490110", "stability", "stable"],
   "RITA": ["enemyofman"],
-  "LUCA": ["apollo"],
+  "LUCA": ["cagr"],
 }
 print(json.dumps({who: [k(pw) for pw in pws] for who, pws in P.items()}, indent=1))
