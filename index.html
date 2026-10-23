@@ -270,6 +270,7 @@ html.hive #signin input { background:#140f08; }
 <div id="panel"><div class="sheet" id="psheet">
   <button id="psign">SIGN IN</button>
   <button id="psize">PRINT SIZE 1100</button>
+  <button id="plab">LAB PRINT 2200</button>
   <button id="pana">ANAMORPHIC 1.33 OFF</button>
   <button id="pupdate">CHECK FOR UPDATES</button>
   <button id="prestart">RESTART LAB</button>
@@ -285,7 +286,7 @@ html.hive #signin input { background:#140f08; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 246;
+const BUILD = 247;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -302,6 +303,11 @@ let glass = { id: null, e: 26, crop: 33 / 26, mm: 33 };
 const SQUEEZE = 1.33;
 let anaOn = (() => { try { return localStorage.ana === "1"; } catch (e) { return false; } })();
 let size = (() => { try { const v = parseInt(localStorage.size, 10); return SIZES.includes(v) ? v : 1100; } catch (e) { return 1100; } })();
+/* b247 LAB PRINT: signed in with the lab awake, a still develops at the lab PC at labSize instead of size. The
+   negative is already cut at up to MAX_NEG (2200), so 2200 costs the phone nothing; the lab does the work. If the
+   lab does not answer, the phone develops the same negative at its own size, as always. */
+const LABSIZES = [2200, 1650, 1100];
+let labSize = (() => { try { const q = parseInt(new URLSearchParams(location.search).get("labsize"), 10); if (LABSIZES.includes(q)) return q; const v = parseInt(localStorage.labsize, 10); return LABSIZES.includes(v) ? v : 2200; } catch (e) { return 2200; } })();
 let frameNo = 0, ROLL = "A";
 try { frameNo = parseInt(localStorage.frameNo || "0", 10) || 0; ROLL = localStorage.roll || "A"; } catch (e) {}
 let stream = null, worker = null, workerVer = "", labLog = "", labDead = false;
@@ -435,9 +441,9 @@ async function develop(buf, seed, leak, px) {
     try { return await developRemote(buf, seed, leak, px); }
     catch (e) { labLog = "LOBBY: " + String(e && e.message || e) + "\n" + labLog; flash("LOBBY UNREACHABLE - DEVELOPING HERE", 2200); }
   }
-  return developHere(buf, seed, leak, px);
+  return developHere(buf, seed, leak, Math.min(px, size));     /* the phone never develops at the lab's size */
 }
-self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog, rolls: [...rolls], film: FILM, rec: !!rec, build: BUILD, mode: filmMode ? "film" : "still", lab: $("lab").className, shelving });   /* the ritual reads the lobby state through this */
+self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog, rolls: [...rolls], film: FILM, rec: !!rec, build: BUILD, mode: filmMode ? "film" : "still", lab: $("lab").className, shelving, labSize });   /* the ritual reads the lobby state through this */
 
 /* ---------- the camera ---------- */
 function realize(mm) {                /* the longest glass at or under mm; crop makes up the rest */
@@ -525,10 +531,12 @@ async function shoot() {
   try { localStorage.frameNo = String(frameNo); localStorage.roll = ROLL; localStorage["rf" + id] = rf; } catch (e) {}
   paintTop();
   const leak = frameNo === 1 ? 0.9 : 0;            /* loading a roll exposes the leader */
+  const labUp = !!LOBBYKEY && $("lab").classList.contains("up");
+  const px = labUp ? labSize : size;                /* the lab develops big; the phone develops its own size */
   /* the negative is on disk BEFORE the bath: a crash costs the wait, not the frame */
   try { await put("negs", id, { blob, seed: (Number(id) % 9000) + 1, leak, size, rf, at: Date.now(), tries: 0 }); } catch (e) { flash("NEGATIVE NOT SAVED"); }
   const latent = URL.createObjectURL(blob); $("latent").src = latent;
-  await bath(id, blob, (Number(id) % 9000) + 1, leak, size);
+  await bath(id, blob, (Number(id) % 9000) + 1, leak, px);
   URL.revokeObjectURL(latent);
 }
 
@@ -1067,7 +1075,7 @@ async function signIn(typed, pw) {
 function signOut() { sfx("bye"); WHO = ""; theme = ""; LOBBYKEY = ""; watchLab(); paintWho(); paintPanel(); flash("SIGNED OUT"); }
 
 /* ---------- panel ---------- */
-const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
+const paintPanel = () => { $("psize").textContent = "PRINT SIZE " + size; $("plab").textContent = "LAB PRINT " + labSize; $("pana").textContent = "ANAMORPHIC " + SQUEEZE + (anaOn ? " ON" : " OFF"); $("psign").textContent = WHO ? "SIGN OUT - " + WHO : "SIGN IN"; };
 const openSignIn = () => { paintPanel(); $("panel").classList.add("on"); $("psheet").hidden = true; $("signin").hidden = false; $("si-ini").value = "Rachel G"; $("si-pw").value = ""; setTimeout(() => $("si-pw").focus(), 50); };
 $("psign").onclick = () => { if (WHO) { signOut(); $("panel").classList.remove("on"); return; } openSignIn(); };
 $("who").onclick = () => { if (WHO) { paintPanel(); $("panel").classList.add("on"); return; } openSignIn(); };
@@ -1081,6 +1089,7 @@ $("lens").onclick = () => { sfx("lens"); setLens(lensIdx + 1); };
 $("menu").onclick = () => { paintPanel(); $("panel").classList.add("on"); };
 $("pclose").onclick = () => $("panel").classList.remove("on");
 $("panel").onclick = e => { if (e.target === $("panel")) { $("panel").classList.remove("on"); closeSign(); } };
+$("plab").onclick = () => { labSize = LABSIZES[(LABSIZES.indexOf(labSize) + 1) % LABSIZES.length]; try { localStorage.labsize = labSize; } catch (e) {} paintPanel(); flash("LAB PRINT " + labSize); };
 $("psize").onclick = () => { size = SIZES[(SIZES.indexOf(size) + 1) % SIZES.length]; try { localStorage.size = size; } catch (e) {} paintPanel(); paintTop(); flash("PRINT SIZE " + size); };
 $("prestart").onclick = () => { $("panel").classList.remove("on"); if (busy) { flash("AFTER DEVELOPING"); return; } spawnLab(); flash("LAB RESTARTED"); };
 $("plog").onclick = () => { $("panel").classList.remove("on"); $("log").textContent = "b" + BUILD + "  w" + (workerVer || "?") + "  size " + size + "  " + turned + "\n\n" + (labLog || "(nothing logged)") + "\n\n(tap to close)"; $("log").classList.add("on"); };
@@ -1138,7 +1147,8 @@ function orient() {
   fitFinder();
 }
 orient();
-$("video").addEventListener("loadedmetadata", fitFinder); $("video").addEventListener("resize", fitFinder);
+$("video").addEventListener("loadedmetadata", fitFinder);
+$("video").addEventListener("loadedmetadata", () => { const v = $("video"); labLog = "CAMERA " + v.videoWidth + "x" + v.videoHeight + " (asked " + Math.min(4032, Math.ceil(MAX_NEG * glass.crop * 1.15 / 16) * 16) + ")\n" + labLog; });   /* b247: what the phone really hands over */ $("video").addEventListener("resize", fitFinder);
 const reattach = () => { orient(); const v = $("video"); if (!stream || busy) return; v.srcObject = null; v.srcObject = stream; v.play && v.play().catch(() => {}); };
 addEventListener("orientationchange", () => setTimeout(reattach, 350));
 matchMedia("(orientation: landscape)").addEventListener("change", () => setTimeout(reattach, 350));

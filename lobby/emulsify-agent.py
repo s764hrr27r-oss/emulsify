@@ -26,10 +26,17 @@ from urllib import request, error, parse
 if "--log" in sys.argv:
     LOGF = open(sys.argv[sys.argv.index("--log") + 1], "a", buffering=1, encoding="utf-8"); sys.stdout = sys.stderr = LOGF
 HERE = os.path.dirname(os.path.abspath(__file__))
-CFG = json.load(open(os.path.join(HERE, "agent.json")))
+try: CFG = json.load(open(os.path.join(HERE, "agent.json"))); os.environ["EMULSIFY_AGENT_CFG"] = json.dumps(CFG)
+except FileNotFoundError:                                        # a child spawned while agent.json is being rewritten: the parent's copy
+    if not os.environ.get("EMULSIFY_AGENT_CFG"): raise
+    CFG = json.loads(os.environ["EMULSIFY_AGENT_CFG"])
 LOBBY = CFG["lobby"].rstrip("/"); KEY = CFG["agent_key"]; LAB = CFG.get("lab", HERE)
 POLL = float(CFG.get("poll_seconds", 1.5)); WORKERS = int(CFG.get("workers", 2))
 STANDIN = os.environ.get("EMULSIFY_AGENT_STANDIN") == "1"   # pipe tests on a box without the chemistry: NOT the lab
+# THE GPU LAB (kit 7): gpu = "auto" tries CuPy on the 4090 and keeps it only if its golden print passes the same
+# gate as any other machine; "off" never tries. The supervisor decides once and tells the workers (EMULSIFY_GPU).
+GPU_WANT = str(CFG.get("gpu", "auto")).lower() not in ("off", "false", "0", "no")
+GPU_ON = os.environ.get("EMULSIFY_GPU") == "1"
 for d in CFG.get("path_prepend", []): os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")   # node, when a scheduled task's PATH is stale
 sys.path.insert(0, LAB); os.chdir(LAB)
 
@@ -49,34 +56,38 @@ def make_lab():
         def dev(neg, stock, seed, size):
             im = Image.open(io.BytesIO(neg)).convert("RGB").resize((size * 4 // 5, size)); b = io.BytesIO(); im.save(b, "JPEG", quality=85); time.sleep(1.0); return {"jpg": b.getvalue(), "secs": 1.0}
         return {"develop": dev}
+    if GPU_ON:
+        import gpulab
+        return gpulab.make_lab(LAB)
     import golden
     return golden.harness(os.path.join(LAB, "lab-worker.js"))
 
 GATE_PSNR_MIN, GATE_WITHIN3_MIN = 40.0, 0.99
-def gate():
+def gate(ns=None, label="agent"):
     if STANDIN: log("agent: STAND-IN MODE - resizing, not developing. Pipe test only. Never run this against the real lobby."); return True
     import golden, numpy as np
     from PIL import Image
-    ns = make_lab(); neg = golden.chart()
+    if ns is None: ns = make_lab()
+    neg = golden.chart()
     cs = hashlib.sha256(neg).hexdigest()[:12]
-    if cs != golden.CHART_SHA: log("agent: the golden chart itself does not reproduce (%s) - PIL JPEG differs on this machine" % cs); return False
+    if cs != golden.CHART_SHA: log("%s: the golden chart itself does not reproduce (%s) - PIL JPEG differs on this machine" % (label, cs)); return False
     t = time.time(); a = golden.pixels(ns["develop"](neg, "honey", 99, 1100)["jpg"]); secs = time.time() - t
     g = hashlib.sha256(a.tobytes()).hexdigest()[:16]
     try: Image.fromarray(a).save(os.path.join(HERE, "gate-print.png"))
     except Exception: pass
     if g == golden.GOLDEN_V17:
-        log("agent: golden %s = v21 byte for byte -> HOLDS   (%.1fs for the chart at 1100)" % (g, secs)); return True
+        log("%s: golden %s = v21 byte for byte -> HOLDS   (%.1fs for the chart at 1100)" % (label, g, secs)); return True
     ref_path = os.path.join(LAB, "golden-v21.png")
     if not os.path.exists(ref_path):
-        log("agent: golden %s differs from v21 %s and there is no golden-v21.png to measure against -> CHANGED" % (g, golden.GOLDEN_V17)); return False
+        log("%s: golden %s differs from v21 %s and there is no golden-v21.png to measure against -> CHANGED" % (label, g, golden.GOLDEN_V17)); return False
     ref = np.asarray(Image.open(ref_path).convert("RGB"))
-    if ref.shape != a.shape: log("agent: print is %s, the reference is %s -> CHANGED" % (a.shape, ref.shape)); return False
+    if ref.shape != a.shape: log("%s: print is %s, the reference is %s -> CHANGED" % (label, a.shape, ref.shape)); return False
     d = np.abs(a.astype(np.int16) - ref.astype(np.int16))
     mse = float((d.astype(np.float64) ** 2).mean()); psnr = 99.0 if mse == 0 else 10 * np.log10(255.0 ** 2 / mse)
     within1 = float((d <= 1).mean()); within3 = float((d <= 3).mean()); mx = int(d.max())
     ok = psnr >= GATE_PSNR_MIN and within3 >= GATE_WITHIN3_MIN
-    log("agent: golden %s vs reference v21: PSNR %.1f dB, within 1 level %.3f%%, within 3 %.3f%%, max |d| %d -> %s   (%.1fs for the chart at 1100)"
-        % (g, psnr, 100 * within1, 100 * within3, mx, "HOLDS (float noise of this machine's numpy/scipy/libjpeg)" if ok else "CHANGED: not float noise, something structural", secs))
+    log("%s: golden %s vs reference v21: PSNR %.1f dB, within 1 level %.3f%%, within 3 %.3f%%, max |d| %d -> %s   (%.1fs for the chart at 1100)"
+        % (label, g, psnr, 100 * within1, 100 * within3, mx, "HOLDS (float noise of this machine's numpy/scipy/libjpeg)" if ok else "CHANGED: not float noise, something structural", secs))
     return ok
 
 # ---------------------------------------------------------------- THE ROLL (b242): a clip becomes film
@@ -109,6 +120,7 @@ def gate():
 # index at the end), it is spooled to a scratch file that is wiped the same way.
 ROLL = CFG.get("roll", {})
 ROLL_PROCS = int(ROLL.get("procs", max(1, min(8, (os.cpu_count() or 2) - 2))))
+if GPU_ON: ROLL_PROCS = int(ROLL.get("gpu_procs", 2))        # the GPU is the parallelism; two feeders keep it busy
 ROLL_MAX_FRAMES = int(ROLL.get("max_frames", 480))
 ROLL_CRF = int(ROLL.get("crf", 18))
 ROLL_SMOOTH_S = float(ROLL.get("smooth_seconds", 0.6))
@@ -305,7 +317,20 @@ def supervise():
     log("agent: lobby %s  lab %s  workers %d" % (LOBBY, LAB, WORKERS))
     try: log("agent: lobby health", call("GET", "/health"))
     except Exception as e: log("agent: lobby not answering yet (%s) - will keep trying" % e)
-    if not gate(): log("agent: this is not the lab. Refusing to serve."); sys.exit(1)
+    global GPU_ON
+    if not gate(label="agent (cpu)"): log("agent: this is not the lab. Refusing to serve."); sys.exit(1)
+    # THE GPU LAB: tried after the CPU lab has proven itself; kept only if its print passes the same gate
+    if GPU_WANT and not STANDIN:
+        try:
+            import gpulab
+            log("agent: trying the GPU lab on %s" % gpulab.device_name())
+            GPU_ON = True; os.environ["EMULSIFY_GPU"] = "1"
+            if not gate(gpulab.make_lab(LAB), label="agent (gpu)"):
+                log("agent: the GPU lab is not the lab on this machine - developing on the CPU"); GPU_ON = False; os.environ["EMULSIFY_GPU"] = "0"
+            else: log("agent: THE GPU LAB IS ON. Stills and film develop on the GPU.")
+        except Exception as e:
+            log("agent: no GPU lab (%s) - developing on the CPU" % str(e).splitlines()[0][:160]); GPU_ON = False; os.environ["EMULSIFY_GPU"] = "0"
+    else: os.environ["EMULSIFY_GPU"] = "0"
     procs = {}
     while True:
         for i in range(WORKERS):

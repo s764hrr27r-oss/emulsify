@@ -1,4 +1,4 @@
-# EMULSIFY LOBBY + FILM — install (b246 / w3.25, lobby kit 5)
+# EMULSIFY LOBBY + FILM — install (b247 / w3.25, lobby kit 7)
 
 **The one-script way (what you actually run):** on the lab PC, in PowerShell,
 
@@ -130,7 +130,7 @@ Throughput: a 720 px frame is ~3 s of lab time here, ~4 s on the lab PC; 8 s of 
 
 Rituals: `python3 e2e-film.py` (page on 8765, lobby on 8766, the real agent polling it; includes the STILL/FILM mode) and `python3 filmcheck.py` (the flicker numbers above).
 
-## THE SHELF (b246)
+## THE SHELF (b247)
 
 Every finished roll is also kept on the droplet for its owner (`$EMULSIFY_DATA/shelf/<WHO>/`), never swept.
 Signed in, the phone asks `GET /shelf` and pulls down any film it does not have, so a person's films are in her
@@ -142,3 +142,17 @@ and belong to the phone). Profiles: RG, RITA, LUCA (make-profiles.py).
 Signed in, a dot in the top bar: green LAB (the lab PC answered the lobby in the last 20 s), amber LAB ASLEEP
 (lobby up, lab away: stills develop on the phone, film waits), red NO LOBBY. Landscape: `#gate` needed
 `min-width:0` - Safari gave it the finder's aspect-ratio width as a minimum and pushed the foot off-screen.
+
+## THE GPU LAB (kit 7) and LAB PRINT (b247)
+
+`gpulab.py` loads the same lab with `numpy` resolving to CuPy (scipy.ndimage to cupyx), the seeded draws kept on
+numpy's generators (CuPy's are different generators; the grain would be different grain), PIL at the edges. No
+line of the lab changes. The agent tries it after the CPU lab has passed the gate and keeps it only if the GPU
+print passes the same gate; otherwise it says so and develops on the CPU. `gpu: "off"` in agent.json never tries.
+Plumbing proven here by running the shim over numpy itself: golden v21 byte for byte. The real GPU numbers come
+from the PC's gate line.
+
+LAB PRINT (panel): 2200 / 1650 / 1100. Signed in with the lab awake, a still develops at that size at the lab;
+the negative was already cut at up to 2200 px. Lab asleep or signed out, the phone develops at PRINT SIZE as
+before. The LAB LOG now records what the camera really hands over (`CAMERA 3216x2160 (asked 3216)` here; the
+phone's number decides whether a bigger negative is worth asking for).
