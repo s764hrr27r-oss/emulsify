@@ -1,11 +1,11 @@
-# EMULSIFY LOBBY — install (b241)
+# EMULSIFY LOBBY + FILM — install (b242, lobby kit 3)
 
 **The one-script way (what you actually run):** on the lab PC, in PowerShell,
 
     powershell -ExecutionPolicy Bypass -File .\emulsify-setup.ps1
 
 `emulsify-setup.ps1` carries every file below inside it and does all three parts in order, checking before each
-change (safe to re-run). It needs the droplet's root password only if your ssh key is not on the droplet yet, and
+change (safe to re-run). It also installs `imageio-ffmpeg`, the ffmpeg that cuts and joins film. It needs the droplet's root password only if your ssh key is not on the droplet yet, and
 may ask for a GitHub sign-in when it pushes index.html. Everything below is what it does, for the record.
 
 Phone → `emulsify.gibsoncttools.com` (the lobby, on the droplet) → lab PC polls, develops, posts the print back.
@@ -89,3 +89,27 @@ and give them the same password in the page's THEMED table (or a plain profile w
 
 `python3 e2e-lobby.py` runs the page against a local lobby and a stand-in agent (`EMULSIFY_AGENT_STANDIN=1`, which
 resizes instead of developing — pipe test only). The real lab is proven by the agent's golden gate on the PC.
+
+## FILM (b242)
+
+Hold the shutter on the phone (signed in with a password) and it records, up to 8 s; let go and the clip goes to
+the lobby as a **roll** with the finder's window as fractions of the frame. On the lab PC the agent:
+
+1. cuts that window out of every frame at 24 fps with ffmpeg (from memory; an MP4 with its index at the end is
+   spooled to a scratch file that is overwritten with zeros and removed),
+2. develops the frames in parallel - `roll.procs` lab processes, one lab per process (golden.py trap 1) -
+   under THE ROLL RULE: one seed per roll for the stock's character (mineral beds, strata colour bias), the grain
+   field and emulsion fields re-rolled every frame (grain seed + frame * 1000003, field seed + frame * 7777),
+   so the look holds and the grain lives. Frame 0 is exactly the still that negative would make,
+3. joins the prints into an H.264 MP4 (yuv420p, faststart) through a scratch file that is wiped the same way,
+   posts the film and a poster (the first frame) to the lobby, and keeps nothing.
+
+The phone polls in the background (the strip shows `FILM 37/192`), stores the film beside its prints with a play
+mark, plays it in the print view, and tells the lobby to forget the job. Film frame 720 px long edge (576 x 720),
+24 fps, 8 s max: tune `FILM` in index.html; `?film=size,fps,max` overrides it for rituals.
+
+Throughput: a 720 px frame is ~3 s of lab time here, ~4 s on the lab PC; 8 s of film = 192 frames, so with
+8 lab processes a roll comes back in about two minutes. `roll.procs` in agent.json sets the parallelism
+(default: cores - 2, capped at 8); each lab process needs ~400 MB while it develops.
+
+Ritual: `python3 e2e-film.py` (page on 8765, lobby on 8766, the real agent polling it).

@@ -50,6 +50,19 @@ button { font:inherit; color:inherit; background:none; border:0; padding:0; lett
 #bath.on { display:flex; }
 #bath img { filter:blur(14px) saturate(.5) brightness(.55); }
 #bath span { position:relative; }
+/* FILM (b242): hold the shutter to record. A red dot and the seconds sit in the finder's corner while it rolls. */
+#rec { position:absolute; left:10px; top:10px; display:none; align-items:center; gap:7px; color:#ff5a4a; font-size:12px; letter-spacing:.14em; text-shadow:0 0 6px rgba(0,0,0,.8); pointer-events:none; }
+#rec::before { content:""; width:10px; height:10px; border-radius:50%; background:#ff5a4a; box-shadow:0 0 8px #ff5a4a; }
+html.rec #rec { display:flex; }
+html.rec #finder::after { box-shadow:inset 0 0 0 2px rgba(255,90,74,.8); }
+#shutter { -webkit-touch-callout:none; user-select:none; touch-action:manipulation; }
+/* a roll on the strip: its poster with a small mark; while it develops, a dark tile with the lab's count */
+#strip .ft { position:relative; flex:0 0 auto; height:56px; }
+#strip .ft img { height:56px; width:auto; display:block; }
+#strip .ft i { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-style:normal; font-size:13px; color:#fff; text-shadow:0 0 5px rgba(0,0,0,.9); pointer-events:none; }
+#strip .ft.dev { width:44px; background:#141516; border:1px solid var(--line); border-radius:2px; display:flex; align-items:center; justify-content:center; color:var(--warn); font-size:9px; letter-spacing:.06em; text-align:center; line-height:1.3; }
+#pvid { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:transparent; -webkit-touch-callout:none; user-select:none; }
+#pvid[hidden], #pimg[hidden] { display:none; }
 /* THE FOOT. Strip on the left, then lens, shutter, menu on the right: the
    portrait row. Landscape is this same row turned WITH THE PHONE - see the
    landscape block - so the shutter is wherever the rotation carried it. */
@@ -196,6 +209,7 @@ html.hive #signin input { background:#140f08; }
   #tray { flex:1; min-height:0; height:auto; width:56px; flex-direction:column-reverse; align-items:center; }
   #strip { flex:1; min-height:0; height:auto; width:56px; flex-direction:column-reverse; overflow-y:auto; overflow-x:hidden; }
   #strip img { width:56px; height:auto; }
+  #strip .ft { width:56px; height:auto; } #strip .ft img { width:56px; height:auto; } #strip .ft.dev { height:44px; }
   #lens { margin:0 0 12px 0; }
   #shutter { margin:0 0 16px 0; }
   #menu { margin:0 0 8px 0; }
@@ -224,13 +238,14 @@ html.hive #signin input { background:#140f08; }
   <div id="gate"><div id="finder">
     <video id="video" autoplay playsinline muted></video>
     <div id="bath"><img id="latent" alt=""><span id="bathtext">DEVELOPING</span></div>
+    <div id="rec">0:00</div>
   </div></div>
   <div id="foot"><div id="tray"><div id="strip"></div><button id="lens" aria-label="Lens">33</button></div><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
 </div>
 
 <div id="print" class="screen">
   <div id="pbar"><button id="back" aria-label="Back">&#8592;</button><span id="pcode"></span></div>
-  <div id="pstage"><img id="pimg" alt=""><div id="phint">hold to save</div></div>
+  <div id="pstage"><img id="pimg" alt=""><video id="pvid" playsinline muted loop autoplay hidden></video><div id="phint">hold to save</div></div>
 </div>
 
 <div id="panel"><div class="sheet" id="psheet">
@@ -251,7 +266,7 @@ html.hive #signin input { background:#140f08; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 241;
+const BUILD = 242;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -302,6 +317,15 @@ let WHO = "", theme = "";                 /* "" | "alien" | "hive" */
    Signed out, or the lobby unreachable, the phone's own bath runs exactly as before. */
 const LOBBY = new URLSearchParams(location.search).get("lobby") || "https://emulsify.gibsoncttools.com";
 let LOBBYKEY = "";
+/* FILM (b242): hold the shutter and the camera records; let go (or FILM.max seconds) and the clip goes to the
+   lobby as a roll. The lab PC cuts the finder's window out of every frame, develops each one as HONEY 70 - one
+   seed for the roll so the stock does not flicker, the grain re-rolled every frame - and joins them into an MP4
+   that lands on the strip with a play mark. Nothing of it stays on the lab PC (see emulsify-agent.py). The phone
+   cannot develop film itself, so this needs a password sign-in; signed out, a hold just says so. */
+const FILM = { fps: 24, size: 720, max: 8 };            /* frames per second, the film frame's long edge, the longest roll in seconds */
+{ const f = new URLSearchParams(location.search).get("film"); if (f) { const [a, b, c] = f.split(",").map(Number); if (a) FILM.size = a; if (b) FILM.fps = b; if (c) FILM.max = c; } }
+let rec = null, recChunks = [], recT0 = 0, recTick = null, recCap = null, pressTimer = null, pollTimer = null, polling = false;
+const rolls = new Map();                                 /* id -> { job, progress }: rolls out at the lab, or waiting to go */
 /* profile pictures, by initials: a small JPEG carried in the page itself */
 const FACES = { RG: { name: "Rachel G", src: "data:image/jpeg;base64,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" } };
 
@@ -376,7 +400,7 @@ async function develop(buf, seed, leak, px) {
   }
   return developHere(buf, seed, leak, px);
 }
-self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog });   /* the ritual reads the lobby state through this */
+self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog, rolls: [...rolls], film: FILM, rec: !!rec, build: BUILD });   /* the ritual reads the lobby state through this */
 
 /* ---------- the camera ---------- */
 function realize(mm) {                /* the longest glass at or under mm; crop makes up the rest */
@@ -508,6 +532,105 @@ async function makeThumb(blob) {
   return await new Promise(r => c.toBlob(r, "image/jpeg", 0.7));
 }
 
+/* ---------- FILM ---------- */
+function cropBox() {                 /* the finder's window as fractions of the frame: exactly what capture() cuts, so the lab cuts the same from every frame */
+  const v = $("video"); const vw = v.videoWidth, vh = v.videoHeight; if (!vw || !vh) return [0, 0, 1, 1];
+  const A = aspect(); let cw, ch;
+  if (vw / vh > A) { ch = vh; cw = Math.round(vh * A); } else { cw = vw; ch = Math.round(vw / A); }
+  cw = Math.round(cw / glass.crop); ch = Math.round(ch / glass.crop);
+  const sx = Math.round((vw - cw) / 2), sy = Math.round((vh - ch) / 2);
+  return [sx / vw, sy / vh, cw / vw, ch / vh];
+}
+function startRoll() {
+  pressTimer = null;
+  if (busy || rec || !stream || labDead) return;
+  if (!LOBBYKEY) { flash("FILM NEEDS THE LAB - SIGN IN", 2600); return; }
+  if (typeof MediaRecorder === "undefined") { flash("NO RECORDER ON THIS PHONE", 2600); return; }
+  const mime = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } }) || "";
+  try { rec = new MediaRecorder(stream, Object.assign({ videoBitsPerSecond: 12e6 }, mime ? { mimeType: mime } : {})); }
+  catch (e) { rec = null; flash("RECORDER: " + String(e && e.name || e).toUpperCase(), 3000); return; }
+  recChunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); }; rec.onstop = e => finishRoll(e.target);
+  const box = cropBox();
+  rec.__box = box; rec.__mm = glass.mm; rec.__ana = anaOn ? SQUEEZE : 1;
+  try { rec.start(); } catch (e) { rec = null; flash("RECORDER: " + String(e && e.name || e).toUpperCase(), 3000); return; }
+  recT0 = Date.now(); sfx("shutter");
+  document.documentElement.classList.add("rec"); $("rec").textContent = "0:00";
+  recTick = setInterval(() => { const sec = Math.floor((Date.now() - recT0) / 1000); $("rec").textContent = "0:" + String(sec).padStart(2, "0"); }, 250);
+  recCap = setTimeout(stopRoll, FILM.max * 1000);
+}
+function stopRoll() {
+  clearTimeout(recCap); clearInterval(recTick); document.documentElement.classList.remove("rec");
+  const r = rec; rec = null; if (r && r.state !== "inactive") { try { r.stop(); } catch (e) {} }
+}
+async function finishRoll(r) {
+  const secs = (Date.now() - recT0) / 1000;
+  const type = ((r && r.mimeType) || (recChunks[0] && recChunks[0].type) || "video/mp4").split(";")[0];
+  const blob = new Blob(recChunks, { type }); recChunks = [];
+  if (secs < 0.6 || blob.size < 5000) { flash("TOO SHORT FOR FILM"); return; }
+  const id = String(Date.now());
+  frameNo += 1;
+  if (frameNo > 36) { frameNo = 1; ROLL = String.fromCharCode(((ROLL.charCodeAt(0) - 65 + 1) % 26) + 65); }
+  const rf = ROLL + String(frameNo).padStart(2, "0");
+  try { localStorage.frameNo = String(frameNo); localStorage.roll = ROLL; localStorage["rf" + id] = rf; localStorage["k" + id] = "film"; } catch (e) {}
+  paintTop();
+  const recd = { blob, kind: "roll", seed: (Number(id) % 9000) + 1, fps: FILM.fps, size: FILM.size, crop: (r && r.__box) || [0, 0, 1, 1], mm: (r && r.__mm) || glass.mm, ana: (r && r.__ana) || 1, rf, secs, at: Date.now(), job: null, tries: 0 };
+  try { await put("negs", id, recd); } catch (e) { flash("ROLL NOT SAVED"); }
+  sendRoll(id, recd);
+}
+async function sendRoll(id, r) {
+  if (!LOBBYKEY) { rolls.set(id, { job: null, progress: "SIGN IN" }); paintStrip(); return; }
+  rolls.set(id, { job: null, progress: "SENDING" }); paintStrip();
+  try {
+    const q = new URLSearchParams({ kind: "roll", seed: r.seed, size: r.size, fps: r.fps, crop: r.crop.map(x => x.toFixed(5)).join(","), mm: r.mm, ana: r.ana, dc: 1, build: BUILD, profile: "honey" });
+    const ctl = new AbortController(); const stop = setTimeout(() => ctl.abort(), 90000);
+    const res = await fetch(LOBBY + "/jobs?" + q, { method: "POST", headers: { "X-Who": WHO, "X-Key": LOBBYKEY, "Content-Type": r.blob.type || "video/mp4" }, body: r.blob, signal: ctl.signal }); clearTimeout(stop);
+    if (!res.ok) throw new Error("LOBBY " + res.status);
+    const { id: job } = await res.json();
+    r.job = job; await put("negs", id, r); rolls.set(id, { job, progress: "QUEUED" }); paintStrip();
+    flash("ROLL " + r.rf + " SENT TO THE LAB", 2200); pollRolls();
+  } catch (e) { labLog = "ROLL: " + String(e && e.message || e) + "\n" + labLog; rolls.set(id, { job: null, progress: "NO LOBBY", next: Date.now() + 30000 }); paintStrip(); flash("LOBBY UNREACHABLE - ROLL KEPT", 3000); pollRolls(); }
+}
+function pollRolls() { if (pollTimer) return; pollTimer = setInterval(pollOnce, 3000); }
+async function pollOnce() {
+  if (!rolls.size) { clearInterval(pollTimer); pollTimer = null; return; }
+  if (!LOBBYKEY || polling) return;                       /* signed out: the rolls wait */
+  polling = true;
+  const H = { "X-Who": WHO, "X-Key": LOBBYKEY };
+  try {
+    for (const [id, st] of [...rolls]) {
+      if (!st.job) {                                      /* not sent yet (no lobby, or signed out at the time): try again, not more than every 30 s */
+        if (st.progress === "SENDING" || (st.next && Date.now() < st.next)) continue;
+        const r = await get("negs", id).catch(() => null);
+        if (r && r.blob && !r.job) await sendRoll(id, r); else if (!r) { rolls.delete(id); paintStrip(); }
+        continue;
+      }
+      let j; try { j = await (await fetch(LOBBY + "/jobs/" + st.job, { headers: H })).json(); } catch (e) { continue; }
+      if (j.state === "queued" || j.state === "working") { const p = j.progress || (j.state === "queued" ? "QUEUED" : "LAB"); if (p !== st.progress) { st.progress = p; paintStrip(); } continue; }
+      if (j.state === "done") { await landRoll(id, st.job, j); continue; }
+      const r = await get("negs", id).catch(() => null);
+      if (j.state === "failed") { labLog = "FILM " + (r && r.rf || id) + ": " + (j.error || "failed") + "\n" + labLog; flash("FILM " + (r && r.rf || "") + " FAILED AT THE LAB", 3200); rolls.delete(id); await del("negs", id); paintStrip(); continue; }
+      /* the lobby no longer knows the job (swept): send the clip again, once */
+      if (r && r.blob && (r.tries || 0) < 1) { r.job = null; r.tries = (r.tries || 0) + 1; await put("negs", id, r); st.job = null; st.progress = "SENDING"; await sendRoll(id, r); }
+      else { rolls.delete(id); await del("negs", id); paintStrip(); }
+    }
+  } finally { polling = false; }
+}
+async function landRoll(id, job, j) {
+  const H = { "X-Who": WHO, "X-Key": LOBBYKEY };
+  try {
+    const p = await fetch(LOBBY + "/jobs/" + job + "/print", { headers: H }); if (!p.ok) throw new Error("PRINT " + p.status);
+    const film = new Blob([await p.arrayBuffer()], { type: j.ctype || "video/mp4" });
+    let thumb = null;
+    try { const po = await fetch(LOBBY + "/jobs/" + job + "/poster", { headers: H }); if (po.ok) thumb = await makeThumb(new Blob([await po.arrayBuffer()], { type: "image/jpeg" })); } catch (e) {}
+    await put("prints", id, film); if (thumb) await put("thumbs", id, thumb);
+    try { localStorage["t" + id] = j.secs ? String(Math.round(Number(j.secs))) : ""; localStorage["k" + id] = "film"; } catch (e) {}
+    if (!prints.includes(id)) prints.push(id);
+    await del("negs", id); rolls.delete(id);
+    fetch(LOBBY + "/jobs/" + job, { method: "DELETE", headers: H }).catch(() => {});    /* the phone has it; the lobby forgets it */
+    paintStrip(); sfx("print"); flash("FILM " + (localStorage["rf" + id] || "") + " DEVELOPED", 2600);
+  } catch (e) { labLog = "FILM: " + String(e && e.message || e) + "\n" + labLog; }
+}
+
 /* anything still in negs at boot is a bath that never finished. Re-developed
    oldest first, one size smaller each time it has failed, and given up after two. */
 async function recover() {
@@ -515,17 +638,19 @@ async function recover() {
   try { const all = await new Promise(res => { const r = DB.transaction("negs").objectStore("negs").getAllKeys(); r.onsuccess = () => res(r.result.map(String).sort()); r.onerror = () => res([]); }); lost = all.filter(k => !prints.includes(k) && !cooking.has(k)); } catch (e) { return; }
   for (const id of lost) {
     if (cooking.has(id) || prints.includes(id)) continue;
-    const rec = await get("negs", id).catch(() => null);
-    if (!rec || !rec.blob) { await del("negs", id); continue; }
-    if ((rec.tries || 0) >= 2) { flash("FRAME " + (rec.rf || id.slice(-4)) + " GAVE UP TWICE", 3000); continue; }
-    const px = SIZES[Math.min(SIZES.length - 1, SIZES.indexOf(rec.size) < 0 ? 0 : SIZES.indexOf(rec.size) + (rec.tries || 0))];
-    await put("negs", id, Object.assign({}, rec, { tries: (rec.tries || 0) + 1 }));
-    try { if (rec.rf && !localStorage["rf" + id]) localStorage["rf" + id] = rec.rf; } catch (e) {}
-    flash("RECOVERING " + (rec.rf || "FRAME") + " AT " + px, 2500);
-    while ((!workerVer || busy) && !labDead) await new Promise(r => setTimeout(r, 250));
+    const neg = await get("negs", id).catch(() => null);
+    if (!neg || !neg.blob) { await del("negs", id); continue; }
+    if (neg.kind === "roll") { rolls.set(id, { job: neg.job, progress: neg.job ? "QUEUED" : (LOBBYKEY ? "SENDING" : "SIGN IN") }); continue; }
+    if ((neg.tries || 0) >= 2) { flash("FRAME " + (neg.rf || id.slice(-4)) + " GAVE UP TWICE", 3000); continue; }
+    const px = SIZES[Math.min(SIZES.length - 1, SIZES.indexOf(neg.size) < 0 ? 0 : SIZES.indexOf(neg.size) + (neg.tries || 0))];
+    await put("negs", id, Object.assign({}, neg, { tries: (neg.tries || 0) + 1 }));
+    try { if (neg.rf && !localStorage["rf" + id]) localStorage["rf" + id] = neg.rf; } catch (e) {}
+    flash("RECOVERING " + (neg.rf || "FRAME") + " AT " + px, 2500);
+    while ((!workerVer || busy || rec) && !labDead) await new Promise(r => setTimeout(r, 250));
     if (labDead) return;
-    await bath(id, rec.blob, rec.seed || 1, rec.leak || 0, px);
+    await bath(id, neg.blob, neg.seed || 1, neg.leak || 0, px);
   }
+  if (rolls.size) { paintStrip(); pollRolls(); pollOnce(); }
 }
 
 /* ---------- prints ---------- */
@@ -533,21 +658,27 @@ const urls = new Set(); const mkURL = b => { const u = URL.createObjectURL(b); u
 const revokeAll = () => { for (const u of urls) URL.revokeObjectURL(u); urls.clear(); };
 async function paintStrip() {
   const el = $("strip"); el.innerHTML = ""; revokeAll();
+  for (const [id, st] of [...rolls].reverse()) { const d = document.createElement("div"); d.className = "ft dev"; d.textContent = "FILM " + (st.progress || ""); el.appendChild(d); }
   for (const id of prints.slice(-12).reverse()) {
     const t = await get("thumbs", id).catch(() => null); if (!t) continue;
-    const im = document.createElement("img"); im.src = mkURL(t); im.onclick = () => openPrint(id); el.appendChild(im);
+    const im = document.createElement("img"); im.src = mkURL(t);
+    if (localStorage["k" + id] === "film") { const w = document.createElement("div"); w.className = "ft"; w.appendChild(im); const i = document.createElement("i"); i.textContent = "\u25B6"; w.appendChild(i); w.onclick = () => openPrint(id); el.appendChild(w); }
+    else { im.onclick = () => openPrint(id); el.appendChild(im); }
   }
 }
 async function openPrint(id) {
   const blob = await get("prints", id).catch(() => null); if (!blob) return;
   current = id;
+  const film = (blob.type || "").startsWith("video/");
   const rf = localStorage["rf" + id] || "", secs = localStorage["t" + id] || "";
-  currentFile = new File([blob], "EMULSIFY" + (rf ? "-" + rf : "") + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + ".jpg", { type: "image/jpeg" });
-  $("pcode").textContent = (rf ? rf[0] + " · " + rf.slice(1) : "") + (secs ? "  ·  " + secs + "s" : "");
-  const old = $("pimg").src; $("pimg").src = URL.createObjectURL(blob); if (old) URL.revokeObjectURL(old);
+  currentFile = new File([blob], "EMULSIFY" + (rf ? "-" + rf : "") + (film ? "-FILM" : "") + (secs ? "-" + secs + "s" : "") + "-" + id.slice(-4) + (film ? ".mp4" : ".jpg"), { type: film ? (blob.type || "video/mp4") : "image/jpeg" });
+  $("pcode").textContent = (rf ? rf[0] + " · " + rf.slice(1) : "") + (film ? "  ·  FILM" : "") + (secs ? "  ·  " + secs + "s" : "");
+  const vid = $("pvid"), img = $("pimg");
+  if (film) { const old = vid.src; vid.src = URL.createObjectURL(blob); if (old) URL.revokeObjectURL(old); img.hidden = true; vid.hidden = false; vid.play && vid.play().catch(() => {}); }
+  else { const old = img.src; img.src = URL.createObjectURL(blob); if (old) URL.revokeObjectURL(old); vid.hidden = true; try { vid.pause(); } catch (e) {} img.hidden = false; }
   $("cam").classList.remove("on"); $("print").classList.add("on");
 }
-function closePrint() { $("print").classList.remove("on"); $("cam").classList.add("on"); current = null; }
+function closePrint() { $("print").classList.remove("on"); $("cam").classList.add("on"); current = null; try { $("pvid").pause(); } catch (e) {} }
 $("back").onclick = closePrint;
 /* hold the print to save: share() must run inside the gesture, so it fires on the pointerup that ends a long enough hold */
 $("pstage").addEventListener("pointerdown", e => { hold = { t: performance.now(), x: e.clientX, y: e.clientY, moved: false }; });
@@ -866,6 +997,7 @@ async function signIn(typed, pw) {
   WHO = who;
   paintWho(); paintPanel();
   if (T) { sfx("welcome"); flash(T.welcome, 2800); } else flash("SIGNED IN - " + who);
+  if (rolls.size && LOBBYKEY) pollRolls();
   return true;
 }
 function signOut() { sfx("bye"); WHO = ""; theme = ""; LOBBYKEY = ""; paintWho(); paintPanel(); flash("SIGNED OUT"); }
@@ -907,7 +1039,12 @@ function applyUpdate() { if (busy) { setTimeout(applyUpdate, 1500); return; } lo
 if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }); } catch (e) {} }
 try { delete localStorage.who; delete localStorage.alien; } catch (e) {}   /* b223-b224 stored the sign-in; it is a session now */
 paintWho(); paintTop(); paintPanel();
-$("shutter").onclick = shoot;
+{ const sh = $("shutter");                              /* tap = a still; hold = film */
+  sh.oncontextmenu = e => e.preventDefault();
+  sh.addEventListener("pointerdown", () => { if (sh.disabled) return; clearTimeout(pressTimer); pressTimer = setTimeout(startRoll, 380); });
+  sh.addEventListener("pointerup", () => { if (sh.disabled) return; const wasRec = !!rec, armed = !!pressTimer; clearTimeout(pressTimer); pressTimer = null; if (wasRec) stopRoll(); else if (armed) shoot(); });
+  sh.addEventListener("pointercancel", () => { clearTimeout(pressTimer); pressTimer = null; if (rec) stopRoll(); });
+  sh.addEventListener("pointerleave", () => { clearTimeout(pressTimer); pressTimer = null; if (rec) stopRoll(); }); }
 spawnLab();
 startCamera();
 paintStrip();

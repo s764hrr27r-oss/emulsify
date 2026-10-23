@@ -5,16 +5,23 @@ The lobby develops nothing. It holds negatives for the lab PC and prints for the
 
   phone  POST /jobs?seed=..&size=..&mm=..&ana=..&leak=..&dc=..&build=..   body: the negative (JPEG)
                 headers X-Who: RG   X-Key: <lobby key>            -> {"id": ..}
-  phone  GET  /jobs/<id>                                            -> {"state": queued|working|done|failed, "secs": ..}
-  phone  GET  /jobs/<id>/print                                      -> the print (JPEG)
+         ... &kind=roll&fps=24&crop=x,y,w,h                       body: a recorded clip (video/mp4 or video/webm);
+                crop is the finder's window as fractions of the frame; size is the film frame's long edge
+  phone  GET  /jobs/<id>                                            -> {"state": queued|working|done|failed, "secs", "progress", "ctype"}
+  phone  GET  /jobs/<id>/print                                      -> the print (image/jpeg, or video/mp4 for a roll)
+  phone  GET  /jobs/<id>/poster                                     -> a roll's first frame (image/jpeg)
+  phone  DELETE /jobs/<id>                                          -> the phone has it: everything about the job is removed
   agent  POST /agent/claim          header X-Agent-Key               -> {"id", "params"} or {} when nothing waits
-  agent  GET  /agent/jobs/<id>/neg  header X-Agent-Key               -> the negative
-  agent  POST /agent/jobs/<id>/print?secs=..  header X-Agent-Key     -> stores the print, state -> done
+  agent  GET  /agent/jobs/<id>/neg  header X-Agent-Key               -> the negative or the clip (Content-Type says which)
+  agent  POST /agent/jobs/<id>/progress  body: "37/192"             -> shown to the phone while a roll develops
+  agent  POST /agent/jobs/<id>/poster    body: JPEG                  -> a roll's poster
+  agent  POST /agent/jobs/<id>/print?secs=..  Content-Type: ..      -> stores the print, state -> done
   agent  POST /agent/jobs/<id>/fail  header X-Agent-Key   body: why  -> state -> failed
   anyone GET  /health                                                -> {"ok": true, "queued": n, "agent_seen": secs ago}
 
-Everything lives under $EMULSIFY_DATA/jobs/<id>/ (neg.jpg, params.json, state, print.jpg). Jobs older than
-$EMULSIFY_KEEP_HOURS are swept. Standard library only; one small process; binds 127.0.0.1 and lets Caddy do TLS.
+Everything lives under $EMULSIFY_DATA/jobs/<id>/ (neg.bin + params.json while waiting, print.bin + done.json after).
+The negative or clip is deleted the moment the print is posted; the whole job goes when the phone says DELETE, or
+after $EMULSIFY_KEEP_HOURS. Standard library only; one small process; binds 127.0.0.1 and lets Caddy do TLS.
 
 Keys. The phone's key is sha256("emulsify-lobby:" + password.strip().lower()) - a hash the page never contains, so
 reading index.html does not get you in. profiles.json maps initials -> list of accepted keys. The agent's key is a
@@ -31,9 +38,9 @@ KEEP_H = float(os.environ.get("EMULSIFY_KEEP_HOURS", "24"))
 AGENT_KEY = os.environ.get("EMULSIFY_AGENT_KEY", "")
 PROFILES = os.environ.get("EMULSIFY_PROFILES", os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json"))
 ORIGINS = set(filter(None, os.environ.get("EMULSIFY_ORIGINS", "https://s764hrr27r-oss.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",")))
-MAX_NEG = 40 * 1024 * 1024            # a 4032x3024 JPEG is well under this; a roll will come as many frames
+MAX_NEG = 64 * 1024 * 1024            # a still is well under 1 MB; an 8 s phone clip is 10-20 MB
 JOBS = os.path.join(DATA, "jobs")
-PARAM_KEYS = ("seed", "size", "mm", "ana", "leak", "dc", "build", "profile")
+PARAM_KEYS = ("seed", "size", "mm", "ana", "leak", "dc", "build", "profile", "kind", "fps", "crop")
 lock = threading.Lock()
 agent_seen = 0.0
 
@@ -83,7 +90,7 @@ class H(BaseHTTPRequestHandler):
         if o in ORIGINS:
             self.send_header("Access-Control-Allow-Origin", o)
             self.send_header("Access-Control-Allow-Headers", "X-Who, X-Key, Content-Type")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
             self.send_header("Access-Control-Max-Age", "600")
             self.send_header("Vary", "Origin")
     def out(self, code, body=b"", ctype="application/json"):
@@ -104,6 +111,12 @@ class H(BaseHTTPRequestHandler):
         if ok: agent_seen = time.time()
         return ok
     def do_OPTIONS(self): self.out(204)
+    def do_DELETE(self):
+        p = urlparse(self.path).path.rstrip("/").split("/")
+        if len(p) == 3 and p[1] == "jobs" and safe_id(p[2]):
+            if not self.phone_ok(): return self.out(401, {"error": "sign in"})
+            shutil.rmtree(jdir(p[2]), ignore_errors=True); return self.out(200, {"ok": True})
+        self.out(404, {"error": "lobby: no such door"})
     # -- routes
     def do_GET(self):
         u = urlparse(self.path); p = u.path.rstrip("/").split("/")
@@ -115,7 +128,10 @@ class H(BaseHTTPRequestHandler):
             if not st: return self.out(404, {"error": "no such job"})
             r = {"state": st}
             if st == "done":
-                try: r["secs"] = json.loads(read(p[2], "done.json"))["secs"]
+                try: r.update(json.loads(read(p[2], "done.json")))
+                except Exception: pass
+            if st == "working":
+                try: r["progress"] = read(p[2], "progress.txt").strip()
                 except Exception: pass
             if st == "failed":
                 try: r["error"] = read(p[2], "error.txt")[:300]
@@ -124,11 +140,19 @@ class H(BaseHTTPRequestHandler):
         if len(p) == 4 and p[1] == "jobs" and safe_id(p[2]) and p[3] == "print":
             if not self.phone_ok(): return self.out(401, {"error": "sign in"})
             if state(p[2]) != "done": return self.out(409, {"error": "not done"})
-            return self.out(200, read(p[2], "print.jpg", "rb"), "image/jpeg")
+            try: ct = json.loads(read(p[2], "done.json")).get("ctype", "image/jpeg")
+            except Exception: ct = "image/jpeg"
+            return self.out(200, read(p[2], "print.bin", "rb"), ct)
+        if len(p) == 4 and p[1] == "jobs" and safe_id(p[2]) and p[3] == "poster":
+            if not self.phone_ok(): return self.out(401, {"error": "sign in"})
+            if not os.path.exists(os.path.join(jdir(p[2]), "poster.jpg")): return self.out(404, {"error": "no poster"})
+            return self.out(200, read(p[2], "poster.jpg", "rb"), "image/jpeg")
         if len(p) == 5 and p[1] == "agent" and p[2] == "jobs" and safe_id(p[3]) and p[4] == "neg":
             if not self.agent_ok(): return self.out(401, {"error": "agent key"})
             if not state(p[3]): return self.out(404, {"error": "no such job"})
-            return self.out(200, read(p[3], "neg.jpg", "rb"), "image/jpeg")
+            try: ct = json.loads(read(p[3], "params.json")).get("ctype", "image/jpeg")
+            except Exception: ct = "image/jpeg"
+            return self.out(200, read(p[3], "neg.bin", "rb"), ct)
         self.out(404, {"error": "lobby: no such door"})
     def do_POST(self):
         global agent_seen
@@ -137,11 +161,17 @@ class H(BaseHTTPRequestHandler):
             if not self.phone_ok(): return self.out(401, {"error": "sign in"})
             neg = self.body()
             if neg is None: return
-            if len(neg) < 1000 or neg[:2] != b"\xff\xd8": return self.out(400, {"error": "not a JPEG negative"})
-            i = uuid.uuid4().hex
             params = {k: q[k][0] for k in PARAM_KEYS if k in q}; params["who"] = (self.headers.get("X-Who") or "").upper().strip()
+            ct = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            if params.get("kind") == "roll":
+                if len(neg) < 5000 or not ct.startswith("video/"): return self.out(400, {"error": "a roll is a video/* clip"})
+                params["ctype"] = ct
+            else:
+                if len(neg) < 1000 or neg[:2] != b"\xff\xd8": return self.out(400, {"error": "not a JPEG negative"})
+                params["kind"] = "still"; params["ctype"] = "image/jpeg"
+            i = uuid.uuid4().hex
             os.makedirs(jdir(i), exist_ok=True)
-            write(i, "neg.jpg", neg, "wb"); write(i, "params.json", json.dumps(params)); write(i, "state", "queued")
+            write(i, "neg.bin", neg, "wb"); write(i, "params.json", json.dumps(params)); write(i, "state", "queued")
             sweep()
             return self.out(201, {"id": i, "queued": queued(), "agent_seen": round(time.time() - agent_seen) if agent_seen else None})
         if u.path == "/agent/claim":
@@ -151,16 +181,20 @@ class H(BaseHTTPRequestHandler):
                 if not i: return self.out(200, {})
                 write(i, "state", "working")
             return self.out(200, {"id": i, "params": json.loads(read(i, "params.json"))})
-        if len(p) == 5 and p[1] == "agent" and p[2] == "jobs" and safe_id(p[3]) and p[4] in ("print", "fail"):
+        if len(p) == 5 and p[1] == "agent" and p[2] == "jobs" and safe_id(p[3]) and p[4] in ("print", "fail", "progress", "poster"):
             if not self.agent_ok(): return self.out(401, {"error": "agent key"})
             if not state(p[3]): return self.out(404, {"error": "no such job"})
             b = self.body()
             if b is None: return
+            if p[4] == "progress": write(p[3], "progress.txt", b.decode("utf-8", "replace")[:64]); return self.out(200, {"ok": True})
+            if p[4] == "poster": write(p[3], "poster.jpg", b, "wb"); return self.out(200, {"ok": True})
             if p[4] == "print":
-                write(p[3], "print.jpg", b, "wb"); write(p[3], "done.json", json.dumps({"secs": float(q.get("secs", ["0"])[0])})); write(p[3], "state", "done")
+                ct = (self.headers.get("Content-Type") or "image/jpeg").split(";")[0].strip().lower()
+                if ct == "application/octet-stream": ct = "image/jpeg"
+                write(p[3], "print.bin", b, "wb"); write(p[3], "done.json", json.dumps({"secs": float(q.get("secs", ["0"])[0]), "ctype": ct, "bytes": len(b)})); write(p[3], "state", "done")
             else:
                 write(p[3], "error.txt", b.decode("utf-8", "replace")[:2000]); write(p[3], "state", "failed")
-            try: os.remove(os.path.join(jdir(p[3]), "neg.jpg"))     # the negative has done its job
+            try: os.remove(os.path.join(jdir(p[3]), "neg.bin"))     # the negative has done its job
             except FileNotFoundError: pass
             return self.out(200, {"ok": True})
         self.out(404, {"error": "lobby: no such door"})
