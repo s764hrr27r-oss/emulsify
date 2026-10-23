@@ -87,7 +87,21 @@ def gate():
 # THE ROLL RULE: one seed for the whole roll decides the stock's character - the mineral beds (speed, contrast)
 # and the strata colour bias - so the look does not flicker; the grain field and the emulsion fields are re-rolled
 # for every frame (grain seed + frame * 1000003, field seed + frame * 7777), so the grain is alive the way film
-# grain is. Frame 0 is exactly the still the same negative would make.
+# grain is.
+#
+# THE SHOT (w3.25, kit 4): a still times itself - meter, drift balancer, exposure, fixer - from its own pixels.
+# Frame by frame that is flicker: the exposure and colour follow whatever walked into the frame. Film times a
+# shot. So every frame is probed first (_shot_probe: the same measurements, no developing), the measurements are
+# smoothed along the roll - a slow meter, ROLL_SMOOTH_S seconds wide - and each frame develops with the smoothed
+# timing (_SHOT). The fixer's colour trim is read off frame 0 and held for the roll. timing=frame in the job turns
+# this off (every frame for itself, as b242 did); timing=lock holds the roll's median timing throughout.
+#
+# THE FIELDS (kit 4): the emulsion fields - three +-1%, frame-wide undulations with a radial pull - re-rolled every
+# frame were the flicker you could see in a sky: a 24 px patch wobbled 0.8 levels frame to frame; held, it wobbles
+# 0.14 (grain alone). So under shot timing the fields are HELD for the roll, the way a printer's gate and a shot's
+# emulsion batch are one thing for the length of a shot. (A cos/sin drift between two draws was tried and measured
+# first: the draws share a radial pull, so the blend swelled 41% mid-turn and the frame breathed 25 levels - worse
+# than the flicker it replaced. Measured, rejected.) Grain still re-rolls every frame.
 #
 # Nothing of a roll touches this machine's disk except the encoder's scratch file (H.264 in MP4 needs a seekable
 # output for the moov atom), which is overwritten with zeros and removed the moment its bytes are in memory. The
@@ -97,6 +111,8 @@ ROLL = CFG.get("roll", {})
 ROLL_PROCS = int(ROLL.get("procs", max(1, min(8, (os.cpu_count() or 2) - 2))))
 ROLL_MAX_FRAMES = int(ROLL.get("max_frames", 480))
 ROLL_CRF = int(ROLL.get("crf", 18))
+ROLL_SMOOTH_S = float(ROLL.get("smooth_seconds", 0.6))
+ROLL_FIELDS = str(ROLL.get("fields", "hold"))          # hold (the roll's) or roll (a fresh draw every frame, b242)
 _NS = None
 def _roll_init(lab):
     global _NS
@@ -104,15 +120,39 @@ def _roll_init(lab):
     import golden
     _NS = golden.harness(os.path.join(lab, "lab-worker.js"))
     _NS["_grain_z0"] = _NS["_grain_z"]; _NS["_make_fields0"] = _NS["_make_fields"]
+def _roll_probe(task):
+    i, jpg, size, mm, ana = task
+    ns = _NS; ns["_LENS_MM"] = mm; ns["_ANA"] = ana; ns["_BAND_MIN_PX"] = 0
+    return i, ns["_shot_probe"](jpg, size)
 def _roll_frame(task):
-    i, jpg, seed, size, mm, ana, dc, build = task
+    i, jpg, seed, size, mm, ana, dc, build, shot, hold_fields = task
     ns = _NS
     ns["_LEAK"] = 0.0; ns["_LENS_MM"] = mm; ns["_BUILD"] = build; ns["_ANA"] = ana; ns["_DC_ON"] = dc
+    ns["_BAND_MIN_PX"] = 0                       # film always develops on the streamed path, the one the probe measures
     og, of = ns["_grain_z0"], ns["_make_fields0"]
     ns["_grain_z"] = lambda h, w, y0, s, tag: og(h, w, y0, s + i * 1000003, tag)
-    ns["_make_fields"] = lambda h, w, s: of(h, w, s + i * 7777)
-    r = ns["develop"](jpg, "honey", seed, size)
-    return i, r["jpg"], float(r["secs"])
+    ns["_make_fields"] = of if hold_fields else (lambda h, w, s: of(h, w, s + i * 7777))   # held for the roll, or b242's fresh draw per frame
+    ns["_SHOT"][0] = shot
+    try: r = ns["develop"](jpg, "honey", seed, size)
+    finally: measured = dict(ns["_SHOT_MEASURED"]); ns["_SHOT"][0] = None
+    return i, r["jpg"], float(r["secs"]), measured
+def _smooth(series, sigma):
+    """gaussian along the roll, edges reflected; sigma in frames (0 -> the series' median, held)"""
+    import numpy as np
+    a = np.asarray(series, np.float64)
+    if a.ndim == 1: a = a[:, None]
+    if sigma <= 0: return np.repeat(np.median(a, 0, keepdims=True), len(a), 0)
+    r = int(3 * sigma) + 1; k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2); k /= k.sum()
+    pad = np.pad(a, ((r, r), (0, 0)), mode="reflect")
+    return np.stack([np.convolve(pad[:, c], k, mode="valid") for c in range(a.shape[1])], 1)
+def time_the_shot(probes, fps, timing):
+    """per-frame shot dicts from the probes: smoothed (shot), held at the median (lock), or none (frame)"""
+    n = len(probes)
+    if timing == "frame": return [None] * n
+    sigma = 0 if timing == "lock" else ROLL_SMOOTH_S * fps
+    taus = _smooth([p["taus"] for p in probes], sigma); gains = _smooth([p["gains"] for p in probes], sigma)
+    warm = _smooth([p["warmbias"] for p in probes], sigma)[:, 0]; ev = _smooth([p["ev"] for p in probes], sigma)[:, 0]
+    return [{"taus": [float(x) for x in taus[i]], "gains": [float(x) for x in gains[i]], "warmbias": float(warm[i]), "ev": float(ev[i])} for i in range(n)]
 _POOL = None
 def roll_pool():
     global _POOL
@@ -197,13 +237,30 @@ def develop_roll(job):
     frames, how = cut_frames(ff, clip, p.get("ctype", ""), fps, crop, size)
     if len(frames) > ROLL_MAX_FRAMES: frames = frames[:ROLL_MAX_FRAMES]
     n = len(frames); del clip
-    log("agent: roll %s %s: %d frames at %g fps, film frame %dpx, clip %s, %d labs" % (jid[:8], p.get("who", "?"), n, fps, size, how, ROLL_PROCS))
+    timing = str(p.get("timing", "shot"))
+    log("agent: roll %s %s: %d frames at %g fps, film frame %dpx, clip %s, %d labs, timing %s" % (jid[:8], p.get("who", "?"), n, fps, size, how, ROLL_PROCS, timing))
+    call("POST", "/agent/jobs/%s/progress" % jid, ("timing %d" % n).encode())
+    pool = roll_pool()
+    probes = [None] * n
+    if timing != "frame":
+        for i, pr in pool.imap_unordered(_roll_probe, [(i, f, size, mm, ana) for i, f in enumerate(frames)]): probes[i] = pr
+    shots = time_the_shot(probes, fps, timing)
+    if timing != "frame":
+        ev = [s["ev"] for s in shots]; raw = [pr["ev"] for pr in probes]
+        log("agent: roll %s timed as a shot: ev %.2f..%.2f (frames measured %.2f..%.2f), warm %.2f..%.2f" % (jid[:8], min(ev), max(ev), min(raw), max(raw), min(s["warmbias"] for s in shots), max(s["warmbias"] for s in shots)))
     call("POST", "/agent/jobs/%s/progress" % jid, ("0/%d" % n).encode())
-    prints = []; lab_secs = 0.0; last = time.time()
-    for i, jpg, secs in roll_pool().imap(_roll_frame, [(i, f, seed, size, mm, ana, dc, build) for i, f in enumerate(frames)]):
-        prints.append(jpg); lab_secs += secs
-        if i == 0: call("POST", "/agent/jobs/%s/poster" % jid, jpg)
-        if time.time() - last > 2.5: call("POST", "/agent/jobs/%s/progress" % jid, ("%d/%d" % (i + 1, n)).encode()); last = time.time()
+    prints = [None] * n; lab_secs = 0.0; last = time.time(); done = 0
+    # frame 0 first and alone: its fixer trim is the roll's
+    hold = (timing != "frame") and ROLL_FIELDS != "roll"
+    i0, jpg0, secs0, meas0 = pool.apply(_roll_frame, ((0, frames[0], seed, size, mm, ana, dc, build, shots[0], hold),))
+    prints[0] = jpg0; lab_secs += secs0; done = 1
+    call("POST", "/agent/jobs/%s/poster" % jid, jpg0)
+    g0 = meas0.get("g")
+    if timing != "frame" and g0 is not None:
+        for sh in shots[1:]: sh["g"] = [float(x) for x in g0]
+    for i, jpg, secs, _m in pool.imap_unordered(_roll_frame, [(i, frames[i], seed, size, mm, ana, dc, build, shots[i], hold) for i in range(1, n)]):
+        prints[i] = jpg; lab_secs += secs; done += 1
+        if time.time() - last > 2.5: call("POST", "/agent/jobs/%s/progress" % jid, ("%d/%d" % (done, n)).encode()); last = time.time()
     del frames
     call("POST", "/agent/jobs/%s/progress" % jid, ("%d/%d joining" % (n, n)).encode())
     mp4 = join_frames(ff, prints, fps); del prints

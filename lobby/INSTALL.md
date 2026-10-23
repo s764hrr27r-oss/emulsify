@@ -1,4 +1,4 @@
-# EMULSIFY LOBBY + FILM — install (b242, lobby kit 3)
+# EMULSIFY LOBBY + FILM — install (b243 / w3.25, lobby kit 4)
 
 **The one-script way (what you actually run):** on the lab PC, in PowerShell,
 
@@ -108,8 +108,24 @@ The phone polls in the background (the strip shows `FILM 37/192`), stores the fi
 mark, plays it in the print view, and tells the lobby to forget the job. Film frame 720 px long edge (576 x 720),
 24 fps, 8 s max: tune `FILM` in index.html; `?film=size,fps,max` overrides it for rituals.
 
+## THE SHOT (w3.25, kit 4): film does not flicker
+
+A still times itself from its own pixels: the meter's push, the drift balancer's colour gains and warm bias, the
+exposure from the median, the fixer's colour trim. Frame by frame that is flicker. In w3.25 the lab has `_SHOT`:
+when set, `_develop_streamed` uses the shot's timing instead of measuring, and `_shot_probe` measures a frame
+without developing it. Inert for stills (golden v21 holds byte for byte). The agent probes every frame first,
+smooths the measurements along the roll (a gaussian `roll.smooth_seconds` = 0.6 s wide; `timing=lock` holds
+the roll's median instead; `timing=frame` is b242's every-frame-for-itself), reads the fixer trim off frame 0
+and holds it, and holds the emulsion fields for the roll (`roll.fields` = hold; `roll` re-draws them every frame
+as b242 did). Grain still re-rolls every frame.
+
+Measured (`filmcheck.py`, a 4 s pan and a 4 s static shot of a real photograph): exposure response wobble
+4.95% -> 1.88%, colour timing wobble 0.206 -> 0.075 levels, 24 px patch boil 0.67 -> 0.17 levels, grain life
+1.92 -> 1.81 (94% kept). A drifting blend of two field draws was tried first and rejected by the same ritual:
+the draws share a radial pull, the blend swelled mid-turn and the frame breathed 25 levels.
+
 Throughput: a 720 px frame is ~3 s of lab time here, ~4 s on the lab PC; 8 s of film = 192 frames, so with
 8 lab processes a roll comes back in about two minutes. `roll.procs` in agent.json sets the parallelism
 (default: cores - 2, capped at 8); each lab process needs ~400 MB while it develops.
 
-Ritual: `python3 e2e-film.py` (page on 8765, lobby on 8766, the real agent polling it).
+Rituals: `python3 e2e-film.py` (page on 8765, lobby on 8766, the real agent polling it; includes the STILL/FILM mode) and `python3 filmcheck.py` (the flicker numbers above).

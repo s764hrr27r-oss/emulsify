@@ -73,6 +73,11 @@ html.rec #finder::after { box-shadow:inset 0 0 0 2px rgba(255,90,74,.8); }
 #strip img { height:56px; width:auto; flex:0 0 auto; border-radius:2px; opacity:.9; }
 #lens { width:44px; height:44px; border-radius:50%; margin-left:12px; flex:0 0 auto; border:1px solid var(--mute); color:var(--ink); font-size:11px; letter-spacing:.02em; }
 #lens.ana::after { content:"A"; position:absolute; margin:-16px 0 0 20px; font-size:8px; color:var(--warn); }
+/* STILL / FILM (b243): the mode, beside the lens. In film mode the shutter wears a red ring and a tap rolls. */
+#mode { width:44px; height:44px; border-radius:50%; margin-left:12px; flex:0 0 auto; border:1px solid var(--mute); color:var(--mute); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; }
+html.film #mode { color:#ff5a4a; border-color:#ff5a4a; }
+html.film #shutter { box-shadow:0 0 0 3px rgba(255,90,74,.85); }
+html.rec #shutter { box-shadow:0 0 0 3px #ff5a4a, 0 0 18px rgba(255,90,74,.65); }
 #shutter { width:72px; height:72px; border-radius:50%; margin-left:16px; border:3px solid var(--ink); background:radial-gradient(circle,#dcd8d0 0 58%,transparent 60%); flex:0 0 auto; transition:transform .12s; }
 #shutter:active { transform:scale(.92); }
 #shutter:disabled { opacity:.35; }
@@ -211,11 +216,13 @@ html.hive #signin input { background:#140f08; }
   #strip img { width:56px; height:auto; }
   #strip .ft { width:56px; height:auto; } #strip .ft img { width:56px; height:auto; } #strip .ft.dev { height:44px; }
   #lens { margin:0 0 12px 0; }
+  #mode { margin:0 0 12px 0; }
   #shutter { margin:0 0 16px 0; }
   #menu { margin:0 0 8px 0; }
   html.landr #cam { flex-direction:row-reverse; }
   html.landr #foot, html.landr #tray, html.landr #strip { flex-direction:column; }
   html.landr #lens { margin:12px 0 0 0; }
+  html.landr #mode { margin:12px 0 0 0; }
   html.landr #shutter { margin:16px 0 0 0; }
   html.landr #menu { margin:8px 0 0 0; }
   html.alien #gate::before { left:4px; top:50%; margin:-75px 0 0 0; }
@@ -240,7 +247,7 @@ html.hive #signin input { background:#140f08; }
     <div id="bath"><img id="latent" alt=""><span id="bathtext">DEVELOPING</span></div>
     <div id="rec">0:00</div>
   </div></div>
-  <div id="foot"><div id="tray"><div id="strip"></div><button id="lens" aria-label="Lens">33</button></div><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
+  <div id="foot"><div id="tray"><div id="strip"></div><button id="lens" aria-label="Lens">33</button><button id="mode" aria-label="Still or film">STILL</button></div><button id="shutter" aria-label="Shutter" disabled></button><button id="menu" aria-label="Menu">&#9776;</button></div>
 </div>
 
 <div id="print" class="screen">
@@ -266,7 +273,7 @@ html.hive #signin input { background:#140f08; }
 <div id="flash"></div>
 
 <script type="module">
-const BUILD = 242;
+const BUILD = 243;
 const $ = id => document.getElementById(id);
 
 /* ---------- state, declared before anything reads it ---------- */
@@ -324,7 +331,10 @@ let LOBBYKEY = "";
    cannot develop film itself, so this needs a password sign-in; signed out, a hold just says so. */
 const FILM = { fps: 24, size: 720, max: 8 };            /* frames per second, the film frame's long edge, the longest roll in seconds */
 { const f = new URLSearchParams(location.search).get("film"); if (f) { const [a, b, c] = f.split(",").map(Number); if (a) FILM.size = a; if (b) FILM.fps = b; if (c) FILM.max = c; } }
-let rec = null, recChunks = [], recT0 = 0, recTick = null, recCap = null, pressTimer = null, pollTimer = null, polling = false;
+let rec = null, recChunks = [], recT0 = 0, recTick = null, recCap = null, pressTimer = null, pollTimer = null, polling = false, heldRec = false;
+let filmMode = false; try { filmMode = localStorage.mode === "film"; } catch (e) {}
+function paintMode() { document.documentElement.classList.toggle("film", filmMode); $("mode").textContent = filmMode ? "FILM" : "STILL"; }
+function setMode(film) { filmMode = !!film; try { localStorage.mode = filmMode ? "film" : "still"; } catch (e) {} paintMode(); flash(filmMode ? "FILM - TAP TO ROLL, TAP TO CUT" : "STILL", 1800); }
 const rolls = new Map();                                 /* id -> { job, progress }: rolls out at the lab, or waiting to go */
 /* profile pictures, by initials: a small JPEG carried in the page itself */
 const FACES = { RG: { name: "Rachel G", src: "data:image/jpeg;base64,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" } };
@@ -400,7 +410,7 @@ async function develop(buf, seed, leak, px) {
   }
   return developHere(buf, seed, leak, px);
 }
-self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog, rolls: [...rolls], film: FILM, rec: !!rec, build: BUILD });   /* the ritual reads the lobby state through this */
+self.__lobby = () => ({ url: LOBBY, key: LOBBYKEY, prints: prints.length, log: labLog, rolls: [...rolls], film: FILM, rec: !!rec, build: BUILD, mode: filmMode ? "film" : "still" });   /* the ritual reads the lobby state through this */
 
 /* ---------- the camera ---------- */
 function realize(mm) {                /* the longest glass at or under mm; crop makes up the rest */
@@ -542,7 +552,6 @@ function cropBox() {                 /* the finder's window as fractions of the 
   return [sx / vw, sy / vh, cw / vw, ch / vh];
 }
 function startRoll() {
-  pressTimer = null;
   if (busy || rec || !stream || labDead) return;
   if (!LOBBYKEY) { flash("FILM NEEDS THE LAB - SIGN IN", 2600); return; }
   if (typeof MediaRecorder === "undefined") { flash("NO RECORDER ON THIS PHONE", 2600); return; }
@@ -1039,12 +1048,21 @@ function applyUpdate() { if (busy) { setTimeout(applyUpdate, 1500); return; } lo
 if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }); } catch (e) {} }
 try { delete localStorage.who; delete localStorage.alien; } catch (e) {}   /* b223-b224 stored the sign-in; it is a session now */
 paintWho(); paintTop(); paintPanel();
-{ const sh = $("shutter");                              /* tap = a still; hold = film */
+{ const sh = $("shutter");
+  /* STILL: tap = a still, hold = film while held.  FILM: tap = roll, tap = cut; a hold still rolls while held. */
   sh.oncontextmenu = e => e.preventDefault();
-  sh.addEventListener("pointerdown", () => { if (sh.disabled) return; clearTimeout(pressTimer); pressTimer = setTimeout(startRoll, 380); });
-  sh.addEventListener("pointerup", () => { if (sh.disabled) return; const wasRec = !!rec, armed = !!pressTimer; clearTimeout(pressTimer); pressTimer = null; if (wasRec) stopRoll(); else if (armed) shoot(); });
-  sh.addEventListener("pointercancel", () => { clearTimeout(pressTimer); pressTimer = null; if (rec) stopRoll(); });
-  sh.addEventListener("pointerleave", () => { clearTimeout(pressTimer); pressTimer = null; if (rec) stopRoll(); }); }
+  sh.addEventListener("pointerdown", () => { if (sh.disabled) return; clearTimeout(pressTimer); heldRec = false; pressTimer = setTimeout(() => { pressTimer = null; if (!rec) { startRoll(); heldRec = !!rec; } }, 380); });
+  sh.addEventListener("pointerup", () => {
+    if (sh.disabled) return;
+    const armed = !!pressTimer; clearTimeout(pressTimer); pressTimer = null;
+    if (heldRec) { heldRec = false; stopRoll(); return; }           /* the hold ended */
+    if (!armed) return;                                              /* the hold fired but nothing rolled (signed out): the flash said so */
+    if (filmMode) { if (rec) stopRoll(); else startRoll(); } else shoot();
+  });
+  sh.addEventListener("pointercancel", () => { clearTimeout(pressTimer); pressTimer = null; if (heldRec) { heldRec = false; stopRoll(); } });
+  sh.addEventListener("pointerleave", () => { clearTimeout(pressTimer); pressTimer = null; if (heldRec) { heldRec = false; stopRoll(); } });
+  $("mode").onclick = () => { if (rec) return; setMode(!filmMode); };
+  paintMode(); }
 spawnLab();
 startCamera();
 paintStrip();

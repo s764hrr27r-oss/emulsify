@@ -40,7 +40,7 @@ PROFILES = os.environ.get("EMULSIFY_PROFILES", os.path.join(os.path.dirname(os.p
 ORIGINS = set(filter(None, os.environ.get("EMULSIFY_ORIGINS", "https://s764hrr27r-oss.github.io,http://127.0.0.1:8765,http://localhost:8765").split(",")))
 MAX_NEG = 64 * 1024 * 1024            # a still is well under 1 MB; an 8 s phone clip is 10-20 MB
 JOBS = os.path.join(DATA, "jobs")
-PARAM_KEYS = ("seed", "size", "mm", "ana", "leak", "dc", "build", "profile", "kind", "fps", "crop")
+PARAM_KEYS = ("seed", "size", "mm", "ana", "leak", "dc", "build", "profile", "kind", "fps", "crop", "timing")
 lock = threading.Lock()
 agent_seen = 0.0
 

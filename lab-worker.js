@@ -1,4 +1,7 @@
-// lab-worker.js — v3.24. Verbatim canon; JPEG prints
+// lab-worker.js — v3.25. Verbatim canon; JPEG prints
+// v3.25: THE SHOT. Film times a shot, not a frame: when _SHOT[0] is set (by the lab PC, for a roll) the streamed
+// develop uses the shot's taus, drift gains, warm bias, exposure and fixer instead of measuring its own, and
+// _shot_probe measures a frame without developing it. Inert for stills (_SHOT[0] is None). Golden v21 holds.
 // v3.24: THE SATURATED SOURCE. A blown area larger than a fifth of the glow's reach glows no harder than one that fills a fifth (_swell): the car-interior veil. Golden moves v20 -> v21.
 // v3.10: the loading leak (flagged first frames only), v3.9: provenance + STOCK metadata. Golden v12 cff518ecfbeda947 holds.
 // v3.8: STRATA LIGHT. Seeded 64 band hue scramble (+-5.6 deg) on the scene light
@@ -104,7 +107,7 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js");
 
 let pyodide = null, develop = null, bakePy = null;
 
-const WORKER_VER = "3.24";              /* reported to the page at boot for the corner badge.
+const WORKER_VER = "3.25";              /* reported to the page at boot for the corner badge.
    Kept honest by vercheck.mjs: this and the version on line 1 must agree. They
    drifted for two releases - the header said 3.22, this said 3.20 - and the
    panel told the owner the deploy had failed when the deploy was fine. A
@@ -191,6 +194,24 @@ def _expand(lin, kmax=2.2):
 # Deterministic — driven only by the image. Rescued frames carry a trace
 # of push character, as real rescued rolls did.
 _TAUS = [1.0, 1.0, 1.0]; _CALL = [0]
+# v3.25 THE SHOT. None for a still: every frame times itself. For film the lab PC sets a dict with any of
+# taus (3), gains (3), warmbias, ev, g (3): the streamed develop uses those instead of measuring, and always
+# leaves what it measured in _SHOT_MEASURED so the next frames can be timed from it.
+_SHOT = [None]; _SHOT_MEASURED = {}
+def _shot(key, measured):
+    _SHOT_MEASURED[key] = measured
+    sh = _SHOT[0]
+    return sh[key] if (sh and key in sh and sh[key] is not None) else measured
+def _shot_drift(ref_sum, ref_n):
+    if ref_n > 300:
+        avg = ref_sum / ref_n
+        gains = np.clip((avg.mean()/np.maximum(avg, 1e-6))**0.8, 0.80, 1.25)
+        warmbias = float(np.clip((avg[0]-avg[2])/max(avg.mean(), 1e-6), -0.5, 0.8))
+    else:
+        gains = np.ones(3); warmbias = 0.0
+    return gains, warmbias
+def _shot_ev(med):
+    return float(np.clip(np.log2(0.16/max(med, 1e-4))*0.55, -0.4, 1.2) + 0.2)
 _FIELDS = [None, None, None]; _BEDS = [None, None, None]
 _GRAIN_SEED = [0]      # v3.18: grain is keyed to the frame seed, not to call order
 
@@ -604,6 +625,45 @@ def _tooth_band(h, w, y0, seed):
     off = 4 if y0 >= 4 else y0
     return t[off:off + h]
 
+def _shot_probe(neg_bytes, long_edge=LONG_EDGE):
+    """v3.25: the streamed develop's passes 1 and 2 alone - what this frame's meter, drift balancer and exposure
+    would be - so a roll can be timed as a shot before a single frame develops. Same helpers, same formulas."""
+    src = ImageOps.exif_transpose(Image.open(io.BytesIO(bytes(neg_bytes)))).convert("RGB")
+    src = _lens_warp(src)
+    long_edge = int(long_edge)
+    if src.width >= src.height:
+        w = long_edge; h = round(src.height*long_edge/src.width)
+    else:
+        h = long_edge; w = round(src.width*long_edge/src.height)
+    arr = np.array(src.resize((w, h), Image.LANCZOS)); src.close()
+    H, W = arr.shape[:2]
+    rows = _STREAM_ROWS if H >= 1500 else _BAND_ROWS
+    lum_pre = np.empty((H, W), np.float64); ref_sum = np.zeros(3); ref_n = 0
+    for y, y1, a, b in _band_edges(H, rows, 0):
+        lin, x = _lin_band(arr, y, y1)
+        lum_pre[y:y1] = lin.mean(-1)
+        l0 = x.mean(-1); sat = x.max(-1) - x.min(-1)
+        ref = (l0 > 0.45) & (l0 < 0.92) & (sat < 0.10*np.maximum(l0, 1e-6) + 0.04)
+        n = int(ref.sum())
+        if n:
+            ref_sum += np.array([x[..., c][ref].sum() for c in range(3)]); ref_n += n
+        del lin, x
+    taus = list(_meter_from_lum(lum_pre)); del lum_pre
+    gains, warmbias = _shot_drift(ref_sum, ref_n)
+    lum = np.empty((H, W), np.float64)
+    for y, y1, a, b in _band_edges(H, rows, 12):
+        _, x = _lin_band(arr, a, b)
+        t = np.clip(x*gains[None, None, :], 0, None)
+        r, g, bb = t[..., 0], t[..., 1], t[..., 2]
+        greenness = np.clip((g - np.maximum(r, bb))/np.maximum(g, 1e-6), 0, 1)
+        yellow = np.clip((np.minimum(r, g) - bb)/np.maximum(g, 1e-6), 0, 1)
+        fol = gaussian_filter(np.clip(greenness*2.2, 0, 1)*np.clip(0.35 + yellow, 0, 1), 2.0)
+        t[..., 1] *= (1 - 0.22*fol); t[..., 0] *= (1 - 0.16*fol); t[..., 2] *= (1 - 0.04*fol)
+        lum[y:y1] = t[y-a:y-a+(y1-y)].mean(-1)
+        del t, x
+    med = float(np.median(lum)); del lum
+    return {"taus": [float(v) for v in taus], "gains": [float(v) for v in gains], "warmbias": float(warmbias), "ev": _shot_ev(med), "med": med, "ref_n": int(ref_n)}
+
 def _develop_streamed(arr, seed):
     """HONEY70_CANON + _meter + _final_fix + _dodge, streamed. Returns the
     dodged linear print as float32 RGB in [0,1]."""
@@ -627,18 +687,14 @@ def _develop_streamed(arr, seed):
         if n:
             ref_sum += np.array([x[..., c][ref].sum() for c in range(3)]); ref_n += n
         del lin, x
-    _TAUS[:] = _meter_from_lum(lum_pre); _CALL[0] = 0; _GRAIN_SEED[0] = int(seed)
+    _TAUS[:] = list(_shot("taus", list(_meter_from_lum(lum_pre)))); _CALL[0] = 0; _GRAIN_SEED[0] = int(seed)
     try:
         _BASE[0] = base                                   # what _meter would have stashed
     except Exception:
         pass
     del lum_pre, base
-    if ref_n > 300:
-        avg = ref_sum / ref_n
-        gains = np.clip((avg.mean()/np.maximum(avg, 1e-6))**0.8, 0.80, 1.25)
-        warmbias = float(np.clip((avg[0]-avg[2])/max(avg.mean(), 1e-6), -0.5, 0.8))
-    else:
-        gains = np.ones(3); warmbias = 0.0
+    gains, warmbias = _shot_drift(ref_sum, ref_n)
+    gains = np.asarray(_shot("gains", [float(x) for x in gains]), np.float64); warmbias = float(_shot("warmbias", warmbias))
     wb = np.clip(1.0 - warmbias*1.4, 0.35, 1.0)
 
     def timed_band(a, b):
@@ -658,7 +714,7 @@ def _develop_streamed(arr, seed):
         lum[y:y1] = t[y-a:y-a+(y1-y)].mean(-1)
         del t
     med = float(np.median(lum))
-    ev = float(np.clip(np.log2(0.16/max(med, 1e-4))*0.55, -0.4, 1.2) + 0.2)
+    ev = float(_shot("ev", _shot_ev(med)))
     hotl = np.maximum(lum - 0.45, 0)*1.8
     h15 = hotl**1.5; del hotl
     swell = _swell(h15, lum).astype(np.float32); del h15, lum       # v3.24: the saturated source
@@ -736,6 +792,10 @@ def _develop_streamed(arr, seed):
         dv = m/m.mean() - 1.0
         dvx = np.sign(dv)*np.maximum(np.abs(dv) - 0.05, 0)
         g = np.clip((1.0 + dvx)**(-0.55*wcol), 0.955, 1.045); g = (g/g.mean()).astype(np.float32)
+    else:
+        g = np.ones(3, np.float32)
+    g = np.asarray(_shot("g", [float(x) for x in g]), np.float32)
+    if np.any(g != 1.0):
         for y, y1, a, b in _band_edges(H, rows, 0):
             out[y:y1] = np.clip(out[y:y1]*g[None, None, :], 0, 1)
 
