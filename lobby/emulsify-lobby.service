@@ -1,0 +1,16 @@
+# /etc/systemd/system/emulsify-lobby.service  - copied from the ctforge-web shape: own user, own port, localhost only
+[Unit]
+Description=Emulsify lobby (job queue for the remote lab)
+After=network.target
+
+[Service]
+User=emulsify
+Group=emulsify
+WorkingDirectory=/opt/emulsify
+EnvironmentFile=/etc/emulsify/lobby.env
+ExecStart=/usr/bin/python3 /opt/emulsify/lobby.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
