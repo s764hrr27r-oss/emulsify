@@ -1,4 +1,4 @@
-# EMULSIFY LOBBY + FILM — install (b247 / w3.25, lobby kit 7)
+# EMULSIFY LOBBY + FILM — install (b248 / w3.25, lobby kit 8)
 
 **The one-script way (what you actually run):** on the lab PC, in PowerShell,
 
@@ -130,7 +130,7 @@ Throughput: a 720 px frame is ~3 s of lab time here, ~4 s on the lab PC; 8 s of 
 
 Rituals: `python3 e2e-film.py` (page on 8765, lobby on 8766, the real agent polling it; includes the STILL/FILM mode) and `python3 filmcheck.py` (the flicker numbers above).
 
-## THE SHELF (b247)
+## THE SHELF (b248)
 
 Every finished roll is also kept on the droplet for its owner (`$EMULSIFY_DATA/shelf/<WHO>/`), never swept.
 Signed in, the phone asks `GET /shelf` and pulls down any film it does not have, so a person's films are in her
@@ -143,7 +143,7 @@ Signed in, a dot in the top bar: green LAB (the lab PC answered the lobby in the
 (lobby up, lab away: stills develop on the phone, film waits), red NO LOBBY. Landscape: `#gate` needed
 `min-width:0` - Safari gave it the finder's aspect-ratio width as a minimum and pushed the foot off-screen.
 
-## THE GPU LAB (kit 7) and LAB PRINT (b247)
+## THE GPU LAB (kit 7) and LAB PRINT (b248)
 
 `gpulab.py` loads the same lab with `numpy` resolving to CuPy (scipy.ndimage to cupyx), the seeded draws kept on
 numpy's generators (CuPy's are different generators; the grain would be different grain), PIL at the edges. No

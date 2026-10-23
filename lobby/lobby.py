@@ -185,6 +185,9 @@ class H(BaseHTTPRequestHandler):
             if not self.phone_ok(): return self.out(401, {"error": "sign in"})
             if not os.path.exists(os.path.join(jdir(p[2]), "poster.jpg")): return self.out(404, {"error": "no poster"})
             return self.out(200, read(p[2], "poster.jpg", "rb"), "image/jpeg")
+        if u.path == "/agent/ping":                      # the heartbeat: a worker deep in a 40 s print is still here
+            if not self.agent_ok(): return self.out(401, {"error": "agent key"})
+            return self.out(200, {"ok": True})
         if len(p) == 5 and p[1] == "agent" and p[2] == "jobs" and safe_id(p[3]) and p[4] == "neg":
             if not self.agent_ok(): return self.out(401, {"error": "agent key"})
             if not state(p[3]): return self.out(404, {"error": "no such job"})

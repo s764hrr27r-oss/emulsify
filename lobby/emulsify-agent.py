@@ -286,7 +286,16 @@ def develop(ns, job):
     r = ns["develop"](neg, p.get("profile", "honey"), int(float(p.get("seed", 1))), int(float(p.get("size", 1100))))
     return r["jpg"], float(r["secs"])
 
+def heartbeat():
+    """every 5 s, whatever the lab is doing: the lobby's agent_seen is what the phone's lab light reads"""
+    def beat():
+        while True:
+            try: call("GET", "/agent/ping", timeout=10)
+            except Exception: pass
+            time.sleep(5)
+    threading.Thread(target=beat, daemon=True).start()
 def worker(n):
+    heartbeat()
     ns = make_lab()
     log("agent[%d]: lab loaded, polling %s" % (n, LOBBY))
     while True:
