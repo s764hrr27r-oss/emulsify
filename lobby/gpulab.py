@@ -14,7 +14,18 @@ machine: the golden chart developed here must sit within float noise of the refe
     make_lab(lab_dir)      -> the lab namespace on the GPU (raises if CuPy or the GPU is missing)
     make_lab(lab_dir, backend=(numpy, scipy)) -> the same shim over numpy itself: proves the plumbing without a GPU
 """
-import sys, types, os, importlib
+import sys, types, os, importlib, glob
+
+def _cuda_dlls():
+    """CuPy's wheel brings no CUDA libraries; the nvidia-*-cu12 wheels do, under site-packages/nvidia/<lib>/bin.
+    Point the loader at them before cupy is imported (kit 8: 'Failure finding known cublasLt DLL')."""
+    for sp in set(sys.path):
+        for d in glob.glob(os.path.join(sp, "nvidia", "*", "bin")) + glob.glob(os.path.join(sp, "nvidia", "*", "lib")):
+            if os.path.isdir(d):
+                os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
+                if hasattr(os, "add_dll_directory"):
+                    try: os.add_dll_directory(d)
+                    except Exception: pass
 
 def _rng_proxy(gen, cp, np):
     """numpy's generator, its arrays delivered as GPU arrays"""
@@ -33,6 +44,7 @@ def make_lab(lab_dir, backend=None):
     import numpy as np, scipy.ndimage, scipy.special
     from PIL import Image
     if backend is None:
+        _cuda_dlls()
         import cupy as cp, cupyx.scipy.ndimage as cnd, cupyx.scipy.special as csp
         cp.cuda.Device(0).use()
     else:
@@ -85,6 +97,7 @@ def make_lab(lab_dir, backend=None):
 
 def device_name():
     try:
+        _cuda_dlls()
         import cupy as cp
         p = cp.cuda.runtime.getDeviceProperties(0); return p["name"].decode() if isinstance(p["name"], bytes) else str(p["name"])
     except Exception as e:
